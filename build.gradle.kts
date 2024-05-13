@@ -1,5 +1,4 @@
 plugins {
-    id("org.octopusden.octopus-release-management")
     id("org.jetbrains.kotlin.jvm")
     application
     `maven-publish`
