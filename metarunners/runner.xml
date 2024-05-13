@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="${description}">
+    <description>${description}</description>
+    <settings>
+        <parameters>
+            <!-- TODO: Custom metarunner parameters -->
+            <param name="HELP" value="--help"
+                   spec="text description='Show help text.' validationMode='not_empty' display='normal'"/>
+        </parameters>
+        <build-runners>
+            <runner name="${metarunnerId}" type="kotlinScript">
+                <parameters>
+                    <!-- TODO: Custom script parameters -->
+                    <param name="kotlinArgs" value="%HELP%" />
+                    <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" />
+                    <param name="scriptContent"><![CDATA[
+@file:DependsOn("${group}:${name}:${version}")
+import ${group}.Application
+Application().run(args)
+]]></param>
+                    <param name="scriptType" value="customScript" />
+                    <param name="teamcity.step.mode" value="default" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>
