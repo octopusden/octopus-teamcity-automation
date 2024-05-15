@@ -14,8 +14,8 @@
                     <param name="kotlinArgs" value="%HELP%" />
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" />
                     <param name="scriptContent"><![CDATA[
-@file:DependsOn("${group}:${name}:${version}")
-import ${group}.Application
+@file:DependsOn("${group}:${artifactId}:${version}")
+import ${mainClassPackage}.Application
 Application().run(args)
 ]]></param>
                     <param name="scriptType" value="customScript" />

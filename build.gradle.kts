@@ -5,7 +5,7 @@ plugins {
 }
 
 repositories {
-    maven( url = "https://packages.jetbrains.team/maven/p/teamcity-rest-client/teamcity-rest-client")
+    maven(url = "https://packages.jetbrains.team/maven/p/teamcity-rest-client/teamcity-rest-client")
 }
 
 dependencies {
@@ -18,8 +18,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 }
 
+group = project.properties["group"] as String
+
 application {
-    mainClass = "${group}.ApplicationKt"
+    mainClass = "${project.properties["mainClassPackage"]}.ApplicationKt"
 }
 
 tasks.jar {
@@ -29,14 +31,15 @@ tasks.jar {
         if (f.isDirectory) f else zipTree(f)
     } + sourceSets.main.get().output
     from(contents)
+    archiveBaseName = project.properties["artifactId"] as String
 }
 
-tasks.register<Copy>("processMetarunners"){
-    from("$rootDir/metarunners"){
+tasks.register<Copy>("processMetarunners") {
+    from("$rootDir/metarunners") {
         expand(rootProject.properties)
     }
     into("$rootDir/build/metarunners")
-    rename("runner.xml","${project.properties["metarunnerId"]}.xml")
+    rename("runner.xml", "${project.properties["metarunnerId"]}.xml")
 }
 
 tasks.processResources {
@@ -49,6 +52,7 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
+            artifactId = project.properties["artifactId"] as String
         }
     }
 }

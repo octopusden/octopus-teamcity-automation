@@ -1,4 +1,4 @@
-package org.octopusden.octopus.teamcity.automation
+package org.octopusden.octopus.automation.teamcity
 
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
