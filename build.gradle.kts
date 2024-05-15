@@ -5,6 +5,8 @@ plugins {
 }
 
 repositories {
+    mavenLocal()
+    mavenCentral()
     maven(url = "https://packages.jetbrains.team/maven/p/teamcity-rest-client/teamcity-rest-client")
 }
 
