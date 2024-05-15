@@ -7,7 +7,7 @@ jobs:
     uses: octopusden/octopus-base/.github/workflows/common-java-gradle-release.yml@v2.1.8
     with:
       flow-type: public
-      java-version: '21'
+      java-version: '17'
       commit-hash: ${{ github.event.client_payload.commit }}
       build-version: ${{ github.event.client_payload.project_version }}
     secrets: inherit
