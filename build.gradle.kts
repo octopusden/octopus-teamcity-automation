@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.support.kotlinCompilerOptions
+
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
@@ -12,6 +14,12 @@ ext {
     set("mainClassPackage", "org.octopusden.octopus.automation.teamcity")
     set("artifactId", "teamcity-automation")
 }
+
+tasks.compileKotlin{
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+java.targetCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
     mavenLocal()
