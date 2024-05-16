@@ -13,7 +13,7 @@ open class Application() {
     private val logger: Logger = LoggerFactory.getLogger(Application::class.java)
     private val parser = ArgParser(Application::class.java.simpleName)
 
-  // TODO: +Custom parameters
+    // TODO: +Custom parameters
     private val teamcityUrl by parser.option(
         type = ArgType.String,
         shortName = "t",

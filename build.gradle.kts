@@ -4,6 +4,15 @@ plugins {
     `maven-publish`
 }
 
+// TODO: +Settings
+group = "org.octopusden.octopus.automation"
+description = "Octopus Teamcity Automation"
+ext {
+    set("metarunnerId", "OctopusTeamcityAutomation")
+    set("mainClassPackage", "org.octopusden.octopus.automation.teamcity")
+    set("artifactId", "teamcity-automation")
+}
+
 repositories {
     mavenLocal()
     mavenCentral()
@@ -19,8 +28,6 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 }
-
-group = project.properties["group"] as String
 
 application {
     mainClass = "${project.properties["mainClassPackage"]}.ApplicationKt"

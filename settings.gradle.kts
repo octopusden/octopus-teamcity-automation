@@ -4,5 +4,6 @@ pluginManagement {
     }
 }
 
-rootProject.name = extra["projectName"] as String
+// TODO: +Project name
+rootProject.name = "octopus-teamcity-automation"
 
