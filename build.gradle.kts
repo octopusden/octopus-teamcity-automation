@@ -27,8 +27,8 @@ repositories {
 
 dependencies {
     implementation("org.slf4j:slf4j-api:1.7.30")
-    implementation("ch.qos.logback:logback-core:1.5.6")
-    implementation("ch.qos.logback:logback-classic:1.5.6")
+    implementation("ch.qos.logback:logback-core:1.3.14")
+    implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.5")
     // TODO: +Custom dependencies
     implementation("org.jetbrains.teamcity:teamcity-rest-client:3.5")
