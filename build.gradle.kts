@@ -1,5 +1,3 @@
-import org.gradle.kotlin.dsl.support.kotlinCompilerOptions
-
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
@@ -15,7 +13,7 @@ ext {
     set("artifactId", "teamcity-automation")
 }
 
-tasks.compileKotlin{
+tasks.compileKotlin {
     kotlinOptions.jvmTarget = "1.8"
 }
 
@@ -28,8 +26,9 @@ repositories {
 }
 
 dependencies {
-    implementation("org.slf4j:slf4j-api:1.7.25")
-    implementation("org.slf4j:slf4j-simple:1.7.25")
+    implementation("org.slf4j:slf4j-api:1.7.30")
+    implementation("ch.qos.logback:logback-core:1.5.6")
+    implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.5")
     // TODO: +Custom dependencies
     implementation("org.jetbrains.teamcity:teamcity-rest-client:3.5")
@@ -50,20 +49,6 @@ tasks.jar {
     from(contents)
     archiveBaseName = project.properties["artifactId"] as String
 }
-
-tasks.register<Copy>("processMetarunners") {
-    from("$rootDir/metarunners") {
-        expand(rootProject.properties)
-    }
-    into("$rootDir/build/metarunners")
-    rename("runner.xml", "${project.properties["metarunnerId"]}.xml")
-}
-
-tasks.processResources {
-    dependsOn("processMetarunners")
-}
-
-apply("deploy-metarunners.gradle.kts")
 
 publishing {
     publications {

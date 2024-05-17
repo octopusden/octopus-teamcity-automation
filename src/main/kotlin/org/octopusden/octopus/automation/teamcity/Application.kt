@@ -2,7 +2,6 @@ package org.octopusden.octopus.automation.teamcity
 
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
-import kotlinx.cli.default
 import kotlinx.cli.required
 import org.jetbrains.teamcity.rest.ProjectId
 import org.slf4j.Logger
@@ -16,36 +15,42 @@ open class Application() {
     // TODO: +Custom parameters
     private val teamcityUrl by parser.option(
         type = ArgType.String,
+        fullName = "teamcity.url",
         shortName = "t",
-        description = "Teamcity Url"
+        description = "Teamcity Url",
     ).required()
 
     private val teamcityUser by parser.option(
         type = ArgType.String,
+        fullName = "teamcity.user",
         shortName = "u",
         description = "Teamcity user"
     ).required()
 
     private val teamcityPassword by parser.option(
         type = ArgType.String,
+        fullName = "teamcity.password",
         shortName = "p",
         description = "Teamcity password"
     ).required()
 
     private val parentProjectId by parser.option(
         type = ArgType.String,
-        shortName = "pp",
+        fullName = "parent",
+        shortName = "pa",
         description = "Teamcity parent project Id"
     ).required()
 
     private val componentName by parser.option(
         type = ArgType.String,
+        fullName = "component",
         shortName = "c",
         description = "Component registry name"
     ).required()
 
     private val minorVersion by parser.option(
         type = ArgType.String,
+        fullName = "minor",
         shortName = "m",
         description = "Minor version"
     ).required()
@@ -53,6 +58,7 @@ open class Application() {
 
     fun run(args: Array<String>) {
         logger.debug("args = {}", args)
+        logger.info("args = {}", args)
         parser.parse(args)
         // TODO: Custom code
         val tc = TeamCityInstance.httpAuth(

@@ -4,14 +4,14 @@
     <settings>
         <parameters>
             <!-- TODO: Custom metarunner parameters -->
-            <param name="HELP" value="--help"
+            <param name="ARGS" value="--help"
                    spec="text description='Show help text.' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
             <runner name="${metarunnerId}" type="kotlinScript">
                 <parameters>
                     <!-- TODO: Custom script parameters -->
-                    <param name="kotlinArgs" value="%HELP%" />
+                    <param name="kotlinArgs" value="%ARGS%" />
                     <!--param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" /-->
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.1.9.20%" />
                     <param name="scriptContent"><![CDATA[
