@@ -2,72 +2,53 @@ package org.octopusden.octopus.automation.teamcity
 
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
+import kotlinx.cli.ExperimentalCli
 import kotlinx.cli.required
-import org.jetbrains.teamcity.rest.ProjectId
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.jetbrains.teamcity.rest.TeamCityInstance
 
 open class Application() {
     private val logger: Logger = LoggerFactory.getLogger(Application::class.java)
-    private val parser = ArgParser(Application::class.java.simpleName)
+    val parser = ArgParser(Application::class.java.simpleName)
 
     // TODO: +Custom parameters
-    private val teamcityUrl by parser.option(
+    val teamcityUrl by parser.option(
         type = ArgType.String,
         fullName = "teamcity.url",
         shortName = "t",
         description = "Teamcity Url",
     ).required()
 
-    private val teamcityUser by parser.option(
+    val teamcityUser by parser.option(
         type = ArgType.String,
         fullName = "teamcity.user",
         shortName = "u",
         description = "Teamcity user"
     ).required()
 
-    private val teamcityPassword by parser.option(
+    val teamcityPassword by parser.option(
         type = ArgType.String,
         fullName = "teamcity.password",
         shortName = "p",
         description = "Teamcity password"
     ).required()
-
-    private val parentProjectId by parser.option(
-        type = ArgType.String,
-        fullName = "parent",
-        shortName = "pa",
-        description = "Teamcity parent project Id"
-    ).required()
-
-    private val componentName by parser.option(
-        type = ArgType.String,
-        fullName = "component",
-        shortName = "c",
-        description = "Component registry name"
-    ).required()
-
-    private val minorVersion by parser.option(
-        type = ArgType.String,
-        fullName = "minor",
-        shortName = "m",
-        description = "Minor version"
-    ).required()
     // end of parameters
 
+    fun getTeamCityInstance(): TeamCityInstance = TeamCityInstance.httpAuth(
+        serverUrl = teamcityUrl,
+        username = teamcityUser,
+        password = teamcityPassword
+    )
+
+    @OptIn(ExperimentalCli::class)
     fun run(args: Array<String>) {
         logger.debug("args = {}", args)
-        logger.info("args = {}", args)
-        parser.parse(args)
-        // TODO: Custom code
-        val tc = TeamCityInstance.httpAuth(
-            serverUrl = teamcityUrl,
-            username = teamcityUser,
-            password = teamcityPassword
+        parser.subcommands(
+            CmdCreateCDBuildChain(this),
+            CmdReplaceTeamcityVcsRoot(this)
         )
-        val parentProject = tc.project(ProjectId(parentProjectId))
-        logger.info("Project    : {} {}", parentProject.name, parentProject.id.stringId)
+        parser.parse(args)
     }
 }
 
