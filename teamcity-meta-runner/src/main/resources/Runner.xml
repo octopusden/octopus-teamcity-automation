@@ -5,7 +5,7 @@
         <parameters>
             <!-- TODO: Custom metarunner parameters -->
             <param name="ARGS" value="--help"
-                   spec="text description='Show help text.' validationMode='not_empty' display='normal'"/>
+                   spec="text description='Runner arguments.' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
             <runner name="${metarunnerId}" type="kotlinScript">
