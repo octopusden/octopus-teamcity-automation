@@ -13,21 +13,21 @@ open class Application() {
     val parser = ArgParser(Application::class.java.simpleName)
 
     // TODO: +Custom parameters
-    val teamcityUrl by parser.option(
+    private val teamcityUrl by parser.option(
         type = ArgType.String,
         fullName = "teamcity.url",
         shortName = "t",
         description = "Teamcity Url",
     ).required()
 
-    val teamcityUser by parser.option(
+    private val teamcityUser by parser.option(
         type = ArgType.String,
         fullName = "teamcity.user",
         shortName = "u",
         description = "Teamcity user"
     ).required()
 
-    val teamcityPassword by parser.option(
+    private val teamcityPassword by parser.option(
         type = ArgType.String,
         fullName = "teamcity.password",
         shortName = "p",

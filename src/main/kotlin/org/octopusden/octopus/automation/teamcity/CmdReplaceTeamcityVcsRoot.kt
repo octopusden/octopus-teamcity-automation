@@ -3,7 +3,6 @@ package org.octopusden.octopus.automation.teamcity
 import kotlinx.cli.ArgType
 import kotlinx.cli.Subcommand
 import kotlinx.cli.required
-import org.jetbrains.teamcity.rest.ProjectId
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
