@@ -2,6 +2,8 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     application
     `maven-publish`
+    id("io.github.gradle-nexus.publish-plugin")
+    signing
 }
 
 // TODO: +Settings
@@ -47,11 +49,55 @@ tasks.jar {
     archiveBaseName = project.properties["artifactId"] as String
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
+            username.set(System.getenv("MAVEN_USERNAME"))
+            password.set(System.getenv("MAVEN_PASSWORD"))
+        }
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
             artifactId = project.properties["artifactId"] as String
+            pom {
+                name.set(project.name)
+                description.set(project.description)
+                url.set("https://github.com/octopusden/${project.name}.git")
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/octopusden/${project.name}.git")
+                    connection.set("scm:git://github.com/octopusden/${project.name}.git")
+                }
+                developers {
+                    developer {
+                        id.set("octopus")
+                        name.set("octopus")
+                    }
+                }
+            }
         }
     }
+}
+
+signing {
+    val signingKey: String? by project
+    val signingPassword: String? by project
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign(publishing.publications["maven"])
 }
