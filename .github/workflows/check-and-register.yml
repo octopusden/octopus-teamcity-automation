@@ -6,15 +6,10 @@ on:
     types:
       - completed
 
-env:
-  # TODO: Setup project artifact
-  ARTIFACT_ID: teamcity-automation
-  GROUP_WITHOUT_ORG_OCTOPUSDEN: octopus/automation
-
 jobs:
   build:
     uses: octopusden/octopus-base/.github/workflows/common-check-and-register-release.yml@v2.1.8
     if:  "${{ github.event.workflow_run.conclusion == 'success' }}"
     with:
-      artifact-pattern: "${{ env.GROUP_WITHOUT_ORG_OCTOPUSDEN }}/${{ env.ARTIFACT_ID }}/_VER_/${{ env.ARTIFACT_ID }}-_VER_.jar"
+      artifact-pattern: "octopus/automation/teamcity-automation/_VER_/teamcity-automation-_VER_.jar"
     secrets: inherit
