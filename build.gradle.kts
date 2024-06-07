@@ -1,5 +1,3 @@
-import java.util.*
-
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
@@ -104,13 +102,11 @@ publishing {
     }
 }
 
-if (project.hasProperty("nexus")
-    && !project.version.toString().uppercase(Locale.getDefault()).endsWith("SNAPSHOT")
-) {
-    signing {
-        val signingKey: String? by project
-        val signingPassword: String? by project
-        useInMemoryPgpKeys(signingKey, signingPassword)
-        sign(publishing.publications["maven"])
-    }
+signing {
+    isRequired = System.getenv().containsKey("ORG_GRADLE_PROJECT_signingKey") && System.getenv()
+        .containsKey("ORG_GRADLE_PROJECT_signingPassword")
+    val signingKey: String? by project
+    val signingPassword: String? by project
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign(publishing.publications["maven"])
 }
