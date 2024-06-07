@@ -1,3 +1,5 @@
+import java.util.*
+
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
@@ -90,14 +92,25 @@ publishing {
                         name.set("octopus")
                     }
                 }
+                withXml {
+                    val root = asNode()
+                    val nodes = root["dependencies"] as groovy.util.NodeList
+                    if (nodes.isNotEmpty()) {
+                        root.remove(nodes.first() as groovy.util.Node)
+                    }
+                }
             }
         }
     }
 }
 
-signing {
-    val signingKey: String? by project
-    val signingPassword: String? by project
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign(publishing.publications["maven"])
+if (project.hasProperty("nexus")
+    && !project.version.toString().uppercase(Locale.getDefault()).endsWith("SNAPSHOT")
+) {
+    signing {
+        val signingKey: String? by project
+        val signingPassword: String? by project
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign(publishing.publications["maven"])
+    }
 }
