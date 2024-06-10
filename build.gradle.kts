@@ -4,6 +4,7 @@ plugins {
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 // TODO: +Settings
@@ -42,10 +43,6 @@ application {
 tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest { attributes(mapOf("Main-Class" to application.mainClass)) }
-    val contents = configurations.runtimeClasspath.get().map { f ->
-        if (f.isDirectory) f else zipTree(f)
-    } + sourceSets.main.get().output
-    from(contents)
     archiveBaseName = project.properties["artifactId"] as String
 }
 
@@ -68,7 +65,7 @@ nexusPublishing {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            from(components["java"])
+            project.shadow.component(this)
             artifactId = project.properties["artifactId"] as String
             pom {
                 name.set(project.name)
@@ -96,6 +93,8 @@ publishing {
 }
 
 signing {
+    isRequired = System.getenv().containsKey("ORG_GRADLE_PROJECT_signingKey") && System.getenv()
+        .containsKey("ORG_GRADLE_PROJECT_signingPassword")
     val signingKey: String? by project
     val signingPassword: String? by project
     useInMemoryPgpKeys(signingKey, signingPassword)

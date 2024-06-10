@@ -19,6 +19,7 @@
 import ${mainClassPackage}.Application
 Application().run(args)
 ]]></param>
+                    <param name="jvmArgs" value="-Duser.home=." />
                     <param name="scriptType" value="customScript" />
                     <param name="teamcity.step.mode" value="default" />
                 </parameters>
