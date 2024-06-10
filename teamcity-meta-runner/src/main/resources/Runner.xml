@@ -15,7 +15,7 @@
                     <!--param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" /-->
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.1.9.20%" />
                     <param name="scriptContent"><![CDATA[
-@file:DependsOn("${group}:${artifactId}:%OCTOPUS_TEAMCITY_AUTOMATION_VERSION%", options = ["transitive=false"])
+@file:DependsOn("${group}:${artifactId}:%OCTOPUS_TEAMCITY_AUTOMATION_VERSION%")
 import ${mainClassPackage}.Application
 Application().run(args)
 ]]></param>
