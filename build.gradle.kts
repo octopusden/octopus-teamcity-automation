@@ -60,6 +60,10 @@ nexusPublishing {
             password.set(System.getenv("MAVEN_PASSWORD"))
         }
     }
+    transitionCheckOptions {
+        maxRetries.set(60)
+        delayBetween.set(Duration.ofSeconds(30))
+    }
 }
 
 publishing {
