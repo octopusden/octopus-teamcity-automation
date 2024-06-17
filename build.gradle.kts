@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
