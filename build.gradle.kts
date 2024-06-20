@@ -72,6 +72,8 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             project.shadow.component(this)
+            artifact(tasks["javadocJar"])
+            artifact(tasks["sourcesJar"])
             artifactId = project.properties["artifactId"] as String
             pom {
                 name.set(project.name)
