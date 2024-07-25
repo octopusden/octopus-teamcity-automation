@@ -4,9 +4,14 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.ExperimentalCli
 import kotlinx.cli.required
+import org.apache.commons.text.StringSubstitutor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.jetbrains.teamcity.rest.TeamCityInstance
+import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
+import org.octopusden.octopus.infrastructure.client.commons.ClientParametersProvider
+import org.octopusden.octopus.infrastructure.client.commons.StandardBasicCredCredentialProvider
+import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClient
+import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClientUrlProvider
 
 open class Application() {
     private val logger: Logger = LoggerFactory.getLogger(Application::class.java)
@@ -33,12 +38,29 @@ open class Application() {
         shortName = "p",
         description = "Teamcity password"
     ).required()
+
+    private val componentsRegistryUrl by parser.option(
+        type = ArgType.String,
+        fullName = "registry.url",
+        description = "Components Registry service Url"
+    ).required()
     // end of parameters
 
-    fun getTeamCityInstance(): TeamCityInstance = TeamCityInstance.httpAuth(
-        serverUrl = teamcityUrl,
-        username = teamcityUser,
-        password = teamcityPassword
+    val componentsRegistryClient by lazy {
+        ClassicComponentsRegistryServiceClient(
+            object : ClassicComponentsRegistryServiceClientUrlProvider {
+                override fun getApiUrl(): String {
+                    return componentsRegistryUrl
+                }
+            }
+        )
+    }
+
+    fun getTeamCityClient() = TeamcityClassicClient(
+        object : ClientParametersProvider {
+            override fun getApiUrl() = teamcityUrl
+            override fun getAuth() = StandardBasicCredCredentialProvider(teamcityUser, teamcityPassword)
+        }
     )
 
     @OptIn(ExperimentalCli::class)
@@ -53,5 +75,9 @@ open class Application() {
 }
 
 fun main(args: Array<String>) {
+    val substitutor = StringSubstitutor(System.getenv())
+    args.forEachIndexed{ i, arg ->
+        args[i] = substitutor.replace(arg)
+    }
     Application().run(args)
 }

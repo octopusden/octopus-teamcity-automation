@@ -19,7 +19,10 @@ ext {
 }
 
 tasks.compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions {
+        suppressWarnings = true
+        jvmTarget = "1.8"
+    }
 }
 
 java.targetCompatibility = JavaVersion.VERSION_1_8
@@ -27,15 +30,16 @@ java.targetCompatibility = JavaVersion.VERSION_1_8
 repositories {
     mavenLocal()
     mavenCentral()
-    maven(url = "https://packages.jetbrains.team/maven/p/teamcity-rest-client/teamcity-rest-client")
 }
 
 dependencies {
-    implementation("org.slf4j:slf4j-api:1.7.30")
-    implementation("ch.qos.logback:logback-classic:1.3.14")
+    implementation("org.slf4j:slf4j-api:2.0.13")
+    implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.5")
     // TODO: +Custom dependencies
-    implementation("org.jetbrains.teamcity:teamcity-rest-client:3.5")
+    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${project.properties["components-registry-service-client.version"]}")
+    implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${project.properties["teamcity-client.version"]}")
+    implementation("org.apache.commons:commons-text:1.12.0")
 }
 
 application {
