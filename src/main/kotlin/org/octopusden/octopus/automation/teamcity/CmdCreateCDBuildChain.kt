@@ -231,7 +231,7 @@ class CmdCreateCDBuildChain(val application: Application) : Subcommand(
                 RepositoryType.GIT -> teamcityClient.createVcsRoot(
                     TeamcityCreateVcsRoot(
                         name = vcsRootName,
-                        vcsName = TeamcityVCSType.GIT.toString(),
+                        vcsName = TeamcityVCSType.GIT.value,
                         projectLocator = projectId,
                         TeamcityProperties(
                             listOf(
@@ -249,7 +249,7 @@ class CmdCreateCDBuildChain(val application: Application) : Subcommand(
                 RepositoryType.MERCURIAL -> teamcityClient.createVcsRoot(
                     TeamcityCreateVcsRoot(
                         name = vcsRootName,
-                        vcsName = TeamcityVCSType.HG.toString(),
+                        vcsName = TeamcityVCSType.HG.value,
                         projectLocator = projectId,
                         TeamcityProperties(
                             listOf(
