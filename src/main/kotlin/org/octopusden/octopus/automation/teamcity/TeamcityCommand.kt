@@ -17,13 +17,16 @@ class TeamcityCommand : CliktCommand(name = "") {
     private val context by findOrSetObject { mutableMapOf<String, Any>() }
 
     override fun run() {
-        context[LOG] = LoggerFactory.getLogger(TeamcityCommand::class.java.`package`.name)
-        context[CLIENT] = TeamcityClassicClient(
+        val log = LoggerFactory.getLogger(TeamcityCommand::class.java.`package`.name)
+        val client = TeamcityClassicClient(
             object : ClientParametersProvider {
                 override fun getApiUrl() = url
                 override fun getAuth() = StandardBasicCredCredentialProvider(user, password)
             }
         )
+        log.info("TeamCity server version - ${client.getServer().version}")
+        context[LOG] = log
+        context[CLIENT] = client
     }
 
     companion object {
