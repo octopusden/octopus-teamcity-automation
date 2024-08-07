@@ -3,19 +3,16 @@
     <description>${description}</description>
     <settings>
         <parameters>
-            <!-- TODO: Custom metarunner parameters -->
             <param name="ARGS" value="--help"
                    spec="text description='Runner arguments.' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
             <runner name="${metarunnerId}" type="kotlinScript">
                 <parameters>
-                    <!-- TODO: Custom script parameters -->
                     <param name="kotlinArgs" value="%ARGS%" />
-                    <!--param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" /-->
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.1.9.20%" />
                     <param name="scriptContent"><![CDATA[
-@file:DependsOn("${group}:${artifactId}:%OCTOPUS_TEAMCITY_AUTOMATION_VERSION%")
+@file:DependsOn("${group}:${artifactId}:%OCTOPUS_TEAMCITY_AUTOMATION_VERSION%:all")
 import ${mainClassPackage}.Application
 Application().run(args)
 ]]></param>

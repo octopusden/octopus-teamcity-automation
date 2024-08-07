@@ -9,7 +9,6 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
-// TODO: +Settings
 group = "org.octopusden.octopus.automation"
 description = "Octopus Teamcity Automation"
 ext {
@@ -34,12 +33,9 @@ repositories {
 
 dependencies {
     implementation("org.slf4j:slf4j-api:2.0.13")
-    implementation("ch.qos.logback:logback-classic:1.5.6")
-    implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.5")
-    // TODO: +Custom dependencies
-    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${project.properties["components-registry-service-client.version"]}")
+    implementation("ch.qos.logback:logback-classic:1.3.14")
+    implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${project.properties["teamcity-client.version"]}")
-    implementation("org.apache.commons:commons-text:1.12.0")
 }
 
 application {
@@ -49,7 +45,6 @@ application {
 tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest { attributes(mapOf("Main-Class" to application.mainClass)) }
-    archiveBaseName = project.properties["artifactId"] as String
 }
 
 java {
@@ -75,10 +70,7 @@ nexusPublishing {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            project.shadow.component(this)
-            artifact(tasks["javadocJar"])
-            artifact(tasks["sourcesJar"])
-            artifactId = project.properties["artifactId"] as String
+            from(components["java"])
             pom {
                 name.set(project.name)
                 description.set(project.description)
