@@ -1,12 +1,16 @@
+import com.avast.gradle.dockercompose.ComposeExtension
 import java.time.Duration
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
+    id("com.github.johnrengelman.shadow")
+    id("com.avast.gradle.docker-compose")
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
-    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "org.octopusden.octopus.automation"
@@ -17,7 +21,7 @@ ext {
     set("artifactId", "teamcity-automation")
 }
 
-tasks.compileKotlin {
+tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions {
         suppressWarnings = true
         jvmTarget = "1.8"
@@ -31,11 +35,48 @@ repositories {
     mavenCentral()
 }
 
+tasks.withType<Test> {
+    useJUnitPlatform()
+
+    testLogging {
+        info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+    }
+
+    systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
+}
+
+configure<ComposeExtension> {
+    useComposeFiles.add(layout.projectDirectory.file("docker/docker-compose.yml").asFile.path)
+    waitForTcpPorts.set(true)
+    captureContainersOutputToFiles.set(layout.buildDirectory.dir("docker-logs"))
+    environment.putAll(
+        mapOf(
+            "DOCKER_REGISTRY" to project.properties["docker.registry"],
+            "TEAMCITY_VERSION" to "2021.1.4",
+        )
+    )
+}
+
+dockerCompose.isRequiredBy(tasks["test"])
+
+tasks.register<Sync>("prepareTeamcityServerData") {
+    from(zipTree(layout.projectDirectory.file("docker/data.zip")))
+    into(layout.buildDirectory.dir("teamcity-server"))
+}
+
+tasks.named("composeUp") {
+    dependsOn("prepareTeamcityServerData")
+}
+
 dependencies {
     implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${project.properties["teamcity-client.version"]}")
+    with("5.9.2") {
+        testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
+        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$this")
+    }
 }
 
 application {
@@ -104,3 +145,8 @@ signing {
     useInMemoryPgpKeys(signingKey, signingPassword)
     sign(publishing.publications["maven"])
 }
+
+tasks.distZip.get().isEnabled = false
+tasks.shadowDistZip.get().isEnabled = false
+tasks.distTar.get().isEnabled = false
+tasks.shadowDistTar.get().isEnabled = false

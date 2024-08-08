@@ -23,11 +23,12 @@ class TeamcityUpdateParameterCommand : CliktCommand(name = "update-parameter") {
         if (projectIds == null && buildTypeIds == null) {
             throw IllegalArgumentException("Both options --project-ids and --build-type-ids are not defined")
         }
-        context[CONFIG] = UpdateParameterConfig(name, projectIds ?: emptyList(), buildTypeIds ?: emptyList())
+        context[CONFIG] =
+            UpdateParameterConfig(name, (projectIds ?: emptyList()).toSet(), (buildTypeIds ?: emptyList()).toSet())
     }
 
     companion object {
-        data class UpdateParameterConfig(val name: String, val projectIds: List<String>, val buildTypeIds: List<String>)
+        data class UpdateParameterConfig(val name: String, val projectIds: Set<String>, val buildTypeIds: Set<String>)
 
         const val CONFIG = "config"
     }
