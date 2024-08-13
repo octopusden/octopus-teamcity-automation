@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Upload TeamCity project metarunners">
+    <description>Upload TeamCity project metarunners</description>
+    <settings>
+        <parameters>
+            <param name="TEAMCITY_PROJECT_ID" value="%RELEASE_MANAGEMENT_ROOT_PROJECT_ID%" spec="text description='TeamCity project id.' validationMode='not_empty' display='normal'"/>
+            <param name="TEAMCITY_METARUNNERS_ZIP_URL" value="" spec="text description='URL(file/http/https) of zip file with metarunners.' validationMode='not_empty' display='normal'"/>
+        </parameters>
+        <build-runners>
+            <runner name="${description}" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% upload-metarunners --project-id=%TEAMCITY_PROJECT_ID% --zip=%TEAMCITY_METARUNNERS_ZIP_URL%" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>

@@ -8,5 +8,3 @@ pluginManagement {
 }
 
 rootProject.name = "octopus-teamcity-automation"
-
-include("teamcity-meta-runner")

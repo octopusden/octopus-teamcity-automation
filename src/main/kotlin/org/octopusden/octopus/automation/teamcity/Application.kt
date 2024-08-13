@@ -11,6 +11,7 @@ fun main(args: Array<String>) {
         TeamcityUpdateParameterCommand().subcommands(
             TeamcityUpdateParameterSetCommand(),
             TeamcityUpdateParameterIncrementCommand()
-        )
+        ),
+        TeamcityUploadMetarunnersCommand()
     ).main(args)
 }

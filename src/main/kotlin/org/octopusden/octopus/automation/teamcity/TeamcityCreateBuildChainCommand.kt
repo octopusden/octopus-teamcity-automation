@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.core.requireObject
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.slf4j.Logger
 
-class TeamcityCreateBuildChainCommand : CliktCommand(name = "create-build-chain") {
+class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
     override fun run() {
@@ -13,5 +13,9 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = "create-build-chain"
         val client = context[TeamcityCommand.CLIENT] as TeamcityClient
         log.info("Create build chain")
         TODO("Not yet implemented")
+    }
+
+    companion object {
+        const val COMMAND = "create-build-chain"
     }
 }

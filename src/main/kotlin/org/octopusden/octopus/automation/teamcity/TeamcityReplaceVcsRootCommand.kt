@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.core.requireObject
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.slf4j.Logger
 
-class TeamcityReplaceVcsRootCommand : CliktCommand(name = "replace-vcs-root") {
+class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
     override fun run() {
@@ -13,5 +13,9 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = "replace-vcs-root") {
         val client = context[TeamcityCommand.CLIENT] as TeamcityClient
         log.info("Replace VCS root")
         TODO("Not yet implemented")
+    }
+
+    companion object {
+        const val COMMAND = "replace-vcs-root"
     }
 }

@@ -13,13 +13,8 @@ plugins {
     signing
 }
 
-group = "org.octopusden.octopus.automation"
+group = "org.octopusden.octopus.automation.teamcity"
 description = "Octopus Teamcity Automation"
-ext {
-    set("metarunnerId", "OctopusTeamcityAutomation")
-    set("mainClassPackage", "org.octopusden.octopus.automation.teamcity")
-    set("artifactId", "teamcity-automation")
-}
 
 tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions {
@@ -51,7 +46,7 @@ configure<ComposeExtension> {
     captureContainersOutputToFiles.set(layout.buildDirectory.dir("docker-logs"))
     environment.putAll(
         mapOf(
-            "DOCKER_REGISTRY" to project.properties["docker.registry"],
+            "DOCKER_REGISTRY" to properties["docker.registry"],
             "TEAMCITY_VERSION" to "2021.1.4",
         )
     )
@@ -72,15 +67,17 @@ dependencies {
     implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
-    implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${project.properties["teamcity-client.version"]}")
+    implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
     with("5.9.2") {
         testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
+        testImplementation("org.junit.jupiter:junit-jupiter-params:$this")
         testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$this")
     }
+    testImplementation("it.skrape:skrapeit:1.2.2")
 }
 
 application {
-    mainClass = "${project.properties["mainClassPackage"]}.ApplicationKt"
+    mainClass = "$group.ApplicationKt"
 }
 
 tasks.jar {
@@ -91,6 +88,26 @@ tasks.jar {
 java {
     withJavadocJar()
     withSourcesJar()
+}
+
+tasks.register<Zip>("zipMetarunners") {
+    archiveFileName = "metarunners.zip"
+    from(layout.projectDirectory.dir("metarunners")) {
+        expand(properties)
+    }
+}
+
+configurations {
+    create("distributions")
+}
+
+val metarunners = artifacts.add(
+    "distributions",
+    layout.buildDirectory.file("distributions/metarunners.zip").get().asFile
+) {
+    classifier = "metarunners"
+    type = "zip"
+    builtBy("zipMetarunners")
 }
 
 nexusPublishing {
@@ -112,6 +129,7 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
+            artifact(metarunners)
             pom {
                 name.set(project.name)
                 description.set(project.description)
