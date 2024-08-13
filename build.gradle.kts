@@ -26,17 +26,14 @@ tasks.withType<KotlinCompile>().configureEach {
 java.targetCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
-
     testLogging {
         info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
     }
-
     systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
 }
 
