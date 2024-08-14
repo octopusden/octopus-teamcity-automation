@@ -22,7 +22,7 @@ class TeamcityUpdateParameterSetCommand : CliktCommand(name = COMMAND) {
         val client = context[TeamcityCommand.CLIENT] as TeamcityClient
         val config = context[TeamcityUpdateParameterCommand.CONFIG] as UpdateParameterConfig
         config.projectIds.forEach {
-            log.info("Set parameter ${config.name} = $value for project with id $it")
+            log.info("Set parameter ${config.name} value $value for project with id $it")
             client.setParameter(ConfigurationType.PROJECT, it, config.name, value)
         }
         config.buildTypeIds.forEach {
