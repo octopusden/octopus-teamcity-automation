@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Increment TeamCity build configuration parameter">
+    <description>Increment TeamCity build configuration parameter</description>
+    <settings>
+        <parameters>
+            <param name="TEAMCITY_BUILD_CONFIGURATION_ID" value="%BASE_CONFIGURATION_ID%" />
+            <param name="TEAMCITY_PARAMETER_NAME" value="%VERSION_PARAMETER_NAME%" />
+        </parameters>
+        <build-runners>
+            <runner name="${description}" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% update-parameter --build-type-ids=%TEAMCITY_BUILD_CONFIGURATION_ID% --name=%TEAMCITY_PARAMETER_NAME% increment --current=%BUILD_VERSION%" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>

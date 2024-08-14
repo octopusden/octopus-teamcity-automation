@@ -1,57 +1,17 @@
 package org.octopusden.octopus.automation.teamcity
 
-import kotlinx.cli.ArgParser
-import kotlinx.cli.ArgType
-import kotlinx.cli.ExperimentalCli
-import kotlinx.cli.required
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-import org.jetbrains.teamcity.rest.TeamCityInstance
+import com.github.ajalt.clikt.core.subcommands
 
-open class Application() {
-    private val logger: Logger = LoggerFactory.getLogger(Application::class.java)
-    val parser = ArgParser(Application::class.java.simpleName)
-
-    // TODO: +Custom parameters
-    private val teamcityUrl by parser.option(
-        type = ArgType.String,
-        fullName = "teamcity.url",
-        shortName = "t",
-        description = "Teamcity Url",
-    ).required()
-
-    private val teamcityUser by parser.option(
-        type = ArgType.String,
-        fullName = "teamcity.user",
-        shortName = "u",
-        description = "Teamcity user"
-    ).required()
-
-    private val teamcityPassword by parser.option(
-        type = ArgType.String,
-        fullName = "teamcity.password",
-        shortName = "p",
-        description = "Teamcity password"
-    ).required()
-    // end of parameters
-
-    fun getTeamCityInstance(): TeamCityInstance = TeamCityInstance.httpAuth(
-        serverUrl = teamcityUrl,
-        username = teamcityUser,
-        password = teamcityPassword
-    )
-
-    @OptIn(ExperimentalCli::class)
-    fun run(args: Array<String>) {
-        logger.debug("args = {}", args)
-        parser.subcommands(
-            CmdCreateCDBuildChain(this),
-            CmdReplaceTeamcityVcsRoot(this)
-        )
-        parser.parse(args)
-    }
-}
+const val SPLIT_SYMBOLS = "[,;]"
 
 fun main(args: Array<String>) {
-    Application().run(args)
+    TeamcityCommand().subcommands(
+        TeamcityCreateBuildChainCommand(),
+        TeamcityReplaceVcsRootCommand(),
+        TeamcityUpdateParameterCommand().subcommands(
+            TeamcityUpdateParameterSetCommand(),
+            TeamcityUpdateParameterIncrementCommand()
+        ),
+        TeamcityUploadMetarunnersCommand()
+    ).main(args)
 }

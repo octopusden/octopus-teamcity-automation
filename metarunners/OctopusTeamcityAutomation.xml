@@ -1,22 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <meta-runner name="${description}">
-    <description>${description}</description>
+    <description>Run ${name}</description>
     <settings>
         <parameters>
-            <!-- TODO: Custom metarunner parameters -->
-            <param name="ARGS" value="--help"
-                   spec="text description='Runner arguments.' validationMode='not_empty' display='normal'"/>
+            <param name="ARGS" value="--help" spec="text description='${name} arguments.' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
-            <runner name="${metarunnerId}" type="kotlinScript">
+            <runner name="${name}" type="kotlinScript">
                 <parameters>
-                    <!-- TODO: Custom script parameters -->
                     <param name="kotlinArgs" value="%ARGS%" />
-                    <!--param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.DEFAULT%" /-->
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.1.9.20%" />
                     <param name="scriptContent"><![CDATA[
-@file:DependsOn("${group}:${artifactId}:%OCTOPUS_TEAMCITY_AUTOMATION_VERSION%")
-import ${mainClassPackage}.Application
+@file:DependsOn("${group}:${name}:${version}:all")
+import ${group}.Application
 Application().run(args)
 ]]></param>
                     <param name="jvmArgs" value="-Duser.home=." />

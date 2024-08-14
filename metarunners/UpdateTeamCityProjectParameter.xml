@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Update TeamCity project parameter (deprecated)">
+    <description>Update TeamCity project parameter (deprecated)</description>
+    <settings>
+        <parameters>
+            <param name="TEAMCITY_PROJECT_ID" value="%TEAMCITY_PROJECT_ID%" />
+            <param name="TEAMCITY_PARAMETER_NAME" value="%TEAMCITY_PARAMETER_NAME%" />
+            <param name="TEAMCITY_PARAMETER_VALUE" value="%TEAMCITY_PARAMETER_VALUE%" />
+        </parameters>
+        <build-runners>
+            <runner name="${description}" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% update-parameter --project-ids=%TEAMCITY_PROJECT_ID% --name=%TEAMCITY_PARAMETER_NAME% set --value=%TEAMCITY_PARAMETER_VALUE%" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>
