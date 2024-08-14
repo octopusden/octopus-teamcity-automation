@@ -7,7 +7,7 @@
             <param name="TEAMCITY_METARUNNERS_ZIP_URL" value="" spec="text description='URL(file/http/https) of zip file with metarunners.' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
-            <runner name="${description}" type="OctopusTeamcityAutomation">
+            <runner name="upload-metarunners" type="OctopusTeamcityAutomation">
                 <parameters>
                     <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% upload-metarunners --project-id=%TEAMCITY_PROJECT_ID% --zip=%TEAMCITY_METARUNNERS_ZIP_URL%" />
                 </parameters>

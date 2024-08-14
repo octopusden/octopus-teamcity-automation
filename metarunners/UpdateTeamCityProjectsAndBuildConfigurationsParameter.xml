@@ -9,9 +9,9 @@
             <param name="TEAMCITY_UPDATE_PARAMETER_VALUE" value="%TEAMCITY_UPDATE_PARAMETER_VALUE%" />
         </parameters>
         <build-runners>
-            <runner name="${description}" type="OctopusTeamcityAutomation">
+            <runner name="update-parameter set" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% update-parameter --project-ids=%TEAMCITY_UPDATE_PROJECT_IDS% --build-type-ids=%TEAMCITY_UPDATE_PROJECT_IDS% --name=%TEAMCITY_UPDATE_PARAMETER_NAME% set --value=%TEAMCITY_UPDATE_PARAMETER_VALUE%" />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% update-parameter --project-ids=%TEAMCITY_UPDATE_PROJECT_IDS% --build-type-ids=%TEAMCITY_UPDATE_BUILD_CONFIGURATION_IDS% --name=%TEAMCITY_UPDATE_PARAMETER_NAME% set --value=%TEAMCITY_UPDATE_PARAMETER_VALUE%" />
                 </parameters>
             </runner>
         </build-runners>
