@@ -65,6 +65,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
+    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["components-registry-service-client.version"]}")
     with("5.9.2") {
         testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
         testImplementation("org.junit.jupiter:junit-jupiter-params:$this")
