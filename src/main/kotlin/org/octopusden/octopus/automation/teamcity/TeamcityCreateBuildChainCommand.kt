@@ -50,22 +50,19 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val componentsRegistryUrl by option(CR, help = "Components Registry service Url").required()
         .check("$CR is empty") { it.isNotEmpty() }
 
-    private val componentsRegistryClient by lazy {
-        ClassicComponentsRegistryServiceClient(
-            object : ClassicComponentsRegistryServiceClientUrlProvider {
-                override fun getApiUrl(): String {
-                    return componentsRegistryUrl
-                }
-            }
-        )
-    }
-
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
     override fun run() {
         log.info("Create build chain")
         val parentProject = client.getProject(parentProjectId)
+        val componentsRegistryClient = ClassicComponentsRegistryServiceClient(
+            object : ClassicComponentsRegistryServiceClientUrlProvider {
+                override fun getApiUrl(): String {
+                    return componentsRegistryUrl
+                }
+            }
+        )
         val detailedComponent = componentsRegistryClient.getDetailedComponent(componentName, minorVersion)
         createBuildChain(parentProject, detailedComponent)
     }
