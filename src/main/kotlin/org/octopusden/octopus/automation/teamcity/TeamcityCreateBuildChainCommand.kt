@@ -6,9 +6,6 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import org.octopusden.octopus.automation.teamcity.template.GradleTemplateProvider
-import org.octopusden.octopus.automation.teamcity.template.MavenTemplateProvider
-import org.octopusden.octopus.automation.teamcity.template.TemplateProvider
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
@@ -19,7 +16,6 @@ import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsR
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityVCSType
-import org.octopusden.octopus.infrastructure.teamcity.client.addBuildTypeFeature
 import org.octopusden.octopus.infrastructure.teamcity.client.disableBuildStep
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildTypeVcsRootEntry
@@ -30,7 +26,6 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateP
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkBuildType
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkFeature
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProject
@@ -72,13 +67,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         log.info("Create build chain")
         val parentProject = client.getProject(parentProjectId)
         val detailedComponent = componentsRegistryClient.getDetailedComponent(componentName, minorVersion)
-        val templateProvider = getTemplateProvider(detailedComponent.buildSystem)
-        createBuildChain(templateProvider, parentProject, detailedComponent)
-        log.debug("VCS = {}", componentsRegistryClient.getVCSSetting(componentName, minorVersion))
+        createBuildChain(parentProject, detailedComponent)
     }
 
     private fun createBuildChain(
-        templateProvider: TemplateProvider,
         parentProject: TeamcityProject,
         component: DetailedComponent
     ) {
@@ -86,40 +78,36 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id))
         )
         val vcsRootId = createVcsRoot(project.id, component)?.id
-        val counter = object {
-            private var major: Int = 0
-            private var minor: Int = 0
-            private fun format(a: Int, b: Int) = "$a.$b"
-
-            fun getCounterIncMajor(): String {
-                minor = 0
-                return format(++major, minor)
-            }
-        }
+        var counter: Int = 0
         val compileConfig = createBuildConf(
-            templateProvider.getCompileTemplate(),
-            "[${counter.getCounterIncMajor()}] Compile & UT [AUTO]",
+            when (component.buildSystem) {
+                BuildSystem.MAVEN -> TEMPLATE_MAVEN_COMPILE
+                BuildSystem.GRADLE -> TEMPLATE_GRADLE_COMPILE
+                BuildSystem.PROVIDED -> TEMPLATE_GRADLE_COMPILE
+                else -> throw NotFoundException("Unsupported build system: ${component.buildSystem?.name}")
+            },
+            "[${++counter}.0] Compile & UT [AUTO]",
             project.id
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
         val releaseConfig = if (component.distribution?.explicit == true && component.distribution?.external == true) {
             val rcConfig = createBuildConf(
-                templateProvider.getRCTemplate(),
-                "[${counter.getCounterIncMajor()}] Release Candidate [Manual]",
+                TEMPLATE_RC,
+                "[${++counter}.0] Release Candidate [Manual]",
                 project.id
             )
             attachVcsRootToBuildType(rcConfig.id, vcsRootId)
 
             val checklistConfig = createBuildConf(
-                templateProvider.getChecklistTemplate(),
-                "[${counter.getCounterIncMajor()}] Release Checklist Validation [MANUAL]",
+                TEMPLATE_CHECKLIST,
+                "[${++counter}.0] Release Checklist Validation [MANUAL]",
                 project.id
             )
             attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
 
             val releaseConfig = createBuildConf(
-                templateProvider.getReleaseTemplate(),
-                "[${counter.getCounterIncMajor()}] Release [Manual]",
+                TEMPLATE_RELEASE,
+                "[${++counter}.0] Release [Manual]",
                 project.id
             )
             attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
@@ -132,8 +120,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             releaseConfig
         } else {
             val releaseConfig = createBuildConf(
-                templateProvider.getReleaseTemplate(),
-                "[${counter.getCounterIncMajor()}] Release [Manual]",
+                TEMPLATE_RELEASE,
+                "[${++counter}.0] Release [Manual]",
                 project.id
             )
             attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
@@ -141,7 +129,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             releaseConfig
         }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
-        attachVcsLabelingFeature(releaseConfig.id, vcsRootId)
         if (component.buildSystem == BuildSystem.GRADLE) {
             disableBuildStep(releaseConfig.id, "Deploy to Share")
         }
@@ -154,15 +141,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
-    }
-
-    private fun getTemplateProvider(buildSystem: BuildSystem?): TemplateProvider {
-        return when (buildSystem) {
-            BuildSystem.MAVEN -> MavenTemplateProvider()
-            BuildSystem.GRADLE -> GradleTemplateProvider()
-            BuildSystem.PROVIDED -> GradleTemplateProvider()
-            else -> throw NotFoundException("Unsupported build system: ${buildSystem?.name}")
-        }
     }
 
     private fun attachVcsRootToBuildType(buildTypeId: String, vcsRootId: String?) =
@@ -205,24 +183,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
     }
 
-    private fun attachVcsLabelingFeature(buildTypeId: String, vcsRootId: String?) {
-        vcsRootId?.let {
-            client.addBuildTypeFeature(
-                buildTypeId, TeamcityLinkFeature(
-                    type = "VcsLabeling",
-                    id = "VcsLabeling",
-                    properties = TeamcityProperties(
-                        listOf(
-                            TeamcityProperty("labelingPattern", "%LABELING_PATTERN%"),
-                            TeamcityProperty("successfulOnly", "true"),
-                            TeamcityProperty("vcsRootId", vcsRootId),
-                        )
-                    )
-                )
-            )
-        } ?: log.info("skip attach labeling feature to {}", buildTypeId)
-    }
-
     private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) =
         client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value)
 
@@ -257,27 +217,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         )
                     )
                 )
-
-                RepositoryType.MERCURIAL -> client.createVcsRoot(
-                    TeamcityCreateVcsRoot(
-                        name = vcsRootName,
-                        vcsName = TeamcityVCSType.HG.value,
-                        projectLocator = projectId,
-                        TeamcityProperties(
-                            listOf(
-                                TeamcityProperty("repositoryPath", vcsRootData.vcsPath.replace("ssh://", "")),
-                                TeamcityProperty("branch", vcsRootData.branch.ifBlank { "default" }),
-                                TeamcityProperty("hgCommandPath", "hg"),
-                            )
-                        )
-                    )
-                )
-
                 else -> throw NotFoundException("Unsupported vcs type: ${vcsRootData.type}")
             }
         }
     }
-
 
     companion object {
         const val COMMAND = "create-build-chain"
@@ -285,5 +228,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val COMPONENT = "--component"
         const val VERSION = "--minor-version"
         const val CR = "--registry-url"
+
+        const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
+        const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"
+        const val TEMPLATE_RC = "CdReleaseCandidateNew"
+        const val TEMPLATE_CHECKLIST = "CdReleaeChecklistValidation"
+        const val TEMPLATE_RELEASE = "CDRelease"
     }
 }
