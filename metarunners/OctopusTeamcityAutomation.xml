@@ -10,7 +10,8 @@
                 <parameters>
                     <param name="kotlinArgs" value="%ARGS%" />
                     <param name="kotlinPath" value="%teamcity.tool.kotlin.compiler.1.9.20%" />
-                    <param name="scriptContent"><![CDATA[@file:DependsOn("${group}:${name}:${version}") ${group}.main(args)]]></param>
+                    <param name="scriptContent">
+                        <![CDATA[@file:DependsOn(${metaRunnerScriptDependencies}"${group}:${name}:${version}") ${group}.main(args)]]></param>
                     <param name="jvmArgs" value="-Duser.home=." />
                     <param name="scriptType" value="customScript" />
                     <param name="teamcity.step.mode" value="default" />
