@@ -74,10 +74,6 @@ dependencies {
     testImplementation("it.skrape:skrapeit:1.2.2")
 }
 
-ext["metaRunnerScriptDependencies"] = """
-"org.octopusden.octopus.octopus-external-systems-clients:client-commons:${properties["teamcity-client.version"]}",
-""".trimIndent()
-
 application {
     mainClass = "$group.ApplicationKt"
 }
