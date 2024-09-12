@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Create TeamCity build chain">
+    <description>Create TeamCity build chain</description>
+    <settings>
+        <parameters>
+            <param name="TEAMCITY_PARENT_PROJECT_ID" value="%PROJECT_ID%" />
+            <param name="COMPONENT_NAME" value="%COMPONENT_NAME%" />
+            <param name="MINOR_VERSION" value="%MINOR_VERSION%" />
+        </parameters>
+        <build-runners>
+            <runner name="create build chain" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION%" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>
