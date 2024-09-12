@@ -22,7 +22,7 @@
             <runner name="Run $name" type="simpleRunner">
                 <parameters>
                     <param name="script.content">
-                        <![CDATA[[%env.BUILD_ENV%/JDK/1.8/bin/java -jar ./.$name/$name-$version-all.jar %ARGS%]]></param>
+                        <![CDATA[%env.BUILD_ENV%/JDK/1.8/bin/java -jar ./.$name/$name-$version-all.jar %ARGS%]]></param>
                     <param name="teamcity.step.mode" value="default"/>
                     <param name="use.custom.script" value="true"/>
                 </parameters>
