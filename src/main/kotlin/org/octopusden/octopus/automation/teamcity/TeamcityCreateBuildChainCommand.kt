@@ -113,6 +113,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             addSnapshotDependency(checklistConfig, rcConfig)
             addSnapshotDependency(releaseConfig, rcConfig)
 
+            setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
             setBuildTypeParameter(checklistConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
             releaseConfig
         } else {
