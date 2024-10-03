@@ -75,7 +75,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id))
         )
         val vcsRootId = createVcsRoot(project.id, component)?.id
-        var counter: Int = 0
+        var counter = 0
         val compileConfig = createBuildConf(
             when (component.buildSystem) {
                 BuildSystem.MAVEN -> TEMPLATE_MAVEN_COMPILE
@@ -206,7 +206,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         TeamcityProperties(
                             listOf(
                                 TeamcityProperty("url", vcsRootData.vcsPath),
-                                TeamcityProperty("branch", vcsRootData.branch.ifBlank { "master" }),
+                                TeamcityProperty("branch", "master"),
                                 TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
                                 TeamcityProperty("userForTags", "tcagent"),
                                 TeamcityProperty("username", "git"),
