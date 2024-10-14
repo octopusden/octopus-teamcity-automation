@@ -138,6 +138,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
+        setProjectParameter(project.id, "JDK_VERSION", component.buildParameters?.javaVersion ?: "1.8")
     }
 
     private fun attachVcsRootToBuildType(buildTypeId: String, vcsRootId: String?) =
