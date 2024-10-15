@@ -191,8 +191,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) =
         client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value)
 
-    private fun setProjectParameter(projectId: String, name: String, value: String) =
+    private fun setProjectParameter(projectId: String, name: String, value: String) {
         client.setParameter(ConfigurationType.PROJECT, projectId, name, value)
+        log.info("Set parameter $name value $value for project with id $projectId")
+    }
 
     private fun disableBuildStep(buildTypeId: String, stepNameOrType: String, disable: Boolean = true) {
         client.getBuildSteps(buildTypeId)
