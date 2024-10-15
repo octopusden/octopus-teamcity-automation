@@ -38,6 +38,9 @@ import org.slf4j.Logger
 class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
+    private val rootProjectId by option(ROOT, help = "Teamcity root project Id").convert { it.trim() }.required()
+        .check("$ROOT is empty") { it.isNotEmpty() }
+
     private val parentProjectId by option(PARENT, help = "Teamcity parent project Id").convert { it.trim() }.required()
         .check("$PARENT is empty") { it.isNotEmpty() }
 
@@ -139,7 +142,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
 
-        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, "RDDepartment", "JDK_VERSION")
+        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, rootProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setProjectParameter(project.id, "JDK_VERSION", projectJDKVersion)
         }
@@ -226,6 +229,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
 
     companion object {
         const val COMMAND = "create-build-chain"
+        const val ROOT = "--root-project-id"
         const val PARENT = "--parent-project-id"
         const val COMPONENT = "--component"
         const val VERSION = "--minor-version"
