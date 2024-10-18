@@ -187,8 +187,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
     }
 
-    private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) =
+    private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) {
         client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value)
+        log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
+    }
 
     private fun setProjectParameter(projectId: String, name: String, value: String) {
         client.setParameter(ConfigurationType.PROJECT, projectId, name, value)
