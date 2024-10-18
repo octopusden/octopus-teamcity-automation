@@ -11,6 +11,7 @@ plugins {
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
+    id("org.octopusden.octopus-release-management")
 }
 
 group = "org.octopusden.octopus.automation.teamcity"

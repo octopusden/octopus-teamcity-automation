@@ -138,14 +138,13 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             "STAGING_REPOSITORY_ID",
             "%dep.${compileConfig.id}.STAGING_REPOSITORY_ID%"
         )
+        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, rootProjectId, "JDK_VERSION")
+        component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
+            setProjectParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
+        }
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
-
-        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, rootProjectId, "JDK_VERSION")
-        component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
-            setProjectParameter(project.id, "JDK_VERSION", projectJDKVersion)
-        }
     }
 
     private fun attachVcsRootToBuildType(buildTypeId: String, vcsRootId: String?) =
