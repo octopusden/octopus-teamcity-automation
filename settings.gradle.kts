@@ -6,7 +6,7 @@ pluginManagement {
         id("io.github.gradle-nexus.publish-plugin") version ("1.1.0")
 
         // For publishing artifacts for testing purpose
-        // Can be removed once the FT of the TeamcityCreateBuildChainCommand implemented
+        // Can be removed once the TeamcityCreateBuildChainCommand test is implemented
         id("org.octopusden.octopus-release-management") version ("2.0.28")
     }
 }
