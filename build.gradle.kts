@@ -11,6 +11,9 @@ plugins {
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
+
+    // For publishing artifacts for testing purpose
+    // Can be removed once the TeamcityCreateBuildChainCommand test is implemented
     id("org.octopusden.octopus-release-management")
 }
 
