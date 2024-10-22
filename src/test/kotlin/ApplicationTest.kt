@@ -16,6 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterIncrementCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterSetCommand
@@ -24,10 +25,19 @@ import org.octopusden.octopus.infrastructure.client.commons.ClientParametersProv
 import org.octopusden.octopus.infrastructure.client.commons.StandardBasicCredCredentialProvider
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
-import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
+import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
+import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
+import org.octopusden.octopus.infrastructure.teamcity.client.getProject
+import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 
 
 class ApplicationTest {
@@ -135,6 +145,177 @@ class ApplicationTest {
     }
 
     @Test
+    fun testTeamCityCreateBuildChainForEEComponent(testInfo: TestInfo) {
+        val minorVersion = "1.0"
+        val componentName = "ee-component"
+
+        Assertions.assertEquals(
+            0, execute(
+                testInfo.testMethod.get().name,
+                *TEAMCITY_OPTIONS,
+                TeamcityCreateBuildChainCommand.COMMAND,
+                "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
+                "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+                "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
+                "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
+                "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+            )
+        )
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(4, buildTypes.size)
+
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
+        val releaseConfigId = "${projectId}_40ReleaseManual"
+
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            checklistConfigId to rcConfigId,
+            releaseConfigId to rcConfigId
+        )
+
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
+            }
+        }
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals("%dep.$compileConfigId.STAGING_REPOSITORY_ID%", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "STAGING_REPOSITORY_ID"))
+
+        Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
+        Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
+        Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
+    }
+
+    @Test
+    fun testTeamCityCreateBuildChainForNonEEComponent(testInfo: TestInfo) {
+        val minorVersion = "1.0"
+        val componentNamesToProjectId = mapOf(
+            "ie-component" to "TestTeamcityAutomation_IeComponent",
+            "ei-component" to "TestTeamcityAutomation_EiComponent",
+            "ii-component" to "TestTeamcityAutomation_IiComponent"
+        )
+
+        componentNamesToProjectId.forEach { (componentName, projectId) ->
+            Assertions.assertEquals(
+                0, execute(
+                    testInfo.testMethod.get().name,
+                    *TEAMCITY_OPTIONS,
+                    TeamcityCreateBuildChainCommand.COMMAND,
+                    "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
+                    "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+                    "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
+                    "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
+                    "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+                )
+            )
+
+            Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+            val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+            Assertions.assertEquals(2, buildTypes.size)
+
+            val compileConfigId = "${projectId}_10CompileUtAuto"
+            val releaseConfigId = "${projectId}_20ReleaseManual"
+
+            val buildTypesIdAndDependencyId = mapOf(
+                compileConfigId to null,
+                releaseConfigId to compileConfigId
+            )
+
+            buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+                Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+                dependencyId?.let {
+                    val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                    Assertions.assertEquals(1, snapshotDependencies.size)
+                    Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
+                }
+            }
+
+            val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+            Assertions.assertEquals(2, buildSteps.size)
+            Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+            val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+            Assertions.assertEquals("%dep.$compileConfigId.STAGING_REPOSITORY_ID%", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "STAGING_REPOSITORY_ID"))
+
+            Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
+            Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
+            Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
+        }
+    }
+
+    @Test
+    fun testTeamCityCreateBuildChainForJDKVersion(testInfo: TestInfo) {
+        val minorVersion = "1.0"
+
+        val defaultJDKComponentName = "default-jdk-component"
+        val defaultJDKProjectId = "TestTeamcityAutomation_DefaultJdkComponent"
+        val customJDKComponentName = "custom-jdk-component"
+        val customJDKProjectId = "TestTeamcityAutomation_CustomJdkComponent"
+
+        val componentNamesToProjectId = mapOf(
+            defaultJDKComponentName to defaultJDKProjectId,
+            customJDKComponentName to customJDKProjectId
+        )
+
+        componentNamesToProjectId.forEach { (componentName, projectId) ->
+            Assertions.assertEquals(
+                0, execute(
+                    testInfo.testMethod.get().name,
+                    *TEAMCITY_OPTIONS,
+                    TeamcityCreateBuildChainCommand.COMMAND,
+                    "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
+                    "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+                    "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
+                    "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
+                    "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+                )
+            )
+
+            val nonCompileConfigIds = listOf(
+                "${projectId}_20ReleaseCandidateManual",
+                "${projectId}_30ReleaseChecklistValidationManual",
+                "${projectId}_40ReleaseManual"
+            )
+
+            nonCompileConfigIds.forEach { configId ->
+                Assertions.assertEquals("1.8", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "JDK_VERSION"))
+            }
+        }
+
+        Assertions.assertEquals(
+            "1.8", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${defaultJDKProjectId}_10CompileUtAuto", "JDK_VERSION")
+        )
+        Assertions.assertEquals(
+            "11", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${customJDKProjectId}_10CompileUtAuto", "JDK_VERSION")
+        )
+    }
+
+//    @Test
+//    fun testTeamCityCreateBuildChainForDifferentBuildSystemComponent(testInfo: TestInfo) {
+//        // TODO
+//    }
+
+    @Test
     fun testTeamCityUpdateParameterIncrementCurrent(testInfo: TestInfo) {
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "1.0")
@@ -235,6 +416,7 @@ class ApplicationTest {
                 TEST_PROJECT, TEST_PROJECT, TeamcityLinkProject("RDDepartment")
             )
         )
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "JDK_VERSION", "1.8")
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
                 TEST_BUILD_1, TEST_BUILD_1, project = TeamcityLinkProject(TEST_PROJECT)
@@ -275,6 +457,34 @@ class ApplicationTest {
                 TEST_SUBPROJECT_2_BUILD_2, TEST_SUBPROJECT_2_BUILD_2, project = TeamcityLinkProject(TEST_SUBPROJECT_2)
             )
         )
+        val templates = listOf(
+            TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE,
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RC,
+            TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
+        )
+        templates.forEach {
+            teamcityClient.createBuildType(
+                TeamcityCreateBuildType(
+                    it, it,
+                    project = TeamcityLinkProject(TEST_PROJECT),
+                    templateFlag = true
+                )
+            )
+        }
+
+        val releaseBuildStepsName = listOf("IncrementTeamCityBuildConfigurationParameter", "Deploy to Share")
+        releaseBuildStepsName.forEach { stepName ->
+            teamcityClient.createBuildStep(
+                TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
+                step = TeamcityStep(
+                    stepName, stepName, stepName,
+                    disabled = false,
+                    properties = TeamcityProperties(listOf(TeamcityProperty("property", "")))
+                )
+            )
+        }
     }
 
     companion object {
@@ -293,6 +503,8 @@ class ApplicationTest {
         const val TEAMCITY_URL = "http://localhost:8111"
         const val TEAMCITY_USER = "admin"
         const val TEAMCITY_PASSWORD = "admin"
+
+        const val COMPONENTS_REGISTRY_SERVICE_URL = "http://localhost:4567"
 
         val TEAMCITY_OPTIONS = arrayOf(
             "${TeamcityCommand.URL_OPTION}=$TEAMCITY_URL",
