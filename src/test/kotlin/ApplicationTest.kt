@@ -25,19 +25,20 @@ import org.octopusden.octopus.infrastructure.client.commons.ClientParametersProv
 import org.octopusden.octopus.infrastructure.client.commons.StandardBasicCredCredentialProvider
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
+import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
+import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
+import org.octopusden.octopus.infrastructure.teamcity.client.getProject
+import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
-import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
-import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
-import org.octopusden.octopus.infrastructure.teamcity.client.getProject
-import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 
 
 class ApplicationTest {
@@ -47,6 +48,24 @@ class ApplicationTest {
         ProcessBuilder("java", "-jar", jar, *command).redirectErrorStream(true).redirectOutput(
             File("").resolve("build").resolve("logs").resolve("$name.log").also { it.parentFile.mkdirs() }).start()
             .waitFor()
+
+    private fun executeForCreateBuildChainCommand(componentName: String, minorVersion: String? = "1.0", testMethodName: String): Int =
+        execute(
+            testMethodName,
+            *TEAMCITY_OPTIONS,
+            TeamcityCreateBuildChainCommand.COMMAND,
+            "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
+            "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+            "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
+            "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
+            "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+        )
+
+    private fun validateBuildTypeTemplate(buildTypeId: String, templateId: String) {
+        val templateBuildType = teamcityClient.getBuildType(buildTypeId).templates?.buildTypes
+        Assertions.assertEquals(1, templateBuildType?.size)
+        Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
+    }
 
     @Test
     fun testTeamCityUpdateParameterSet(testInfo: TestInfo) {
@@ -144,22 +163,23 @@ class ApplicationTest {
         )
     }
 
+    /**
+     * Tests CreateTeamCityBuildChain for explicit & external components.
+     * Verifies:
+     * - Project creation under specified parent project
+     * - Presence of all build configurations (compile, RC, checklist, release)
+     * - Template-based creation of build configurations
+     * - Build configuration dependencies
+     * - Disabled build step
+     * - Parameter assignments
+     */
     @Test
     fun testTeamCityCreateBuildChainForEEComponent(testInfo: TestInfo) {
         val minorVersion = "1.0"
         val componentName = "ee-component"
 
         Assertions.assertEquals(
-            0, execute(
-                testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
-                TeamcityCreateBuildChainCommand.COMMAND,
-                "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
-                "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
-                "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
-                "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
-                "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
-            )
+            0, executeForCreateBuildChainCommand(componentName, minorVersion, testInfo.testMethod.get().name)
         )
 
         val projectId = "TestTeamcityAutomation_EeComponent"
@@ -171,6 +191,10 @@ class ApplicationTest {
         val rcConfigId = "${projectId}_20ReleaseCandidateManual"
         val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
         val releaseConfigId = "${projectId}_40ReleaseManual"
+
+        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(checklistConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST)
+        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
@@ -204,6 +228,16 @@ class ApplicationTest {
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
     }
 
+    /**
+     * Tests CreateTeamCityBuildChain for non explicit & external components.
+     * Verifies:
+     * - Project creation under specified parent project
+     * - Presence of compile & release build configurations
+     * - Template-based creation of build configurations
+     * - Build configuration dependencies
+     * - Disabled build step
+     * - Parameter assignments
+     */
     @Test
     fun testTeamCityCreateBuildChainForNonEEComponent(testInfo: TestInfo) {
         val minorVersion = "1.0"
@@ -215,16 +249,7 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, execute(
-                    testInfo.testMethod.get().name,
-                    *TEAMCITY_OPTIONS,
-                    TeamcityCreateBuildChainCommand.COMMAND,
-                    "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
-                    "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
-                    "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
-                    "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
-                    "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
-                )
+                0, executeForCreateBuildChainCommand(componentName, minorVersion, testInfo.testMethod.get().name)
             )
 
             Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -233,6 +258,8 @@ class ApplicationTest {
 
             val compileConfigId = "${projectId}_10CompileUtAuto"
             val releaseConfigId = "${projectId}_20ReleaseManual"
+
+            validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
             val buildTypesIdAndDependencyId = mapOf(
                 compileConfigId to null,
@@ -263,10 +290,11 @@ class ApplicationTest {
         }
     }
 
+    /**
+     * Tests CreateTeamCityBuildChain for overriding the JDK_VERSION parameter in compile build configurations based on the component's javaVersion.
+     */
     @Test
     fun testTeamCityCreateBuildChainForJDKVersion(testInfo: TestInfo) {
-        val minorVersion = "1.0"
-
         val defaultJDKComponentName = "default-jdk-component"
         val defaultJDKProjectId = "TestTeamcityAutomation_DefaultJdkComponent"
         val customJDKComponentName = "custom-jdk-component"
@@ -279,24 +307,13 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, execute(
-                    testInfo.testMethod.get().name,
-                    *TEAMCITY_OPTIONS,
-                    TeamcityCreateBuildChainCommand.COMMAND,
-                    "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
-                    "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
-                    "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
-                    "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
-                    "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
-                )
+                0, executeForCreateBuildChainCommand(componentName, testMethodName = testInfo.testMethod.get().name)
             )
-
             val nonCompileConfigIds = listOf(
                 "${projectId}_20ReleaseCandidateManual",
                 "${projectId}_30ReleaseChecklistValidationManual",
                 "${projectId}_40ReleaseManual"
             )
-
             nonCompileConfigIds.forEach { configId ->
                 Assertions.assertEquals("1.8", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "JDK_VERSION"))
             }
@@ -310,10 +327,27 @@ class ApplicationTest {
         )
     }
 
-//    @Test
-//    fun testTeamCityCreateBuildChainForDifferentBuildSystemComponent(testInfo: TestInfo) {
-//        // TODO
-//    }
+    /**
+     * Tests CreateTeamCityBuildChain to verify the template used in compile build configurations aligns with the component's build system.
+     */
+    @Test
+    fun testTeamCityCreateBuildChainForCompileTemplate(testInfo: TestInfo) {
+        val componentNames = listOf("maven-component", "gradle-component", "provided-component")
+
+        componentNames.forEach { componentName ->
+            Assertions.assertEquals(
+                0, executeForCreateBuildChainCommand(componentName, testMethodName = testInfo.testMethod.get().name)
+            )
+        }
+
+        validateBuildTypeTemplate("TestTeamcityAutomation_MavenComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE)
+        validateBuildTypeTemplate("TestTeamcityAutomation_GradleComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+        validateBuildTypeTemplate("TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+
+        Assertions.assertEquals(
+            1, executeForCreateBuildChainCommand("not-supported-component", testMethodName = testInfo.testMethod.get().name)
+        )
+    }
 
     @Test
     fun testTeamCityUpdateParameterIncrementCurrent(testInfo: TestInfo) {
