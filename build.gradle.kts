@@ -31,6 +31,9 @@ java.targetCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://repo.gradle.org/gradle/libs-releases")
+    }
 }
 
 tasks.withType<Test> {
