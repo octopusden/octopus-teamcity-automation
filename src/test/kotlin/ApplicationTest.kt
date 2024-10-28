@@ -54,7 +54,6 @@ class ApplicationTest {
             testMethodName,
             *TEAMCITY_OPTIONS,
             TeamcityCreateBuildChainCommand.COMMAND,
-            "${TeamcityCreateBuildChainCommand.ROOT}=$TEST_PROJECT",
             "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
             "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
