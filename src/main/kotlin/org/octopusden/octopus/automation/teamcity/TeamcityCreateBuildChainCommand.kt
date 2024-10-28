@@ -38,9 +38,6 @@ import org.slf4j.Logger
 class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
-    private val rootProjectId by option(ROOT, help = "Teamcity root project Id").convert { it.trim() }.required()
-        .check("$ROOT is empty") { it.isNotEmpty() }
-
     private val parentProjectId by option(PARENT, help = "Teamcity parent project Id").convert { it.trim() }.required()
         .check("$PARENT is empty") { it.isNotEmpty() }
 
@@ -90,7 +87,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             project.id
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
-        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, rootProjectId, "JDK_VERSION")
+        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
@@ -188,15 +185,15 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
     }
 
-    private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) {
-        client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value)
-        log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
-    }
+    private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) =
+        client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value).also {
+            log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
+        }
 
-    private fun setProjectParameter(projectId: String, name: String, value: String) {
-        client.setParameter(ConfigurationType.PROJECT, projectId, name, value)
-        log.info("Set parameter $name value $value for project with id $projectId")
-    }
+    private fun setProjectParameter(projectId: String, name: String, value: String) =
+        client.setParameter(ConfigurationType.PROJECT, projectId, name, value).also {
+            log.info("Set parameter $name value $value for project with id $projectId")
+        }
 
     private fun disableBuildStep(buildTypeId: String, stepNameOrType: String, disable: Boolean = true) {
         client.getBuildSteps(buildTypeId)
@@ -233,7 +230,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
 
     companion object {
         const val COMMAND = "create-build-chain"
-        const val ROOT = "--root-project-id"
         const val PARENT = "--parent-project-id"
         const val COMPONENT = "--component"
         const val VERSION = "--minor-version"

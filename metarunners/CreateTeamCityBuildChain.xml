@@ -10,7 +10,7 @@
         <build-runners>
             <runner name="create build chain" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --root-project-id=%ROOT_PROJECT_ID% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION%" />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION%" />
                 </parameters>
             </runner>
         </build-runners>
