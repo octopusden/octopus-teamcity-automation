@@ -87,6 +87,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             project.id
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
+        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
+        component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
+            setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
+        }
         val releaseConfig = if (component.distribution?.explicit == true && component.distribution?.external == true) {
             val rcConfig = createBuildConf(
                 TEMPLATE_RC,
@@ -182,10 +186,14 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun setBuildTypeParameter(buildTypeId: String, name: String, value: String) =
-        client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value)
+        client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value).also {
+            log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
+        }
 
     private fun setProjectParameter(projectId: String, name: String, value: String) =
-        client.setParameter(ConfigurationType.PROJECT, projectId, name, value)
+        client.setParameter(ConfigurationType.PROJECT, projectId, name, value).also {
+            log.info("Set parameter $name value $value for project with id $projectId")
+        }
 
     private fun disableBuildStep(buildTypeId: String, stepNameOrType: String, disable: Boolean = true) {
         client.getBuildSteps(buildTypeId)
