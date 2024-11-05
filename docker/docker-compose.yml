@@ -13,3 +13,15 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
+  components-registry-service:
+    image: ${DOCKER_REGISTRY}/octopusden/components-registry-service:${COMPONENTS_REGISTRY_SERVICE_VERSION}
+    ports:
+      - "4567:4567"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=/
+      - SPRING_PROFILES_ACTIVE=ft
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+    volumes:
+      - ./components-registry-service.yaml:/application-ft.yaml
+      - ../src/test/resources/components-registry:/components-registry

@@ -45,6 +45,7 @@ configure<ComposeExtension> {
         mapOf(
             "DOCKER_REGISTRY" to properties["docker.registry"],
             "TEAMCITY_VERSION" to "2021.1.4",
+            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["components-registry-service.version"],
         )
     )
 }
