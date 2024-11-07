@@ -46,7 +46,7 @@ configure<ComposeExtension> {
         mapOf(
             "DOCKER_REGISTRY" to properties["docker.registry"],
             "TEAMCITY_VERSION" to "2021.1.4",
-            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["components-registry-service.version"],
+            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"],
         )
     )
 }
@@ -67,7 +67,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
-    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["components-registry-service-client.version"]}")
+    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}")
     with("5.9.2") {
         testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
         testImplementation("org.junit.jupiter:junit-jupiter-params:$this")
