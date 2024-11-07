@@ -11,7 +11,7 @@ plugins {
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
-    id("com.jfrog.artifactory")
+    id("org.octopusden.octopus-release-management")
 }
 
 group = "org.octopusden.octopus.automation.teamcity"
@@ -108,26 +108,6 @@ val metarunners = artifacts.add(
     classifier = "metarunners"
     type = "zip"
     builtBy("zipMetarunners")
-}
-
-artifactory {
-    publish {
-        val baseUrl = System.getenv("ARTIFACTORY_URL") ?: project.findProperty("artifactoryUrl") as String?
-        if (baseUrl != null) {
-            contextUrl = "$baseUrl/artifactory"
-        }
-
-        repository {
-            repoKey = System.getenv("ARTIFACTORY_REPOSITORY_KEY") ?: project.findProperty("artifactoryRepositoryKey") as String?
-            username = System.getenv("ARTIFACTORY_DEPLOYER_USERNAME") ?: project.findProperty("NEXUS_USER") as String?
-            password = System.getenv("ARTIFACTORY_DEPLOYER_PASSWORD") ?: project.findProperty("NEXUS_PASSWORD") as String?
-        }
-
-        defaults {
-            publications("ALL_PUBLICATIONS")
-            isPublishBuildInfo = true
-        }
-    }
 }
 
 nexusPublishing {
