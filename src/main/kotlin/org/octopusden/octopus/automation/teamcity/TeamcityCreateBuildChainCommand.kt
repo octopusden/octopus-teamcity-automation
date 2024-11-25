@@ -135,11 +135,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             disableBuildStep(releaseConfig.id, "Deploy to Share")
         }
         setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
-        setBuildTypeParameter(
-            releaseConfig.id,
-            "STAGING_REPOSITORY_ID",
-            "%dep.${compileConfig.id}.STAGING_REPOSITORY_ID%"
-        )
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)

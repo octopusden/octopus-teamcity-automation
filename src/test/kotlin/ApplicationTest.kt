@@ -220,7 +220,6 @@ class ApplicationTest {
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"))
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
-        Assertions.assertEquals("%dep.$compileConfigId.STAGING_REPOSITORY_ID%", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "STAGING_REPOSITORY_ID"))
 
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
         Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
@@ -281,7 +280,6 @@ class ApplicationTest {
 
             val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
             Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
-            Assertions.assertEquals("%dep.$compileConfigId.STAGING_REPOSITORY_ID%", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "STAGING_REPOSITORY_ID"))
 
             Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
             Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
