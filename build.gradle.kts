@@ -45,7 +45,7 @@ configure<ComposeExtension> {
     environment.putAll(
         mapOf(
             "DOCKER_REGISTRY" to properties["docker.registry"],
-            "TEAMCITY_VERSION" to "2021.1.4",
+            "TEAMCITY_VERSION" to "2022.04.7",
             "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"],
         )
     )
@@ -56,8 +56,6 @@ dockerCompose.isRequiredBy(tasks["test"])
 tasks.register<Sync>("prepareTeamcityServerData") {
     from(zipTree(layout.projectDirectory.file("docker/data.zip")))
     into(layout.buildDirectory.dir("teamcity-server"))
-    filePermissions { unix("rwxrwxrwx") }
-    dirPermissions { unix("rwxrwxrwx") }
 }
 
 tasks.named("composeUp") {
