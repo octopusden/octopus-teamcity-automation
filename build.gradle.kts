@@ -56,8 +56,6 @@ dockerCompose.isRequiredBy(tasks["test"])
 tasks.register<Sync>("prepareTeamcityServerData") {
     from(zipTree(layout.projectDirectory.file("docker/data.zip")))
     into(layout.buildDirectory.dir("teamcity-server"))
-    filePermissions { unix("rwxrwxrwx") }
-    dirPermissions { unix("rwxrwxrwx") }
 }
 
 tasks.named("composeUp") {
