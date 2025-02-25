@@ -45,7 +45,7 @@ configure<ComposeExtension> {
     environment.putAll(
         mapOf(
             "DOCKER_REGISTRY" to properties["docker.registry"],
-            "TEAMCITY_VERSION" to "2022.4.7",
+            "TEAMCITY_VERSION" to "2022.04.7",
             "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"],
         )
     )
