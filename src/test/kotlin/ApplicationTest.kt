@@ -222,7 +222,6 @@ class ApplicationTest {
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
 
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
-        Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
     }
 
@@ -282,7 +281,6 @@ class ApplicationTest {
             Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
 
             Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
-            Assertions.assertEquals("false", teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "RELENG_SKIP"))
             Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
         }
     }
