@@ -136,7 +136,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         }
         setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
-        setProjectParameter(project.id, "RELENG_SKIP", "false")
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
     }
 
