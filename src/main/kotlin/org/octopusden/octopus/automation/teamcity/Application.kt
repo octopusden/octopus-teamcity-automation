@@ -12,6 +12,7 @@ fun main(args: Array<String>) {
             TeamcityUpdateParameterSetCommand(),
             TeamcityUpdateParameterIncrementCommand()
         ),
-        TeamcityUploadMetarunnersCommand()
+        TeamcityUploadMetarunnersCommand(),
+        TeamcityGetBuildTypesAgentRequirementsCommand(),
     ).main(args)
 }

@@ -7,6 +7,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.Base64
+import java.util.Properties
 import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
@@ -17,6 +18,7 @@ import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterIncrementCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterSetCommand
@@ -27,6 +29,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
 import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityAgentRequirement
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
@@ -39,6 +42,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkPro
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 
 
 class ApplicationTest {
@@ -425,6 +429,22 @@ class ApplicationTest {
         }
     }
 
+    @Test
+    fun testGetBuildTypesAgentRequirements(testInfo: TestInfo) {
+        val file = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.csv")
+        Assertions.assertEquals(
+            0, execute(
+                testInfo.testMethod.get().name,
+                *TEAMCITY_OPTIONS,
+                TeamcityGetBuildTypesAgentRequirementsCommand.COMMAND,
+                "${TeamcityGetBuildTypesAgentRequirementsCommand.FILE}=$file"
+            )
+        )
+        Assertions.assertTrue(file.exists())
+        Assertions.assertTrue(file.readText().contains("teamcity.agent.jvm.os.name;Mac OS X"))
+        file.delete()
+    }
+
     @ParameterizedTest
     @MethodSource("validCommands")
     fun testValidCommands(name: String, command: Array<String>) = Assertions.assertEquals(0, execute(name, *command))
@@ -481,11 +501,25 @@ class ApplicationTest {
                 TEST_SUBPROJECT_2_BUILD_1, TEST_SUBPROJECT_2_BUILD_1, project = TeamcityLinkProject(TEST_SUBPROJECT_2)
             )
         )
-        teamcityClient.createBuildType(
+        val buildType = teamcityClient.createBuildType(
             TeamcityCreateBuildType(
                 TEST_SUBPROJECT_2_BUILD_2, TEST_SUBPROJECT_2_BUILD_2, project = TeamcityLinkProject(TEST_SUBPROJECT_2)
             )
         )
+        val properties = TeamcityProperties(
+            listOf(
+                TeamcityProperty("property-value", "Mac OS X"),
+                TeamcityProperty("property-name", "teamcity.agent.jvm.os.name"),
+            )
+        )
+
+        teamcityClient.addAgentRequirementToBuildType(
+            BuildTypeLocator(buildType.id),
+            TeamcityAgentRequirement(null, "agentName", "equals", null, null, null,
+                properties
+                )
+        )
+
         val templates = listOf(
             TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE,
             TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
