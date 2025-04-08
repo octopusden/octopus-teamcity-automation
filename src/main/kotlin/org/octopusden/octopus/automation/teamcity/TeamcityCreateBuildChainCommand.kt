@@ -54,7 +54,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val checkListValidation by option(CHECKLIST, help = "Generate check list validation")
         .convert { it.trim().toBoolean() }.default(true)
 
-    private val createRc by option(CREATE_RC, help = "Generate check list validation")
+    private val createRc by option(CREATE_RC, help = "Generate RC for non EE components")
         .convert { it.trim().toBoolean() }.default(false)
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
