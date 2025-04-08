@@ -4,7 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
@@ -51,9 +51,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val componentsRegistryUrl by option(CR, help = "Components Registry service Url").required()
         .check("$CR is empty") { it.isNotEmpty() }
 
-    private val checkListValidation by option(CHECKLIST, help = "Generate check list validation").flag(default = true)
+    private val checkListValidation by option(CHECKLIST, help = "Generate check list validation")
+        .convert { it.trim().toBoolean() }.default(true)
 
-    private val createRc by option(CREATE_RC, help = "Generate check list validation").flag(default = false)
+    private val createRc by option(CREATE_RC, help = "Generate check list validation")
+        .convert { it.trim().toBoolean() }.default(false)
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
