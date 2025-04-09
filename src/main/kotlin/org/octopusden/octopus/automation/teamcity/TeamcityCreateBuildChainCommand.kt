@@ -51,10 +51,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val componentsRegistryUrl by option(CR, help = "Components Registry service Url").required()
         .check("$CR is empty") { it.isNotEmpty() }
 
-    private val checkListValidation by option(CHECKLIST, help = "Generate check list validation")
+    private val createChecklist by option(CREATE_CHECKLIST, help = "Generate check list validation")
         .convert { it.trim().toBoolean() }.default(true)
 
-    private val createRc by option(CREATE_RC, help = "Generate RC for non EE components")
+    private val createRcForce by option(CREATE_RC_FORCE, help = "Force generate RC for non EE components")
         .convert { it.trim().toBoolean() }.default(false)
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
@@ -99,7 +99,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
         val releaseConfig =
-            if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRc) {
+            if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
                 val rcConfig = createBuildConf(
                     TEMPLATE_RC,
                     "[${++counter}.0] Release Candidate [Manual]",
@@ -107,7 +107,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 attachVcsRootToBuildType(rcConfig.id, vcsRootId)
 
-                if (checkListValidation) {
+                if (createChecklist) {
                     val checklistConfig = createBuildConf(
                         TEMPLATE_CHECKLIST,
                         "[${++counter}.0] Release Checklist Validation [MANUAL]",
@@ -242,8 +242,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val COMPONENT = "--component"
         const val VERSION = "--minor-version"
         const val CR = "--registry-url"
-        const val CHECKLIST = "--check-list-validation"
-        const val CREATE_RC = "--create-rc"
+        const val CREATE_CHECKLIST = "--create-checklist"
+        const val CREATE_RC_FORCE = "--create-rc-force"
 
         const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
         const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"

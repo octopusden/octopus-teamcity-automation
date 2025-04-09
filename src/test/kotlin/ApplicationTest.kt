@@ -53,8 +53,8 @@ class ApplicationTest {
         testMethodName: String,
         componentName: String,
         minorVersion: String? = "1.0",
-        checkListValidation: Boolean = true,
-        createRc: Boolean = false
+        createChecklist: Boolean = true,
+        createRcForce: Boolean = false
     ): Int =
         execute(
             testMethodName,
@@ -64,8 +64,8 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
             "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
             "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
-            "${TeamcityCreateBuildChainCommand.CHECKLIST}=$checkListValidation",
-            "${TeamcityCreateBuildChainCommand.CREATE_RC}=$createRc",
+            "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
+            "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
 
     private fun validateBuildTypeTemplate(buildTypeId: String, templateId: String) {
@@ -371,8 +371,8 @@ class ApplicationTest {
                 testInfo.methodName(),
                 componentName,
                 minorVersion,
-                checkListValidation = false,
-                createRc = true
+                createChecklist = false,
+                createRcForce = true
             )
         )
 
