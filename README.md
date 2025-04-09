@@ -4,7 +4,7 @@
 
 Run the Command:
 ```bash
-java -jar your-tool.jar \
+java -jar octopus-teamcity-automation.jar \
   --url=https://your-teamcity-server.com \
   --user=your-username \
   --password=your-password \
@@ -18,9 +18,10 @@ java -jar your-tool.jar \
 - `--password` - TeamCity password
 - `get-build-agent-req` - Command to export build agent requirements
 - `--file` - Path to the output CSV file
+- `--archived` - Optional flag to archive the report after generation(default: false)
 
 ### CSV Output Format:
 The generated file (report.csv) will contain the following columns:
 
-| Project ID|Project Name | Build Type ID | Build Type Name | Agent Requirement Name | Agent Requirement Value |
-|---|---|---|---|---|---|
+| Project ID|Project Name | Build Type ID | Build Type Name | Agent Requirement Type | Agent Requirement Name | Agent Requirement Value |
+|---|---|---|------------------|---|---|---|

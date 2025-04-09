@@ -3,6 +3,7 @@ package org.octopusden.octopus.automation.teamcity
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.check
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import java.io.BufferedWriter
@@ -22,6 +23,7 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
     private val file by option(FILE, help = "File to save the agent requirements").required()
         .check("File must be a valid path") { it.isNotBlank() }
+    private val archived by option(ARCHIVED, help = "Include archived projects").flag(default = false)
 
     override fun run() {
         log.info("Getting agent requirements for build types")
@@ -38,6 +40,8 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
         //Data
         bufferWriter.use { bufferWriter ->
             buildTypes.buildTypes
+                .filter { buildType ->
+                    archived || buildType.project?.archived != true }
                 .forEach() { buildType ->
                     val agentRequirements = client.getAgentRequirements(buildType.id)
                     agentRequirements.agentRequirements.forEach { ar ->
@@ -65,5 +69,6 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
     companion object {
         const val COMMAND = "get-build-agent-req"
         const val FILE = "--file"
+        const val ARCHIVED = "--archived"
     }
 }
