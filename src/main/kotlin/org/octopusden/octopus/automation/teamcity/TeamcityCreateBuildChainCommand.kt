@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
@@ -50,6 +51,12 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val componentsRegistryUrl by option(CR, help = "Components Registry service Url").required()
         .check("$CR is empty") { it.isNotEmpty() }
 
+    private val createChecklist by option(CREATE_CHECKLIST, help = "Generate check list validation")
+        .convert { it.trim().toBoolean() }.default(true)
+
+    private val createRcForce by option(CREATE_RC_FORCE, help = "Force generate RC for non EE components")
+        .convert { it.trim().toBoolean() }.default(false)
+
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
@@ -91,45 +98,52 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
-        val releaseConfig = if (component.distribution?.explicit == true && component.distribution?.external == true) {
-            val rcConfig = createBuildConf(
-                TEMPLATE_RC,
-                "[${++counter}.0] Release Candidate [Manual]",
-                project.id
-            )
-            attachVcsRootToBuildType(rcConfig.id, vcsRootId)
+        val releaseConfig =
+            if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
+                val rcConfig = createBuildConf(
+                    TEMPLATE_RC,
+                    "[${++counter}.0] Release Candidate [Manual]",
+                    project.id
+                )
+                attachVcsRootToBuildType(rcConfig.id, vcsRootId)
 
-            val checklistConfig = createBuildConf(
-                TEMPLATE_CHECKLIST,
-                "[${++counter}.0] Release Checklist Validation [MANUAL]",
-                project.id
-            )
-            attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
+                if (createChecklist) {
+                    val checklistConfig = createBuildConf(
+                        TEMPLATE_CHECKLIST,
+                        "[${++counter}.0] Release Checklist Validation [MANUAL]",
+                        project.id
+                    )
+                    attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
+                    addSnapshotDependency(checklistConfig, rcConfig)
+                    setBuildTypeParameter(
+                        checklistConfig.id,
+                        "BUILD_VERSION",
+                        "%dep.${compileConfig.id}.BUILD_VERSION%"
+                    )
+                }
 
-            val releaseConfig = createBuildConf(
-                TEMPLATE_RELEASE,
-                "[${++counter}.0] Release [Manual]",
-                project.id
-            )
-            attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                val releaseConfig = createBuildConf(
+                    TEMPLATE_RELEASE,
+                    "[${++counter}.0] Release [Manual]",
+                    project.id
+                )
+                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
 
-            addSnapshotDependency(rcConfig, compileConfig)
-            addSnapshotDependency(checklistConfig, rcConfig)
-            addSnapshotDependency(releaseConfig, rcConfig)
+                addSnapshotDependency(rcConfig, compileConfig)
+                addSnapshotDependency(releaseConfig, rcConfig)
 
-            setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
-            setBuildTypeParameter(checklistConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
-            releaseConfig
-        } else {
-            val releaseConfig = createBuildConf(
-                TEMPLATE_RELEASE,
-                "[${++counter}.0] Release [Manual]",
-                project.id
-            )
-            attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
-            addSnapshotDependency(releaseConfig, compileConfig)
-            releaseConfig
-        }
+                setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
+                releaseConfig
+            } else {
+                val releaseConfig = createBuildConf(
+                    TEMPLATE_RELEASE,
+                    "[${++counter}.0] Release [Manual]",
+                    project.id
+                )
+                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                addSnapshotDependency(releaseConfig, compileConfig)
+                releaseConfig
+            }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
         if (component.buildSystem == BuildSystem.GRADLE) {
             disableBuildStep(releaseConfig.id, "Deploy to Share")
@@ -228,6 +242,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val COMPONENT = "--component"
         const val VERSION = "--minor-version"
         const val CR = "--registry-url"
+        const val CREATE_CHECKLIST = "--create-checklist"
+        const val CREATE_RC_FORCE = "--create-rc-force"
 
         const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
         const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"
