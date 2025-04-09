@@ -53,7 +53,13 @@ class ApplicationTest {
             File("").resolve("build").resolve("logs").resolve("$name.log").also { it.parentFile.mkdirs() }).start()
             .waitFor()
 
-    private fun executeForCreateBuildChainCommand(componentName: String, minorVersion: String? = "1.0", testMethodName: String): Int =
+    private fun executeForCreateBuildChainCommand(
+        testMethodName: String,
+        componentName: String,
+        minorVersion: String? = "1.0",
+        createChecklist: Boolean = true,
+        createRcForce: Boolean = false
+    ): Int =
         execute(
             testMethodName,
             *TEAMCITY_OPTIONS,
@@ -62,6 +68,8 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
             "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
             "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+            "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
+            "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
 
     private fun validateBuildTypeTemplate(buildTypeId: String, templateId: String) {
@@ -166,6 +174,8 @@ class ApplicationTest {
         )
     }
 
+    private fun TestInfo.methodName() = testMethod.get().name
+
     /**
      * Tests CreateTeamCityBuildChain for explicit & external components.
      * Verifies:
@@ -182,7 +192,7 @@ class ApplicationTest {
         val componentName = "ee-component"
 
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(componentName, minorVersion, testInfo.testMethod.get().name)
+            0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion)
         )
 
         val projectId = "TestTeamcityAutomation_EeComponent"
@@ -227,6 +237,69 @@ class ApplicationTest {
 
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
+        teamcityClient.deleteProject(projectId)
+    }
+
+    @Test
+    fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(testInfo: TestInfo) {
+        val minorVersion = "1.0"
+        val componentName = "ee-component"
+
+        Assertions.assertEquals(
+            0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion, false)
+        )
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(3, buildTypes.size)
+
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val releaseConfigId = "${projectId}_30ReleaseManual"
+
+        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            releaseConfigId to rcConfigId
+        )
+
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
+            }
+        }
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION")
+        )
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            componentName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+        )
+        Assertions.assertEquals(
+            minorVersion,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+        )
+        teamcityClient.deleteProject(projectId)
     }
 
     /**
@@ -250,7 +323,7 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(componentName, minorVersion, testInfo.testMethod.get().name)
+                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion)
             )
 
             Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -286,7 +359,73 @@ class ApplicationTest {
 
             Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
             Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
+            teamcityClient.deleteProject(projectId)
         }
+    }
+
+    @Test
+    fun testTeamCityCreateBuildChainForIEComponentWithRc(testInfo: TestInfo) {
+        val minorVersion = "1.0"
+        val projectId = "TestTeamcityAutomation_IeComponent"
+        val componentName = "ie-component"
+
+        Assertions.assertEquals(
+            0,
+            executeForCreateBuildChainCommand(
+                testInfo.methodName(),
+                componentName,
+                minorVersion,
+                createChecklist = false,
+                createRcForce = true
+            )
+        )
+
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(3, buildTypes.size)
+
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val releaseConfigId = "${projectId}_30ReleaseManual"
+
+        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            releaseConfigId to rcConfigId
+        )
+
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
+            }
+        }
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            componentName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+        )
+        Assertions.assertEquals(
+            minorVersion,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+        )
+        teamcityClient.deleteProject(projectId)
     }
 
     /**
@@ -306,7 +445,7 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(componentName, testMethodName = testInfo.testMethod.get().name)
+                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName)
             )
             val nonCompileConfigIds = listOf(
                 "${projectId}_20ReleaseCandidateManual",
@@ -335,7 +474,7 @@ class ApplicationTest {
 
         componentNames.forEach { componentName ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(componentName, testMethodName = testInfo.testMethod.get().name)
+                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName)
             )
         }
 
@@ -344,7 +483,7 @@ class ApplicationTest {
         validateBuildTypeTemplate("TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
 
         Assertions.assertEquals(
-            1, executeForCreateBuildChainCommand("not-supported-component", testMethodName = testInfo.testMethod.get().name)
+            1, executeForCreateBuildChainCommand(testInfo.methodName(), "not-supported-component")
         )
     }
 
