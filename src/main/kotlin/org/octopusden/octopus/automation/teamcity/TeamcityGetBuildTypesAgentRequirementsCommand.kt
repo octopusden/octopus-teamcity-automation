@@ -27,7 +27,8 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
 
     override fun run() {
         log.info("Getting agent requirements for build types")
-        val buildTypes = client.getBuildTypesWithFields("buildType(id,projectId,projectName,name,href,paused,project(id,name,archived,href,webUrl))")
+        val buildTypes =
+            client.getBuildTypesWithFields("buildType(id,projectId,projectName,name,href,paused,project(id,name,archived,href,webUrl))")
         BufferedWriter(FileWriter(file)).use { bufferWriter ->
             //Header
             bufferWriter.write("Project ID;")
@@ -40,35 +41,33 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
             bufferWriter.write("Paused;")
             bufferWriter.write("Archived;\n")
             //Data
-            bufferWriter.use { bufferWriter ->
-                buildTypes.buildTypes
-                    .filter { buildType ->
-                        archived || buildType.project?.archived != true
-                    }
-                    .forEach() { buildType ->
-                        val agentRequirements = client.getAgentRequirements(buildType.id)
-                        agentRequirements.agentRequirements.forEach { ar ->
-                            bufferWriter.write("${buildType.projectId};")
-                            bufferWriter.write("${buildType.projectName};")
-                            bufferWriter.write("${buildType.id};")
-                            bufferWriter.write("${buildType.name};")
-                            bufferWriter.write("${ar.type};")
-                            val props = arrayOf("", "")
-                            ar.properties.properties.forEach() { arProperty ->
-                                if ("property-name" == arProperty.name) {
-                                    props[0] = arProperty.value ?: ""
-                                }
-                                if ("property-value" == arProperty.name) {
-                                    props[1] = arProperty.value ?: ""
-                                }
+            buildTypes.buildTypes
+                .filter { buildType ->
+                    archived || buildType.project?.archived != true
+                }
+                .forEach { buildType ->
+                    val agentRequirements = client.getAgentRequirements(buildType.id)
+                    agentRequirements.agentRequirements.forEach { ar ->
+                        bufferWriter.write("${buildType.projectId};")
+                        bufferWriter.write("${buildType.projectName};")
+                        bufferWriter.write("${buildType.id};")
+                        bufferWriter.write("${buildType.name};")
+                        bufferWriter.write("${ar.type};")
+                        val props = arrayOf("", "")
+                        ar.properties.properties.forEach { arProperty ->
+                            if ("property-name" == arProperty.name) {
+                                props[0] = arProperty.value ?: ""
                             }
-                            bufferWriter.write("${props[0]};")
-                            bufferWriter.write("${props[1]};")
-                            bufferWriter.write("${buildType.paused};")
-                            bufferWriter.write("${buildType.project?.archived};\n")
+                            if ("property-value" == arProperty.name) {
+                                props[1] = arProperty.value ?: ""
+                            }
                         }
+                        bufferWriter.write("${props[0]};")
+                        bufferWriter.write("${props[1]};")
+                        bufferWriter.write("${buildType.paused};")
+                        bufferWriter.write("${buildType.project?.archived};\n")
                     }
-            }
+                }
         }
     }
 
