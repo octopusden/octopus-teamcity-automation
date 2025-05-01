@@ -27,22 +27,25 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
 
     override fun run() {
         log.info("Getting agent requirements for build types")
-        val buildTypes = client.getBuildTypes()
-        val bufferWriter = BufferedWriter(FileWriter(file))
-        //Header
-        bufferWriter.write("Project ID;")
-        bufferWriter.write("Project Name;")
-        bufferWriter.write("Build Type ID;")
-        bufferWriter.write("Build Type Name;")
-        bufferWriter.write("Agent Requirement Type;")
-        bufferWriter.write("Agent Requirement Name;")
-        bufferWriter.write("Agent Requirement Value;\n")
-        //Data
-        bufferWriter.use { bufferWriter ->
+        val buildTypes =
+            client.getBuildTypesWithFields("buildType(id,projectId,projectName,name,href,paused,project(id,name,archived,href,webUrl))")
+        BufferedWriter(FileWriter(file)).use { bufferWriter ->
+            //Header
+            bufferWriter.write("Project ID;")
+            bufferWriter.write("Project Name;")
+            bufferWriter.write("Build Type ID;")
+            bufferWriter.write("Build Type Name;")
+            bufferWriter.write("Agent Requirement Type;")
+            bufferWriter.write("Agent Requirement Name;")
+            bufferWriter.write("Agent Requirement Value;")
+            bufferWriter.write("Paused;")
+            bufferWriter.write("Archived;\n")
+            //Data
             buildTypes.buildTypes
                 .filter { buildType ->
-                    archived || buildType.project?.archived != true }
-                .forEach() { buildType ->
+                    archived || buildType.project?.archived != true
+                }
+                .forEach { buildType ->
                     val agentRequirements = client.getAgentRequirements(buildType.id)
                     agentRequirements.agentRequirements.forEach { ar ->
                         bufferWriter.write("${buildType.projectId};")
@@ -51,7 +54,7 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
                         bufferWriter.write("${buildType.name};")
                         bufferWriter.write("${ar.type};")
                         val props = arrayOf("", "")
-                        ar.properties.properties.forEach() { arProperty ->
+                        ar.properties.properties.forEach { arProperty ->
                             if ("property-name" == arProperty.name) {
                                 props[0] = arProperty.value ?: ""
                             }
@@ -60,7 +63,9 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
                             }
                         }
                         bufferWriter.write("${props[0]};")
-                        bufferWriter.write("${props[1]};\n")
+                        bufferWriter.write("${props[1]};")
+                        bufferWriter.write("${buildType.paused};")
+                        bufferWriter.write("${buildType.project?.archived};\n")
                     }
                 }
         }
