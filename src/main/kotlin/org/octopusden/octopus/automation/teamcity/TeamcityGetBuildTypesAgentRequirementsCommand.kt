@@ -38,6 +38,7 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
             bufferWriter.write("Agent Requirement Type;")
             bufferWriter.write("Agent Requirement Name;")
             bufferWriter.write("Agent Requirement Value;")
+            bufferWriter.write("Disabled;")
             bufferWriter.write("Paused;")
             bufferWriter.write("Archived;\n")
             //Data
@@ -64,6 +65,7 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
                         }
                         bufferWriter.write("${props[0]};")
                         bufferWriter.write("${props[1]};")
+                        bufferWriter.write("${ar.disabled};")
                         bufferWriter.write("${buildType.paused};")
                         bufferWriter.write("${buildType.project?.archived};\n")
                     }
