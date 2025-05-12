@@ -1,18 +1,32 @@
-version: '3'
+version: '2.1'
+
+volumes:
+  datadir-volume:
 
 services:
+  init-volume:
+    image: ${DOCKER_REGISTRY}/busybox:latest
+    volumes:
+      - datadir-volume:/data/datadir
+      - ./:/source
+    command: sh -c "unzip /source/data.zip -d /data/ && chown -R 1000:1000 /data/"
+    entrypoint: ""
+    restart: "no"
+
   teamcity:
     image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_VERSION}
     ports:
       - "8111:8111"
     volumes:
-      - ./../build/teamcity-server/datadir:/data/teamcity_server/datadir
-      - ./../build/teamcity-server/logs:/opt/teamcity/logs
+      - datadir-volume:/data/teamcity_server/datadir
+      - ./../build/teamcity-server/logs:/opt/teamcity/logs:ro
     healthcheck:
       test: curl -u admin:admin -f teamcity:8111/app/rest/server >/dev/null || exit 1
       interval: 30s
       timeout: 10s
       retries: 5
+    depends_on:
+      - init-volume
 
   components-registry-service:
     image: ${DOCKER_REGISTRY}/octopusden/components-registry-service:${COMPONENTS_REGISTRY_SERVICE_VERSION}

@@ -53,13 +53,8 @@ configure<ComposeExtension> {
 
 dockerCompose.isRequiredBy(tasks["test"])
 
-tasks.register<Sync>("prepareTeamcityServerData") {
-    from(zipTree(layout.projectDirectory.file("docker/data.zip")))
-    into(layout.buildDirectory.dir("teamcity-server"))
-}
-
-tasks.named("composeUp") {
-    dependsOn("prepareTeamcityServerData")
+tasks.test {
+    outputs.upToDateWhen { false }
 }
 
 dependencies {
