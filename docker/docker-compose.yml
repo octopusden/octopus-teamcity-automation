@@ -8,6 +8,8 @@ services:
     volumes:
       - ./../build/teamcity-server/datadir:/data/teamcity_server/datadir
       - ./../build/teamcity-server/logs:/opt/teamcity/logs
+      - ./entrypoint.sh:/opt/teamcity/bin/entrypoint.sh
+    entrypoint: /bin/bash /opt/teamcity/bin/entrypoint.sh
     healthcheck:
       test: curl -u admin:admin -f teamcity:8111/app/rest/server >/dev/null || exit 1
       interval: 30s
