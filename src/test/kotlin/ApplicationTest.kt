@@ -7,7 +7,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.Base64
-import java.util.Properties
 import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
@@ -235,6 +234,8 @@ class ApplicationTest {
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
 
+        Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
         teamcityClient.deleteProject(projectId)
@@ -289,6 +290,11 @@ class ApplicationTest {
         Assertions.assertEquals(
             compileBuildVersion,
             teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            compileConfigId,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
         )
 
         Assertions.assertEquals(
@@ -357,6 +363,8 @@ class ApplicationTest {
             val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
             Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
 
+            Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+
             Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
             Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
             teamcityClient.deleteProject(projectId)
@@ -415,6 +423,11 @@ class ApplicationTest {
         Assertions.assertEquals(
             compileBuildVersion,
             teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            compileConfigId,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
         )
 
         Assertions.assertEquals(
