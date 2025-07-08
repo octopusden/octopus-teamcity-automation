@@ -83,18 +83,17 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter, "OLD")
-        val executeResult = execute(
-            testInfo.testMethod.get().name,
-            *getTeamcityOptions(config),
-            TeamcityUpdateParameterCommand.COMMAND,
-            "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
-            "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2;$TEST_PROJECT",
-            "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_SUBPROJECT_1_BUILD_1",
-            TeamcityUpdateParameterSetCommand.COMMAND,
-            "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW"
-        )
         Assertions.assertEquals(
-            0, executeResult
+            0, execute(
+                testInfo.testMethod.get().name,
+                *getTeamcityOptions(config),
+                TeamcityUpdateParameterCommand.COMMAND,
+                "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
+                "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2;$TEST_PROJECT",
+                "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_SUBPROJECT_1_BUILD_1",
+                TeamcityUpdateParameterSetCommand.COMMAND,
+                "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW"
+            )
         )
         Assertions.assertEquals(
             "NEW", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, parameter)
