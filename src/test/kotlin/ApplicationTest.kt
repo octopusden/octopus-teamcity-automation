@@ -9,8 +9,6 @@ import java.net.http.HttpResponse
 import java.util.Base64
 import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -71,14 +69,18 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
 
-    private fun validateBuildTypeTemplate(buildTypeId: String, templateId: String) {
+    private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
         val templateBuildType = teamcityClient.getBuildType(buildTypeId).templates?.buildTypes
         Assertions.assertEquals(1, templateBuildType?.size)
         Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
     }
 
-    @Test
-    fun testTeamCityUpdateParameterSet(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityUpdateParameterSet(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter, "OLD")
@@ -125,8 +127,12 @@ class ApplicationTest {
         )
     }
 
-    @Test
-    fun testTeamCityUpdateParameterIncrement(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityUpdateParameterIncrement(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "1.0")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter, "1.1")
@@ -185,8 +191,12 @@ class ApplicationTest {
      * - Disabled build step
      * - Parameter assignments
      */
-    @Test
-    fun testTeamCityCreateBuildChainForEEComponent(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForEEComponent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val minorVersion = "1.0"
         val componentName = "ee-component"
 
@@ -204,9 +214,9 @@ class ApplicationTest {
         val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
         val releaseConfigId = "${projectId}_40ReleaseManual"
 
-        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-        validateBuildTypeTemplate(checklistConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST)
-        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, checklistConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
@@ -241,8 +251,12 @@ class ApplicationTest {
         teamcityClient.deleteProject(projectId)
     }
 
-    @Test
-    fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val minorVersion = "1.0"
         val componentName = "ee-component"
 
@@ -259,8 +273,8 @@ class ApplicationTest {
         val rcConfigId = "${projectId}_20ReleaseCandidateManual"
         val releaseConfigId = "${projectId}_30ReleaseManual"
 
-        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
@@ -318,8 +332,12 @@ class ApplicationTest {
      * - Disabled build step
      * - Parameter assignments
      */
-    @Test
-    fun testTeamCityCreateBuildChainForNonEEComponent(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForNonEEComponent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val minorVersion = "1.0"
         val componentNamesToProjectId = mapOf(
             "ie-component" to "TestTeamcityAutomation_IeComponent",
@@ -339,7 +357,7 @@ class ApplicationTest {
             val compileConfigId = "${projectId}_10CompileUtAuto"
             val releaseConfigId = "${projectId}_20ReleaseManual"
 
-            validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+            validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
             val buildTypesIdAndDependencyId = mapOf(
                 compileConfigId to null,
@@ -371,8 +389,12 @@ class ApplicationTest {
         }
     }
 
-    @Test
-    fun testTeamCityCreateBuildChainForIEComponentWithRc(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForIEComponentWithRc(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val minorVersion = "1.0"
         val projectId = "TestTeamcityAutomation_IeComponent"
         val componentName = "ie-component"
@@ -396,8 +418,8 @@ class ApplicationTest {
         val rcConfigId = "${projectId}_20ReleaseCandidateManual"
         val releaseConfigId = "${projectId}_30ReleaseManual"
 
-        validateBuildTypeTemplate(rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-        validateBuildTypeTemplate(releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
@@ -444,8 +466,12 @@ class ApplicationTest {
     /**
      * Tests CreateTeamCityBuildChain for overriding the JDK_VERSION parameter in compile build configurations based on the component's javaVersion.
      */
-    @Test
-    fun testTeamCityCreateBuildChainForJDKVersion(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForJDKVersion(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val defaultJDKComponentName = "default-jdk-component"
         val defaultJDKProjectId = "TestTeamcityAutomation_DefaultJdkComponent"
         val customJDKComponentName = "custom-jdk-component"
@@ -481,8 +507,12 @@ class ApplicationTest {
     /**
      * Tests CreateTeamCityBuildChain to verify the template used in compile build configurations aligns with the component's build system.
      */
-    @Test
-    fun testTeamCityCreateBuildChainForCompileTemplate(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForCompileTemplate(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val componentNames = listOf("maven-component", "gradle-component", "provided-component")
 
         componentNames.forEach { componentName ->
@@ -491,17 +521,21 @@ class ApplicationTest {
             )
         }
 
-        validateBuildTypeTemplate("TestTeamcityAutomation_MavenComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE)
-        validateBuildTypeTemplate("TestTeamcityAutomation_GradleComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
-        validateBuildTypeTemplate("TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_MavenComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE)
+        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_GradleComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
 
         Assertions.assertEquals(
             1, executeForCreateBuildChainCommand(testInfo.methodName(), "not-supported-component")
         )
     }
 
-    @Test
-    fun testTeamCityUpdateParameterIncrementCurrent(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityUpdateParameterIncrementCurrent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "1.0")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter, "1.0.1")
@@ -540,8 +574,12 @@ class ApplicationTest {
         )
     }
 
-    @Test
-    fun testTeamCityUploadMetarunners(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityUploadMetarunners(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
         val metarunners = ApplicationTest::class.java.getResource("metarunners.zip")!!
         Assertions.assertEquals(
             0, execute(
@@ -581,8 +619,9 @@ class ApplicationTest {
         }
     }
 
-    @Test
-    fun testGetBuildTypesAgentRequirements(testInfo: TestInfo) {
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testGetBuildTypesAgentRequirements(testInfo: TestInfo, config: TeamcityTestConfiguration) {
         val file = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.csv")
         Assertions.assertEquals(
             0, execute(
@@ -605,8 +644,7 @@ class ApplicationTest {
     @MethodSource("invalidCommands")
     fun testInvalidCommands(name: String, command: Array<String>) = Assertions.assertEquals(1, execute(name, *command))
 
-    @BeforeEach
-    fun beforeEach() {
+    private fun cleanUpResources(teamcityClient: TeamcityClassicClient) {
         try {
             teamcityClient.deleteProject(TEST_PROJECT)
         } catch (e: Exception) {
@@ -703,6 +741,24 @@ class ApplicationTest {
     }
 
     companion object {
+        @JvmStatic
+        fun teamcityConfigurations(): List<TeamcityTestConfiguration> = listOf(
+            TeamcityTestConfiguration(
+                name = "v22",
+                host = "localhost:8111",
+                version = "2022.04.7 (build 109063)"
+            ),
+            TeamcityTestConfiguration(
+                name = "v25",
+                host = "localhost:8112",
+                version = "2025.03.3 (build 186370)"
+            )
+        )
+
+        @JvmStatic
+        fun teamcityContexts(): List<TeamcityTestConfiguration> =
+            teamcityConfigurations().map { TeamcityTestConfiguration(it.name, it.host, it.version) }
+
         const val TEST_PROJECT = "TestTeamcityAutomation"
         const val TEST_BUILD_1 = "TestTeamcityAutomationBuild1"
         const val TEST_BUILD_2 = "TestTeamcityAutomationBuild2"
@@ -721,17 +777,20 @@ class ApplicationTest {
 
         const val COMPONENTS_REGISTRY_SERVICE_URL = "http://localhost:4567"
 
+        private fun getTeamcityOptions(config: TeamcityTestConfiguration) {}
+
         val TEAMCITY_OPTIONS = arrayOf(
             "${TeamcityCommand.URL_OPTION}=$TEAMCITY_URL",
             "${TeamcityCommand.USER_OPTION}=$TEAMCITY_USER",
             "${TeamcityCommand.PASSWORD_OPTION}=$TEAMCITY_PASSWORD"
         )
 
-        private val teamcityClient = TeamcityClassicClient(object : ClientParametersProvider {
-            override fun getApiUrl() = TEAMCITY_URL
-
-            override fun getAuth() = StandardBasicCredCredentialProvider(TEAMCITY_USER, TEAMCITY_PASSWORD)
-        })
+        private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient {
+            return TeamcityClassicClient(object : ClientParametersProvider {
+                override fun getApiUrl() = config.host
+                override fun getAuth() = StandardBasicCredCredentialProvider(TEAMCITY_USER, TEAMCITY_PASSWORD)
+            })
+        }
 
         //<editor-fold defaultstate="collapsed" desc="Test Data">
         @JvmStatic

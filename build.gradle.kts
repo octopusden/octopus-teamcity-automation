@@ -58,8 +58,14 @@ tasks.register<Sync>("prepareTeamcityServerData") {
     into(layout.buildDirectory.dir("teamcity-server"))
 }
 
+tasks.register<Sync>("prepareTeamcityServerDataV25") {
+    from(zipTree(layout.projectDirectory.file("docker/dataV25.zip")))
+    into(layout.buildDirectory.dir("teamcity-server-2025"))
+}
+
 tasks.named("composeUp") {
     dependsOn("prepareTeamcityServerData")
+    dependsOn("prepareTeamcityServerDataV25")
 }
 
 dependencies {
