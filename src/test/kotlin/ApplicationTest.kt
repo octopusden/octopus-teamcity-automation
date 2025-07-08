@@ -9,6 +9,7 @@ import java.net.http.HttpResponse
 import java.util.Base64
 import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -44,6 +45,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTy
 
 class ApplicationTest {
     private val jar = System.getProperty("jar") ?: throw IllegalStateException("System property 'jar' must be provided")
+    private lateinit var testInfo: TestInfo
 
     private fun execute(name: String, vararg command: String) =
         ProcessBuilder("java", "-jar", jar, *command).redirectErrorStream(true).redirectOutput(
@@ -51,6 +53,7 @@ class ApplicationTest {
             .waitFor()
 
     private fun executeForCreateBuildChainCommand(
+        config: TeamcityTestConfiguration,
         testMethodName: String,
         componentName: String,
         minorVersion: String? = "1.0",
@@ -59,7 +62,7 @@ class ApplicationTest {
     ): Int =
         execute(
             testMethodName,
-            *TEAMCITY_OPTIONS,
+            *getTeamcityOptions(config),
             TeamcityCreateBuildChainCommand.COMMAND,
             "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
@@ -69,15 +72,9 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
 
-    private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
-        val templateBuildType = teamcityClient.getBuildType(buildTypeId).templates?.buildTypes
-        Assertions.assertEquals(1, templateBuildType?.size)
-        Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
-    }
-
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityUpdateParameterSet(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityUpdateParameterSet(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -86,17 +83,18 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter, "OLD")
+        val executeResult = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityUpdateParameterCommand.COMMAND,
+            "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
+            "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2;$TEST_PROJECT",
+            "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_SUBPROJECT_1_BUILD_1",
+            TeamcityUpdateParameterSetCommand.COMMAND,
+            "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW"
+        )
         Assertions.assertEquals(
-            0, execute(
-                testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
-                TeamcityUpdateParameterCommand.COMMAND,
-                "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
-                "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2;$TEST_PROJECT",
-                "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_SUBPROJECT_1_BUILD_1",
-                TeamcityUpdateParameterSetCommand.COMMAND,
-                "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW"
-            )
+            0, executeResult
         )
         Assertions.assertEquals(
             "NEW", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, parameter)
@@ -129,7 +127,7 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityUpdateParameterIncrement(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityUpdateParameterIncrement(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -142,7 +140,7 @@ class ApplicationTest {
         Assertions.assertEquals(
             0, execute(
                 testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
+                *getTeamcityOptions(config),
                 TeamcityUpdateParameterCommand.COMMAND,
                 "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
                 "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2,$TEST_PROJECT",
@@ -193,7 +191,7 @@ class ApplicationTest {
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForEEComponent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForEEComponent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -201,7 +199,7 @@ class ApplicationTest {
         val componentName = "ee-component"
 
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion)
+            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
         )
 
         val projectId = "TestTeamcityAutomation_EeComponent"
@@ -253,7 +251,7 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -261,7 +259,7 @@ class ApplicationTest {
         val componentName = "ee-component"
 
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion, false)
+            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion, false)
         )
 
         val projectId = "TestTeamcityAutomation_EeComponent"
@@ -334,7 +332,7 @@ class ApplicationTest {
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForNonEEComponent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForNonEEComponent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -347,7 +345,7 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName, minorVersion)
+                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
             )
 
             Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -391,7 +389,7 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForIEComponentWithRc(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForIEComponentWithRc(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -401,7 +399,7 @@ class ApplicationTest {
 
         Assertions.assertEquals(
             0,
-            executeForCreateBuildChainCommand(
+            executeForCreateBuildChainCommand(config,
                 testInfo.methodName(),
                 componentName,
                 minorVersion,
@@ -468,7 +466,7 @@ class ApplicationTest {
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForJDKVersion(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForJDKVersion(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -484,7 +482,7 @@ class ApplicationTest {
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName)
+                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
             )
             val nonCompileConfigIds = listOf(
                 "${projectId}_20ReleaseCandidateManual",
@@ -509,7 +507,7 @@ class ApplicationTest {
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityCreateBuildChainForCompileTemplate(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityCreateBuildChainForCompileTemplate(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -517,7 +515,7 @@ class ApplicationTest {
 
         componentNames.forEach { componentName ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(testInfo.methodName(), componentName)
+                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
             )
         }
 
@@ -526,13 +524,13 @@ class ApplicationTest {
         validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
 
         Assertions.assertEquals(
-            1, executeForCreateBuildChainCommand(testInfo.methodName(), "not-supported-component")
+            1, executeForCreateBuildChainCommand(config, testInfo.methodName(), "not-supported-component")
         )
     }
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityUpdateParameterIncrementCurrent(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityUpdateParameterIncrementCurrent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -546,7 +544,7 @@ class ApplicationTest {
         Assertions.assertEquals(
             0, execute(
                 testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
+                *getTeamcityOptions(config),
                 TeamcityUpdateParameterCommand.COMMAND,
                 "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
                 "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_BUILD_2;$TEST_SUBPROJECT_1_BUILD_1,$TEST_SUBPROJECT_1_BUILD_2;$TEST_SUBPROJECT_2_BUILD_1,$TEST_SUBPROJECT_2_BUILD_2",
@@ -576,7 +574,7 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityUploadMetarunners(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testTeamCityUploadMetarunners(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
@@ -584,49 +582,25 @@ class ApplicationTest {
         Assertions.assertEquals(
             0, execute(
                 testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
+                *getTeamcityOptions(config),
                 TeamcityUploadMetarunnersCommand.COMMAND,
                 "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=$TEST_PROJECT",
                 "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=$metarunners"
             )
         )
-        htmlDocument(
-            HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder()
-                    .uri(URI("$TEAMCITY_URL/admin/editProject.html?projectId=$TEST_PROJECT&tab=metaRunner"))
-                    .header("Origin", TEAMCITY_URL)
-                    .header(
-                        "Authorization",
-                        "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
-                    )
-                    .method("GET", HttpRequest.BodyPublishers.noBody())
-                    .build(),
-                HttpResponse.BodyHandlers.ofString()
-            ).body()
-        ) {
-            tr {
-                withAttribute = "data-id" to "TestMetarunner"
-                findAll { size toBe 1 }
-            }
-            tr {
-                withAttribute = "data-id" to "TestMetarunner2"
-                findAll { size toBe 1 }
-            }
-            tr {
-                withAttribute = "data-id" to "TestMetarunner3"
-                findAll { size toBe 1 }
-            }
-        }
+
+        val tabName = if (config.version < 2025) "metaRunner" else "recipe"
+        validateUploadedMetarunners("${config.host}/admin/editProject.html?projectId=$TEST_PROJECT&tab=$tabName")
     }
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testGetBuildTypesAgentRequirements(testInfo: TestInfo, config: TeamcityTestConfiguration) {
+    fun testGetBuildTypesAgentRequirements(config: TeamcityTestConfiguration) {
         val file = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.csv")
         Assertions.assertEquals(
             0, execute(
                 testInfo.testMethod.get().name,
-                *TEAMCITY_OPTIONS,
+                *getTeamcityOptions(config),
                 TeamcityGetBuildTypesAgentRequirementsCommand.COMMAND,
                 "${TeamcityGetBuildTypesAgentRequirementsCommand.FILE}=$file"
             )
@@ -643,6 +617,11 @@ class ApplicationTest {
     @ParameterizedTest
     @MethodSource("invalidCommands")
     fun testInvalidCommands(name: String, command: Array<String>) = Assertions.assertEquals(1, execute(name, *command))
+
+    @BeforeEach
+    fun init(testInfo: TestInfo) {
+        this.testInfo = testInfo
+    }
 
     private fun cleanUpResources(teamcityClient: TeamcityClassicClient) {
         try {
@@ -740,25 +719,42 @@ class ApplicationTest {
         }
     }
 
+    private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
+        val templateBuildType = teamcityClient.getBuildType(buildTypeId).templates?.buildTypes
+        Assertions.assertEquals(1, templateBuildType?.size)
+        Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
+    }
+
+    private fun validateUploadedMetarunners(url: String) {
+        htmlDocument(
+            HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder()
+                    .uri(URI(url))
+                    .header(
+                        "Authorization",
+                        "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
+                    )
+                    .method("GET", HttpRequest.BodyPublishers.noBody())
+                    .build(),
+                HttpResponse.BodyHandlers.ofString()
+            ).body()
+        ) {
+            tr {
+                withAttribute = "data-id" to "TestMetarunner"
+                findAll { size toBe 1 }
+            }
+            tr {
+                withAttribute = "data-id" to "TestMetarunner2"
+                findAll { size toBe 1 }
+            }
+            tr {
+                withAttribute = "data-id" to "TestMetarunner3"
+                findAll { size toBe 1 }
+            }
+        }
+    }
+
     companion object {
-        @JvmStatic
-        fun teamcityConfigurations(): List<TeamcityTestConfiguration> = listOf(
-            TeamcityTestConfiguration(
-                name = "v22",
-                host = "localhost:8111",
-                version = "2022.04.7 (build 109063)"
-            ),
-            TeamcityTestConfiguration(
-                name = "v25",
-                host = "localhost:8112",
-                version = "2025.03.3 (build 186370)"
-            )
-        )
-
-        @JvmStatic
-        fun teamcityContexts(): List<TeamcityTestConfiguration> =
-            teamcityConfigurations().map { TeamcityTestConfiguration(it.name, it.host, it.version) }
-
         const val TEST_PROJECT = "TestTeamcityAutomation"
         const val TEST_BUILD_1 = "TestTeamcityAutomationBuild1"
         const val TEST_BUILD_2 = "TestTeamcityAutomationBuild2"
@@ -771,19 +767,10 @@ class ApplicationTest {
 
         const val HELP_OPTION = "-h"
 
-        const val TEAMCITY_URL = "http://localhost:8111"
         const val TEAMCITY_USER = "admin"
         const val TEAMCITY_PASSWORD = "admin"
 
         const val COMPONENTS_REGISTRY_SERVICE_URL = "http://localhost:4567"
-
-        private fun getTeamcityOptions(config: TeamcityTestConfiguration) {}
-
-        val TEAMCITY_OPTIONS = arrayOf(
-            "${TeamcityCommand.URL_OPTION}=$TEAMCITY_URL",
-            "${TeamcityCommand.USER_OPTION}=$TEAMCITY_USER",
-            "${TeamcityCommand.PASSWORD_OPTION}=$TEAMCITY_PASSWORD"
-        )
 
         private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient {
             return TeamcityClassicClient(object : ClientParametersProvider {
@@ -792,110 +779,126 @@ class ApplicationTest {
             })
         }
 
-        //<editor-fold defaultstate="collapsed" desc="Test Data">
+        private fun getTeamcityOptions(config: TeamcityTestConfiguration) = arrayOf(
+            "${TeamcityCommand.URL_OPTION}=${config.host}",
+            "${TeamcityCommand.USER_OPTION}=$TEAMCITY_USER",
+            "${TeamcityCommand.PASSWORD_OPTION}=$TEAMCITY_PASSWORD"
+        )
+
         @JvmStatic
-        private fun validCommands(): Stream<Arguments> = Stream.of(
-            Arguments.of("validCommand", arrayOf(HELP_OPTION)),
-            Arguments.of(
-                "validCommand2", arrayOf(*TEAMCITY_OPTIONS, TeamcityUpdateParameterCommand.COMMAND, HELP_OPTION)
+        fun teamcityConfigurations(): List<TeamcityTestConfiguration> = listOf(
+            TeamcityTestConfiguration(
+                name = "v22",
+                host = "http://localhost:8111",
+                version = 2022
             ),
-            Arguments.of(
-                "validCommand3", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                    "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=test",
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "validCommand4", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                    "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
-                    "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=",
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "validCommand5", arrayOf(*TEAMCITY_OPTIONS, TeamcityUploadMetarunnersCommand.COMMAND, HELP_OPTION)
+            TeamcityTestConfiguration(
+                name = "v25",
+                host = "http://localhost:8112",
+                version = 2025
             )
         )
 
         @JvmStatic
-        private fun invalidCommands(): Stream<Arguments> = Stream.of(
-            Arguments.of("invalidCommand", arrayOf(TeamcityUpdateParameterCommand.COMMAND, HELP_OPTION)),
-            Arguments.of(
-                "invalidCommand2", arrayOf(
-                    *(TEAMCITY_OPTIONS.clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=" }),
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand3", arrayOf(
-                    *(TEAMCITY_OPTIONS.clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=invalid" }),
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand4", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                    "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}= , ",
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand5", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    "${TeamcityUpdateParameterCommand.NAME_OPTION}= ",
-                    "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand6", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand7", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUpdateParameterCommand.COMMAND,
-                    TeamcityUpdateParameterSetCommand.COMMAND,
-                    HELP_OPTION
-                )
-            ),
-            Arguments.of(
-                "invalidCommand8", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUploadMetarunnersCommand.COMMAND,
-                    "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}= ",
-                    "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=file:///test.zip"
-                )
-            ),
-            Arguments.of(
-                "invalidCommand9", arrayOf(
-                    *TEAMCITY_OPTIONS,
-                    TeamcityUploadMetarunnersCommand.COMMAND,
-                    "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
-                    "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
-                )
-            )
-        )
+        fun teamcityContexts(): List<TeamcityTestConfiguration> =
+            teamcityConfigurations().map { TeamcityTestConfiguration(it.name, it.host, it.version) }
+
+        //<editor-fold defaultstate="collapsed" desc="Test Data">
+        @JvmStatic
+        fun validCommands(): Stream<Arguments> {
+            return teamcityConfigurations().flatMap { config ->
+                listOf(
+                    "validCommand" to arrayOf(HELP_OPTION),
+                    "validCommand2" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "validCommand3" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                        "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=test",
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "validCommand4" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
+                        "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=",
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "validCommand5" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUploadMetarunnersCommand.COMMAND,
+                        HELP_OPTION
+                    )
+                ).map { (name, args) -> Arguments.of(name, args) }
+            }.stream()
+        }
+
+        @JvmStatic
+        private fun invalidCommands(): Stream<Arguments> {
+            return teamcityConfigurations().flatMap { config ->
+                listOf(
+                    "invalidCommand" to arrayOf(TeamcityUpdateParameterCommand.COMMAND, HELP_OPTION),
+                    "invalidCommand2" to arrayOf(
+                        *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=" }),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand3" to arrayOf(
+                        *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=invalid" }),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand4" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}= , ",
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand5" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        "${TeamcityUpdateParameterCommand.NAME_OPTION}= ",
+                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand6" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand7" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUpdateParameterCommand.COMMAND,
+                        TeamcityUpdateParameterSetCommand.COMMAND,
+                        HELP_OPTION
+                    ),
+                    "invalidCommand8" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUploadMetarunnersCommand.COMMAND,
+                        "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}= ",
+                        "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=file:///test.zip"
+                    ),
+                    "invalidCommand9" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityUploadMetarunnersCommand.COMMAND,
+                        "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
+                        "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
+                    )
+                ).map { (name, args) -> Arguments.of(name, args) }
+            }.stream()
+        }
         //</editor-fold>
     }
 }
