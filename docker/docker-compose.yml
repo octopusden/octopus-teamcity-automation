@@ -14,6 +14,19 @@ services:
       timeout: 10s
       retries: 5
 
+  teamcity-2025:
+    image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_V25_VERSION}
+    ports:
+      - "8112:8111"
+    volumes:
+      - ./../build/teamcity-server-2025/datadir:/data/teamcity_server/datadir
+      - ./../build/teamcity-server-2025/logs:/opt/teamcity/logs
+    healthcheck:
+      test: curl -u admin:admin -f teamcity-2025:8111/app/rest/server >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   components-registry-service:
     image: ${DOCKER_REGISTRY}/octopusden/components-registry-service:${COMPONENTS_REGISTRY_SERVICE_VERSION}
     ports:
