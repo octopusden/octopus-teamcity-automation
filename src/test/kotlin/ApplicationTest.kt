@@ -510,7 +510,7 @@ class ApplicationTest {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
 
-        val componentNames = listOf("maven-component", "gradle-component", "provided-component")
+        val componentNames = listOf("maven-component", "gradle-component", "provided-component", "in-container-component")
 
         componentNames.forEach { componentName ->
             Assertions.assertEquals(
@@ -521,6 +521,7 @@ class ApplicationTest {
         validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_MavenComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE)
         validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_GradleComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
         validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_InContainerComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
 
         Assertions.assertEquals(
             1, executeForCreateBuildChainCommand(config, testInfo.methodName(), "not-supported-component")

@@ -91,6 +91,18 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     }
 }
 
+"in-container-component" {
+    buildSystem = IN_CONTAINER
+    componentDisplayName = "In container component"
+    componentOwner = "In container component Owner"
+    releaseManager = "In container component Manager"
+    groupId = "corp.domain"
+    vcsUrl = "ssh://git@git.domain.corp/ee/in-container-component.git"
+    jira {
+        projectKey = 'BUILDSYS'
+    }
+}
+
 "not-supported-component" {
     buildSystem = ESCROW_NOT_SUPPORTED
     componentDisplayName = "Not supported component"

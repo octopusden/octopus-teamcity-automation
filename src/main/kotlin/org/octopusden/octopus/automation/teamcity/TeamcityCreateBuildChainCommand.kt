@@ -88,6 +88,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 BuildSystem.MAVEN -> TEMPLATE_MAVEN_COMPILE
                 BuildSystem.GRADLE -> TEMPLATE_GRADLE_COMPILE
                 BuildSystem.PROVIDED -> TEMPLATE_GRADLE_COMPILE
+                BuildSystem.IN_CONTAINER -> TEMPLATE_GRADLE_COMPILE
                 else -> throw NotFoundException("Unsupported build system: ${component.buildSystem?.name}")
             },
             "[${++counter}.0] Compile & UT [AUTO]",
