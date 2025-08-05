@@ -70,17 +70,26 @@ tasks.named("composeUp") {
 }
 
 dependencies {
-    implementation("org.slf4j:slf4j-api:2.0.13")
-    implementation("ch.qos.logback:logback-classic:1.3.14")
-    implementation("com.github.ajalt.clikt:clikt:4.4.0")
+    implementation("org.slf4j:slf4j-api:${properties["slf4j-api.version"]}")
+    implementation("ch.qos.logback:logback-classic:${properties["logback-classic.version"]}")
+    implementation("com.github.ajalt.clikt:clikt:${properties["clikt.version"]}")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
     implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}")
-    with("5.9.2") {
-        testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
-        testImplementation("org.junit.jupiter:junit-jupiter-params:$this")
-        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$this")
+    implementation("org.octopusden.octopus.vcsfacade:client:${properties["octopus-vcs-facade.version"]}")
+    implementation("org.octopusden.octopus.dms:client:${properties["octopus-dms-service.version"]}"){
+        exclude("org.slf4j","slf4j-api")
+        exclude("ch.qos.logback", "logback-classic")
     }
-    testImplementation("it.skrape:skrapeit:1.2.2")
+    implementation("org.octopusden.octopus.release-management-service:client:${properties["octopus-release-management-service.version"]}")
+    implementation("com.atlassian.jira:jira-rest-java-client-core:${properties["jira-rest-client.version"]}")
+    implementation("com.atlassian.jira:jira-rest-java-client-api:${properties["jira-rest-client.version"]}")
+    implementation("io.atlassian.fugue:fugue:${properties["fugue.version"]}")
+    implementation("org.glassfish.jersey.core:jersey-common:${properties["glassfish-jersey.version"]}")
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:${property("junit.version")}")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:${property("junit.version")}")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${property("junit.version")}")
+    testImplementation("it.skrape:skrapeit:${property("skrapeit.version")}")
 }
 
 application {

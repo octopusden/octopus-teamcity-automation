@@ -10,7 +10,6 @@ import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 import org.slf4j.Logger
 
 class TeamcityBuildQueueCommand : CliktCommand(name = COMMAND, help = "Add a new build to the queue") {
@@ -30,10 +29,13 @@ class TeamcityBuildQueueCommand : CliktCommand(name = COMMAND, help = "Add a new
         .associate()
 
     private val context by requireObject<MutableMap<String, Any>>()
+
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
+
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
     override fun run() {
+        logInitialParameters()
         val props = if (parameters.isNotEmpty()) {
             TeamcityProperties(parameters.map { TeamcityProperty(name = it.key, value = it.value) })
         } else null
@@ -45,7 +47,15 @@ class TeamcityBuildQueueCommand : CliktCommand(name = COMMAND, help = "Add a new
 //        )
 //        val queued = client.queueBuild(toQueue)
 //
-//        log.info("Build queued: id={}, state={}", queued.id, queued.state)
+//        log.info("Build queued: id = ${queued.id}, state = ${queued.state}")
+    }
+
+    private fun logInitialParameters() {
+        log.info("Executing $COMMAND with parameters:")
+        log.info("buildTypeId = $buildTypeId")
+        log.info("branch = $branch")
+        log.info("comment = $comment")
+        log.info("parameters: $parameters")
     }
 
     companion object {
