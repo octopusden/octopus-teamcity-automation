@@ -137,7 +137,7 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
                     "$issueKey rename component $componentName to $componentNewName",
                     ""
                 )
-                val newDescription = description + "\nsee proposed PR $infraConfigPath/${pullRequest.link} as a possible source of changes\""
+                val newDescription = description + "\nsee proposed PR ${pullRequest.link} as a possible source of changes\""
                 jiraSdApiClient.updateIssueDescription(issueKey, newDescription)
             }
         }
