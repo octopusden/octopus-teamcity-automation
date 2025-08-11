@@ -9,9 +9,9 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityBuildComment
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateQueuedBuild
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityQueuedBuild
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 import org.slf4j.Logger
 
@@ -38,11 +38,11 @@ class TeamcityBuildQueueCommand : CliktCommand(name = COMMAND, help = "Add a new
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
     override fun run() {
-        logInitialParameters()
+        log.info("Executing $COMMAND")
         val properties = if (parameters.isNotEmpty()) {
             TeamcityProperties(parameters.map { TeamcityProperty(name = it.key, value = it.value) })
         } else null
-        val toQueue = TeamcityQueuedBuild(
+        val toQueue = TeamcityCreateQueuedBuild(
             buildType = BuildTypeLocator(id = buildTypeId),
             branchName = branch,
             comment = comment?.let { TeamcityBuildComment(it) },
@@ -50,14 +50,6 @@ class TeamcityBuildQueueCommand : CliktCommand(name = COMMAND, help = "Add a new
         )
         val queued = client.queueBuild(toQueue)
         log.info("Build queued: id = ${queued.id}, state = ${queued.state}")
-    }
-
-    private fun logInitialParameters() {
-        log.info("Executing $COMMAND with parameters:")
-        log.info("buildTypeId = $buildTypeId")
-        log.info("branch = $branch")
-        log.info("comment = $comment")
-        log.info("parameters: $parameters")
     }
 
     companion object {

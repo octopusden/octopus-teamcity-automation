@@ -74,6 +74,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:${properties["logback-classic.version"]}")
     implementation("com.github.ajalt.clikt:clikt:${properties["clikt.version"]}")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
+    implementation("org.octopusden.octopus.octopus-external-systems-clients:client-commons:${properties["teamcity-client.version"]}")
     implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}")
     implementation("org.octopusden.octopus.vcsfacade:client:${properties["octopus-vcs-facade.version"]}")
     implementation("org.octopusden.octopus.dms:client:${properties["octopus-dms-service.version"]}"){

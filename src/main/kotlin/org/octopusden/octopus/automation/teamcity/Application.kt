@@ -14,5 +14,8 @@ fun main(args: Array<String>) {
         ),
         TeamcityUploadMetarunnersCommand(),
         TeamcityGetBuildTypesAgentRequirementsCommand(),
+        TeamcityBuildQueueCommand(),
+        TeamcityRenameComponentCommand(),
+        TeamcityCreateEscrowConfigCommand()
     ).main(args)
 }

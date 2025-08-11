@@ -101,7 +101,7 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
     override fun run() {
-        logInitialParameters()
+        log.info("Executing $COMMAND")
         val componentsRegistryApiClient = ComponentsRegistryApiClient(componentsRegistryUrl)
         val dmsApiClient = DmsApiClient(dmsUrl, dmsUsername, dmsPassword)
         val jiraSdApiClient = JiraSdApiClient(sdUrl, sdUsername, sdPassword)
@@ -226,22 +226,6 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
             .writerWithDefaultPrettyPrinter()
             .writeValueAsString(mapOf(oldName to newName))
         return "{noformat}$json{noformat}"
-    }
-
-    private fun logInitialParameters() {
-        log.info("Executing $COMMAND with parameters:")
-        log.info("componentName = $componentName")
-        log.info("componentNewName = $componentNewName")
-        log.info("releaseManagementUrl = $releaseManagementUrl")
-        log.info("componentsRegistryUrl = $componentsRegistryUrl")
-        log.info("dmsUrl = $dmsUrl with dmsUsername = $dmsUsername")
-        log.info("gitServerUrl = $gitServerUrl")
-        log.info("vcsFacadeUrl = $vcsFacadeUrl")
-        log.info("sdUrl = $sdUrl with sdUsername = $sdUsername")
-        log.info("infraGitUrl = $infraGitUrl with gitUsername = $gitUsername")
-        log.info("infraConfigPath = $infraConfigPath")
-        log.info("prTargetBranch = $prTargetBranch")
-        log.info("reRun = $reRun")
     }
 
     companion object {

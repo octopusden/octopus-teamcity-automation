@@ -43,14 +43,14 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
     override fun run() {
+        log.info("Executing $COMMAND")
         if (skip) {
-            log.warn("Skip task")
+            log.info("Skip task")
             return
         }
         if (emulation) {
-            log.warn("Emulation run")
+            log.info("Emulation run")
         }
-
         val componentsRegistryApiClient = ComponentsRegistryApiClient(componentsRegistryUrl)
         componentsRegistryApiClient.getNotArchivedComponents().filter {
             if (it.component.distribution != null) {
@@ -68,11 +68,7 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
                 .filter { filterComponents(it.value.id) }
                 .forEach { teamcityProjects ->
                     if (!hasEscrowConfiguration(teamcityProjects.value)) {
-                        log.info(
-                            "Project with projectId={} does not have escrow configuration",
-                            teamcityProjects.value.id
-                        )
-                        log.info("Generate escrow configuration for projectId={}", teamcityProjects.value.id)
+                        log.info("Generate escrow configuration for projectId=${teamcityProjects.value.id}")
                         if (!emulation) {
                             val escrowConfig =
                                 client.createBuildType(
@@ -81,7 +77,7 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
                                         component.component.id
                                     )
                                 )
-                            log.info("Escrow configuration generated, escrow configurationId={}", escrowConfig.id)
+                            log.info("Escrow configuration generated, escrow configurationId=${escrowConfig.id}")
                         }
                     }
                 }
@@ -110,7 +106,7 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
                 "projects(project(id,name,webUrl,archived,href," +
                 "buildTypes(buildType(id,name,projectId,projectName,href,template,vcs-root-entries)))))))"
         val teamcityProject = try {
-            client.getProjectsWithFields(ProjectLocator(parameter = listOf(propertyLocator)), fields).projects.firstOrNull()
+            client.getProjectsWithLocatorAndFields(ProjectLocator(parameter = listOf(propertyLocator)), fields).projects.firstOrNull()
         } catch (_: Throwable) {
             null
         }
