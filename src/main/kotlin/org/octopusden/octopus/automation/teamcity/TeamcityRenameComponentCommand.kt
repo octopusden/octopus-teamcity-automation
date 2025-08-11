@@ -108,9 +108,9 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
         val releaseManagementApiClient = ReleaseManagementApiClient(releaseManagementUrl)
         val vcsFacadeApiClient = VcsFacadeApiClient(vcsFacadeUrl)
 
-        log.info("Search $componentName in components registry service")
-        val component = safeCall("ComponentsRegistry") { componentsRegistryApiClient.getComponent(componentName) } ?: return
-        log.info("Found component: ${component.name}")
+        log.info("Search $componentNewName in components registry service")
+        val newComponent = safeCall("ComponentsRegistry") { componentsRegistryApiClient.getComponent(componentNewName) } ?: return
+        log.info("Found component: ${newComponent.name}")
 
         log.info("Renaming in release management service")
         safeCall("ReleaseManagement") { releaseManagementApiClient.renameComponent(componentName, componentNewName) }
@@ -123,12 +123,12 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
             dmsApiClient.renameComponent(componentName, componentNewName)
             true
         } ?: false
-        if (dmsSucceeded && component.distribution!!.external && component.distribution!!.explicit ) {
+        if (dmsSucceeded && newComponent.distribution!!.external && newComponent.distribution!!.explicit ) {
             log.info("Notifying CDT about rename")
             val description = buildJsonDescription(componentName, componentNewName)
             val summary = "Delivery Tool: rename component $componentName to $componentNewName"
             val issueKey = jiraSdApiClient.createSdIssue(summary, description)
-            if (doGitCommands(componentName, componentNewName, issueKey)) {
+            if (doGitFlow(componentName, componentNewName, issueKey)) {
                 Thread.sleep(10000L)
                 val pullRequest = vcsFacadeApiClient.createPullRequest(
                     infraGitUrl,
@@ -137,7 +137,7 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
                     "$issueKey rename component $componentName to $componentNewName",
                     ""
                 )
-                val newDescription = description + "\nsee proposed PR ${pullRequest.link} as a possible source of changes\""
+                val newDescription = description + "\nsee proposed PR ${pullRequest.link} as a possible source of changes"
                 jiraSdApiClient.updateIssueDescription(issueKey, newDescription)
             }
         }
@@ -172,7 +172,7 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
         }
     }
 
-    private fun doGitCommands(componentName: String, newName: String, branch: String): Boolean {
+    private fun doGitFlow(componentName: String, newName: String, branch: String): Boolean {
         exec(arrayOf("git", "clone", infraGitUrl, REPOSITORY_DIR, "--config", "user.name=$gitUsername"), ".")
         exec(arrayOf("git", "checkout", "-b", prTargetBranch))
 
@@ -228,6 +228,8 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
         return "{noformat}$json{noformat}"
     }
 
+    private data class ExecutionResult(val exitCode: Int, val output: List<String>)
+
     companion object {
         const val COMMAND = "rename-component"
         const val COMPONENT_NAME = "--component-name"
@@ -251,7 +253,5 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
         const val REPOSITORY_DIR = "cloned-repo"
         const val COMPONENT_NAME_PARAMETER = "COMPONENT_NAME"
         const val PROJECT_NAME_PARAMETER = "name"
-
-        data class ExecutionResult(val exitCode: Int, val output: List<String>)
     }
 }

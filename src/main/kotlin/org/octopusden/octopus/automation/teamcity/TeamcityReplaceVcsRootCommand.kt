@@ -167,11 +167,11 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         val name = generateVcsRootName(newVcsUrl)
         val props = TeamcityProperties(
             properties = mutableListOf(
-                TeamcityProperty(PROPERTY_URL, newVcsUrl.lowercase()),
+                TeamcityProperty(PROPERTY_URL, newVcsUrl),
                 TeamcityProperty(PROPERTY_BRANCH, branch),
                 TeamcityProperty(PROPERTY_BRANCH_SPEC, DEFAULT_BRANCH_SPEC),
                 TeamcityProperty(PROPERTY_USERNAME, DEFAULT_GIT_USERNAME),
-                TeamcityProperty(PROPERTY_AUTH_METHOD, AUTH_PRIVATE_KEY_DEFAULT),
+                TeamcityProperty(PROPERTY_AUTH_METHOD, DEFAULT_AUTH_PRIVATE_KEY),
                 TeamcityProperty(PROPERTY_USERNAME_STYLE, USERNAME_STYLE_USERID),
                 TeamcityProperty(PROPERTY_SUBMODULE_CHECKOUT, SUBMODULE_IGNORE),
                 TeamcityProperty(PROPERTY_IGNORE_KNOWN_HOSTS, TRUE),
@@ -243,7 +243,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         const val EMULATION = "--emulation"
         const val JIRA_MESSAGE_FILE = "--jira-message-file"
 
-        // TeamCity properties
+        // Teamcity properties
         const val PROPERTY_URL = "url"
         const val PROPERTY_PUSH_URL = "push_url"
         const val PROPERTY_BRANCH = "branch"
@@ -258,11 +258,11 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         const val PROPERTY_VCS_ROOT_ID = "vcsRootId"
         const val PROPERTY_BUILD_TYPE_BRANCH = "VCS_BRANCH"
 
-        // TeamCity default values
+        // Teamcity default values
         const val VCS_JETBRAINS_GIT = "jetbrains.git"
         const val DEFAULT_BRANCH_SPEC = "+:refs/heads/*"
         const val DEFAULT_GIT_USERNAME = "git"
-        const val AUTH_PRIVATE_KEY_DEFAULT = "PRIVATE_KEY_DEFAULT"
+        const val DEFAULT_AUTH_PRIVATE_KEY = "PRIVATE_KEY_DEFAULT"
         const val USERNAME_STYLE_USERID = "USERID"
         const val SUBMODULE_IGNORE = "IGNORE"
         const val CLEAN_FILES_ALL_UNTRACKED = "ALL_UNTRACKED"

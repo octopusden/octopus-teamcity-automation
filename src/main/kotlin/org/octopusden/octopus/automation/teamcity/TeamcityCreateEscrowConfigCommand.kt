@@ -85,32 +85,25 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun findAllProjectsWithCdRelease(teamcityProject: TeamcityProject, map: MutableMap<String, TeamcityProject>) {
-        teamcityProject.projects?.projects?.forEach {
-            findAllProjectsWithCdRelease(it, map)
-        }
-        teamcityProject.archived?.let { isArchived ->
-            if (!isArchived) {
-                val cdRelease = teamcityProject.buildTypes?.buildTypes?.any { it.template?.id == CD_RELEASE_TEMPLATE_ID }
-                if (cdRelease != null && cdRelease) {
-                    map[teamcityProject.id] = teamcityProject
-                }
+        teamcityProject.projects?.projects?.forEach { findAllProjectsWithCdRelease(it, map) }
+        if (teamcityProject.archived != true) {
+            val hasCdRelease = teamcityProject.buildTypes
+                ?.buildTypes
+                ?.any { it.template?.id == CD_RELEASE_TEMPLATE_ID } == true
+            if (hasCdRelease) {
+                map[teamcityProject.id] = teamcityProject
             }
         }
     }
 
     private fun getProjectByParametersWithSubprojects(component: ComponentV3): TeamcityProject? {
-        val propertyLocator = PropertyLocator("COMPONENT_NAME", component.component.id, PropertyLocator.MatchType.EQUALS, true)
+        val propertyLocator = PropertyLocator(COMPONENT_NAME, component.component.id, PropertyLocator.MatchType.EQUALS, true)
         val fields = "project(id,name,webUrl,archived,href," +
                 "buildTypes(buildType(id,name,projectId,projectName,href,template,vcs-root-entries))," +
                 "projects(project(id,name,webUrl,archived,href," +
                 "projects(project(id,name,webUrl,archived,href," +
                 "buildTypes(buildType(id,name,projectId,projectName,href,template,vcs-root-entries)))))))"
-        val teamcityProject = try {
-            client.getProjectsWithLocatorAndFields(ProjectLocator(parameter = listOf(propertyLocator)), fields).projects.firstOrNull()
-        } catch (_: Throwable) {
-            null
-        }
-        return teamcityProject
+        return client.getProjectsWithLocatorAndFields(ProjectLocator(parameter = listOf(propertyLocator)), fields).projects.firstOrNull()
     }
 
     private fun hasEscrowConfiguration(teamcityProject: TeamcityProject): Boolean {
@@ -124,18 +117,18 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
             teamcityProject.buildTypes
                 ?.buildTypes
                 ?.firstOrNull { it.template?.id == CD_RELEASE_TEMPLATE_ID }
-        ) { "In project ${teamcityProject.id} buildType not found with template $ESCROW_TEMPLATE_ID" }
+        ) { "In project ${teamcityProject.id} buildType not found with template $CD_RELEASE_TEMPLATE_ID" }
         val snapshotDependencyProperties = TeamcityProperties(
             properties = listOf(
-                TeamcityProperty("run-build-if-dependency-failed", "MAKE_FAILED_TO_START"),
-                TeamcityProperty("run-build-if-dependency-failed-to-start", "MAKE_FAILED_TO_START"),
-                TeamcityProperty("run-build-on-the-same-agent", "false"),
-                TeamcityProperty("take-successful-builds-only", "true")
+                TeamcityProperty(SNAPSHOT_PROPERTY_FAIL, MAKE_FAILED_TO_START),
+                TeamcityProperty(SNAPSHOT_PROPERTY_FAIL_TO_START, MAKE_FAILED_TO_START),
+                TeamcityProperty(SNAPSHOT_PROPERTY_SAME_AGENT, FALSE),
+                TeamcityProperty(SNAPSHOT_PROPERTY_SUCCESS_ONLY, TRUE)
             )
         )
         val snapshotDependency = TeamcitySnapshotDependency(
             id = releaseBuildType.id,
-            type = "snapshot_dependency",
+            type = SNAPSHOT_DEPENDENCY_TYPE,
             sourceBuildType = TeamcityLinkBuildType(id = releaseBuildType.id),
             properties = snapshotDependencyProperties
         )
@@ -144,10 +137,10 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
         )
         val params = TeamcityProperties(
             properties = listOf(
-                TeamcityProperty("BUILD_VERSION", "%dep.${releaseBuildType.id}.BUILD_VERSION%"),
-                TeamcityProperty("MODULES", "$moduleName:%BUILD_VERSION%"),
-                TeamcityProperty("PROJECT_NAME", "escrow-runner"),
-                TeamcityProperty("VCS_RELATIVE_PATH", "f1/escrow-generator")
+                TeamcityProperty(PROPERTY_BUILD_VERSION, "%dep.${releaseBuildType.id}.$PROPERTY_BUILD_VERSION%"),
+                TeamcityProperty(PROPERTY_MODULES, "$moduleName:%$PROPERTY_BUILD_VERSION%"),
+                TeamcityProperty(PROPERTY_PROJECT_NAME, PROPERTY_PROJECT_NAME_VALUE),
+                TeamcityProperty(PROPERTY_VCS_RELATIVE_PATH, PROPERTY_VCS_RELATIVE_PATH_VALUE)
             )
         )
         return TeamcityCreateBuildType(
@@ -171,7 +164,28 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
         const val SKIP = "--skip"
         const val EMULATION = "--emulation"
 
+        // Teamcity properties
+        const val SNAPSHOT_PROPERTY_FAIL = "run-build-if-dependency-failed"
+        const val SNAPSHOT_PROPERTY_FAIL_TO_START = "run-build-if-dependency-failed-to-start"
+        const val SNAPSHOT_PROPERTY_SAME_AGENT = "run-build-on-the-same-agent"
+        const val SNAPSHOT_PROPERTY_SUCCESS_ONLY = "take-successful-builds-only"
+        const val PROPERTY_BUILD_VERSION = "BUILD_VERSION"
+        const val PROPERTY_MODULES = "MODULES"
+        const val PROPERTY_PROJECT_NAME = "PROJECT_NAME"
+        const val PROPERTY_VCS_RELATIVE_PATH = "VCS_RELATIVE_PATH"
+
+        // Teamcity default values
+        const val MAKE_FAILED_TO_START = "MAKE_FAILED_TO_START"
+        const val TRUE = "true"
+        const val FALSE = "false"
+        const val PROPERTY_PROJECT_NAME_VALUE = "escrow-runner"
+        const val PROPERTY_VCS_RELATIVE_PATH_VALUE = "f1/escrow-generator"
+
+        // Teamcity template ids
         const val CD_RELEASE_TEMPLATE_ID = "CDRelease"
         const val ESCROW_TEMPLATE_ID = "EscrowAutomation_EscrowRunnerTemplate"
+
+        const val COMPONENT_NAME = "COMPONENT_NAME"
+        const val SNAPSHOT_DEPENDENCY_TYPE = "snapshot_dependency"
     }
 }
