@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Queue TeamCity build">
+    <description>Add a new build to the queue</description>
+    <settings>
+        <parameters>
+            <param name="BUILD_TYPE_ID" spec="text description='TeamCity build configuration ID' validationMode='not_empty' display='normal'"/>
+            <param name="BRANCH" spec="text description='VCS branch name' validationMode='not_empty' display='normal'"/>
+            <param name="COMMENT" spec="text description='Optional comment to include with the queued build' display='normal'"/>
+            <param name="PARAMETERS" spec="text description='Additional build parameters in key=value format, separated by commas (e.g., key1=val1,key2=val2)' display='normal'"/>
+        </parameters>
+        <build-runners>
+            <runner name="queue build" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS"
+                           value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% build-queue --build-type-id=%BUILD_TYPE_ID% --branch=%BRANCH% --comment=%COMMENT% --parameters=%PARAMETERS%" />
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>
