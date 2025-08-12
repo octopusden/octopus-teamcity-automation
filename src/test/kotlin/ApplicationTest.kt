@@ -14,9 +14,13 @@ import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
+import org.octopusden.octopus.automation.teamcity.TeamcityBuildQueueCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityCreateEscrowConfigCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityRenameComponentCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityReplaceVcsRootCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterIncrementCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterSetCommand
@@ -36,6 +40,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
@@ -611,6 +616,235 @@ class ApplicationTest {
     }
 
     @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityBuildQueue(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+        val branch = "refs/heads/master"
+        val comment = "Queued from ApplicationTest"
+        val params = "FOO=bar,BUILD_REASON=tests"
+        val exitCode = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityBuildQueueCommand.COMMAND,
+            "${TeamcityBuildQueueCommand.BUILD_TYPE_ID}=$TEST_BUILD_1",
+            "${TeamcityBuildQueueCommand.BRANCH}=$branch",
+            "${TeamcityBuildQueueCommand.COMMENT}=$comment",
+            "${TeamcityBuildQueueCommand.PARAMETERS}=$params"
+        )
+        Assertions.assertEquals(0, exitCode)
+        val logFile = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.log")
+        Assertions.assertTrue(logFile.exists(), "Log file not found: ${logFile.absolutePath}")
+        val logText = logFile.readText()
+        Assertions.assertTrue(
+            logText.contains("Executing ${TeamcityBuildQueueCommand.COMMAND}"),
+            "No execution marker in log"
+        )
+        Assertions.assertTrue(
+            Regex("""Build queued: id\s*=\s*\d+,\s*state\s*=\s*\w+""").containsMatchIn(logText),
+            "No 'Build queued' line found in log"
+        )
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityReplaceVcsRoot(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
+        val oldUrl = "ssh://git@example.org/old/repository.git"
+        val newUrl = "ssh://git@example.org/new/repository.git"
+        val created = teamcityClient.createVcsRoot(
+            org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot(
+                name = "Old_Repository_For_Test",
+                vcsName = TeamcityReplaceVcsRootCommand.VCS_JETBRAINS_GIT,
+                projectLocator = "id:$TEST_PROJECT",
+                properties = TeamcityProperties(
+                    listOf(
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_URL, oldUrl),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH, "refs/heads/master"),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH_SPEC, TeamcityReplaceVcsRootCommand.DEFAULT_BRANCH_SPEC),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME, TeamcityReplaceVcsRootCommand.DEFAULT_GIT_USERNAME),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AUTH_METHOD, TeamcityReplaceVcsRootCommand.DEFAULT_AUTH_PRIVATE_KEY),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME_STYLE, TeamcityReplaceVcsRootCommand.USERNAME_STYLE_USERID),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_SUBMODULE_CHECKOUT, TeamcityReplaceVcsRootCommand.SUBMODULE_IGNORE),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_IGNORE_KNOWN_HOSTS, TeamcityReplaceVcsRootCommand.TRUE),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_FILES_POLICY, TeamcityReplaceVcsRootCommand.CLEAN_FILES_ALL_UNTRACKED),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_POLICY, TeamcityReplaceVcsRootCommand.CLEAN_ON_BRANCH_CHANGE),
+                    )
+                )
+            )
+        )
+        val messagesFile = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.txt")
+        val exitCode = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityReplaceVcsRootCommand.COMMAND,
+            "${TeamcityReplaceVcsRootCommand.OLD_VCS_ROOT}=$oldUrl",
+            "${TeamcityReplaceVcsRootCommand.NEW_VCS_ROOT}=$newUrl",
+            "${TeamcityReplaceVcsRootCommand.EMULATION}=false",
+            "${TeamcityReplaceVcsRootCommand.JIRA_MESSAGE_FILE}=${messagesFile.path}"
+        )
+        Assertions.assertEquals(0, exitCode)
+        val logFile = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.log")
+        Assertions.assertTrue(logFile.exists(), "Log file not found: ${logFile.absolutePath}")
+        val logText = logFile.readText()
+        Assertions.assertTrue(
+            logText.contains("Executing ${TeamcityReplaceVcsRootCommand.COMMAND}"),
+            "No execution marker in log"
+        )
+        Assertions.assertTrue(messagesFile.exists(), "Messages file not found: ${messagesFile.absolutePath}")
+        val report = messagesFile.readText()
+        Assertions.assertTrue(report.contains("Git VCS Root update report"), "No Git VCS Root report header")
+        Assertions.assertTrue(
+            report.lineSequence().any { it.startsWith("Updated Git VCS Root:") },
+            "No 'Updated Git VCS Root' line in report (created id=${created.id})"
+        )
+        val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
+        Assertions.assertEquals(newUrl, actualUrl, "VCS Root url property was not updated")
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateEscrowConfig(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
+        fun ensureTemplate(id: String) {
+            try {
+                teamcityClient.createBuildType(
+                    TeamcityCreateBuildType(
+                        id, id,
+                        project = TeamcityLinkProject(TEST_PROJECT),
+                        templateFlag = true
+                    )
+                )
+            } catch (_: Exception) {
+            }
+        }
+        ensureTemplate(TeamcityCreateEscrowConfigCommand.CD_RELEASE_TEMPLATE_ID)
+        ensureTemplate(TeamcityCreateEscrowConfigCommand.ESCROW_TEMPLATE_ID)
+
+        val componentId = "ee-component"
+        val projectId = "TestTeamcityAutomation_EscrowComponent"
+        teamcityClient.createProject(
+            TeamcityCreateProject(projectId, projectId, TeamcityLinkProject(TEST_PROJECT))
+        )
+        teamcityClient.setParameter(
+            ConfigurationType.PROJECT, projectId,
+            TeamcityCreateEscrowConfigCommand.COMPONENT_NAME, componentId
+        )
+        val releaseBuildTypeId = "${projectId}_20ReleaseCandidateManual"
+        teamcityClient.createBuildType(
+            TeamcityCreateBuildType(
+                id = releaseBuildTypeId,
+                name = "ReleaseCandidate",
+                project = TeamcityLinkProject(projectId),
+                template = TeamcityLinkBuildType(TeamcityCreateEscrowConfigCommand.CD_RELEASE_TEMPLATE_ID)
+            )
+        )
+        val exitCode = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityCreateEscrowConfigCommand.COMMAND,
+            "${TeamcityCreateEscrowConfigCommand.COMPONENTS_REGISTRY_URL}=$COMPONENTS_REGISTRY_SERVICE_URL",
+            "${TeamcityCreateEscrowConfigCommand.EMULATION}=false"
+        )
+        Assertions.assertEquals(0, exitCode)
+        val expectedEscrowName = "Escrow Test $projectId [AUTO]"
+        val createdBuildType = teamcityClient
+            .getBuildTypes(projectId)
+            .buildTypes
+            .find { it.name == expectedEscrowName } ?: Assertions.fail("Escrow configuration is not found in $projectId")
+        validateBuildTypeTemplate(
+            teamcityClient,
+            createdBuildType.id,
+            TeamcityCreateEscrowConfigCommand.ESCROW_TEMPLATE_ID
+        )
+        val deps = teamcityClient.getSnapshotDependencies(createdBuildType.id).snapshotDependencies
+        Assertions.assertEquals(1, deps.size)
+        Assertions.assertEquals(releaseBuildTypeId, deps[0].sourceBuildType.id)
+        val buildVersionExpected = "%dep.$releaseBuildTypeId.${TeamcityCreateEscrowConfigCommand.PROPERTY_BUILD_VERSION}%"
+        Assertions.assertEquals(
+            buildVersionExpected,
+            teamcityClient.getParameter(
+                ConfigurationType.BUILD_TYPE, createdBuildType.id,
+                TeamcityCreateEscrowConfigCommand.PROPERTY_BUILD_VERSION
+            )
+        )
+        Assertions.assertEquals(
+            "$componentId:%${TeamcityCreateEscrowConfigCommand.PROPERTY_BUILD_VERSION}%",
+            teamcityClient.getParameter(
+                ConfigurationType.BUILD_TYPE, createdBuildType.id,
+                TeamcityCreateEscrowConfigCommand.PROPERTY_MODULES
+            )
+        )
+        Assertions.assertEquals(
+            TeamcityCreateEscrowConfigCommand.PROPERTY_PROJECT_NAME_VALUE,
+            teamcityClient.getParameter(
+                ConfigurationType.BUILD_TYPE, createdBuildType.id,
+                TeamcityCreateEscrowConfigCommand.PROPERTY_PROJECT_NAME
+            )
+        )
+        Assertions.assertEquals(
+            TeamcityCreateEscrowConfigCommand.PROPERTY_VCS_RELATIVE_PATH_VALUE,
+            teamcityClient.getParameter(
+                ConfigurationType.BUILD_TYPE, createdBuildType.id,
+                TeamcityCreateEscrowConfigCommand.PROPERTY_VCS_RELATIVE_PATH
+            )
+        )
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityRenameComponent_updatesComponentNameOnlyComponentsRegistryReal(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+        val oldName = "old-ee-component"
+        val newName = "ee-component"
+        val otherComponent = "some-other-component"
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, oldName)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, oldName)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, otherComponent)
+
+        val exitCode = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityRenameComponentCommand.COMMAND,
+            "${TeamcityRenameComponentCommand.COMPONENT_NAME}=$oldName",
+            "${TeamcityRenameComponentCommand.COMPONENT_NEW_NAME}=$newName",
+            "${TeamcityRenameComponentCommand.COMPONENTS_REGISTRY_URL}=$COMPONENTS_REGISTRY_SERVICE_URL",
+            "${TeamcityRenameComponentCommand.RELEASE_MANAGEMENT_URL}=http://localhost:9991",
+            "${TeamcityRenameComponentCommand.DMS_URL}=http://localhost:9992",
+            "${TeamcityRenameComponentCommand.DMS_USERNAME}=user",
+            "${TeamcityRenameComponentCommand.DMS_PASSWORD}=pass",
+            "${TeamcityRenameComponentCommand.GIT_SERVER_URL}=http://localhost:9993",
+            "${TeamcityRenameComponentCommand.VCS_FACADE_URL}=http://localhost:9994",
+            "${TeamcityRenameComponentCommand.SD_URL}=http://localhost:9995",
+            "${TeamcityRenameComponentCommand.SD_USERNAME}=sd-user",
+            "${TeamcityRenameComponentCommand.SD_PASSWORD}=sd-pass",
+            "${TeamcityRenameComponentCommand.INFRA_GIT_URL}=ssh://some-path.git",
+            "${TeamcityRenameComponentCommand.INFRA_CONFIG_PATH}=config.json",
+            "${TeamcityRenameComponentCommand.GIT_USERNAME}=git",
+            "${TeamcityRenameComponentCommand.PR_TARGET_BRANCH}=master",
+            "${TeamcityRenameComponentCommand.RE_RUN}=true"
+        )
+        Assertions.assertEquals(0, exitCode)
+        Assertions.assertEquals(
+            newName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER)
+        )
+        Assertions.assertEquals(
+            newName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER)
+        )
+        Assertions.assertEquals(
+            otherComponent,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER)
+        )
+    }
+
+    @ParameterizedTest
     @MethodSource("validCommands")
     fun testValidCommands(name: String, command: Array<String>) = Assertions.assertEquals(0, execute(name, *command))
 
@@ -835,6 +1069,11 @@ class ApplicationTest {
                         *getTeamcityOptions(config),
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         HELP_OPTION
+                    ),
+                    "validCommand6" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityBuildQueueCommand.COMMAND,
+                        HELP_OPTION
                     )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
@@ -895,7 +1134,13 @@ class ApplicationTest {
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
                         "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
-                    )
+                    ),
+                    "invalidCommand10" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityBuildQueueCommand.COMMAND,
+                        "${TeamcityBuildQueueCommand.BUILD_TYPE_ID}= ",
+                        "${TeamcityBuildQueueCommand.BRANCH}=refs/heads/main"
+                    ),
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
         }

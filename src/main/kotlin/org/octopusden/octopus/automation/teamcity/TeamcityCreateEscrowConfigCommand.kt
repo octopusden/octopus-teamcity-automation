@@ -53,11 +53,8 @@ class TeamcityCreateEscrowConfigCommand : CliktCommand(name = COMMAND) {
         }
         val componentsRegistryApiClient = ComponentsRegistryApiClient(componentsRegistryUrl)
         componentsRegistryApiClient.getNotArchivedComponents().filter {
-            if (it.component.distribution != null) {
-                it.component.distribution!!.external
-            } else {
-                false
-            }
+            val distribution = componentsRegistryApiClient.getComponent(it.component.id).distribution
+            distribution?.external ?: false
         }.forEach { component ->
             val teamcityProjectWithSubprojects = getProjectByParametersWithSubprojects(component)
             val cdReleaseProjects: MutableMap<String, TeamcityProject> = HashMap()
