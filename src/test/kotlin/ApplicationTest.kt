@@ -797,7 +797,7 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testTeamCityRenameComponent_updatesComponentNameOnlyComponentsRegistryReal(config: TeamcityTestConfiguration) {
+    fun testTeamCityRenameComponent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient)
         val oldName = "old-ee-component"
@@ -806,7 +806,6 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, oldName)
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, oldName)
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, TeamcityRenameComponentCommand.COMPONENT_NAME_PARAMETER, otherComponent)
-
         val exitCode = execute(
             testInfo.testMethod.get().name,
             *getTeamcityOptions(config),
