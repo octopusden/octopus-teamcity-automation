@@ -894,7 +894,7 @@ class ApplicationTest {
                         *getTeamcityOptions(config),
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         HELP_OPTION
-                    ),
+                    )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
         }
@@ -954,7 +954,7 @@ class ApplicationTest {
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
                         "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
-                    ),
+                    )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
         }
