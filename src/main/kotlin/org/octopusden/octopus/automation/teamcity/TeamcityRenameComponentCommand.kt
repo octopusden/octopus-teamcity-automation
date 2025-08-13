@@ -103,10 +103,8 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
     override fun run() {
         log.info("Executing $COMMAND")
         val componentsRegistryApiClient = ComponentsRegistryApiClient(componentsRegistryUrl)
-        val dmsApiClient = DmsApiClient(dmsUrl, dmsUsername, dmsPassword)
-        val jiraSdApiClient = JiraSdApiClient(sdUrl, sdUsername, sdPassword)
         val releaseManagementApiClient = ReleaseManagementApiClient(releaseManagementUrl)
-        val vcsFacadeApiClient = VcsFacadeApiClient(vcsFacadeUrl)
+        val dmsApiClient = DmsApiClient(dmsUrl, dmsUsername, dmsPassword)
 
         log.info("Search $componentNewName in components registry service")
         val newComponent = safeCall("ComponentsRegistry") { componentsRegistryApiClient.getComponent(componentNewName) } ?: return
@@ -125,6 +123,8 @@ class TeamcityRenameComponentCommand : CliktCommand(name = COMMAND) {
         } ?: false
         if (dmsSucceeded && newComponent.distribution!!.external && newComponent.distribution!!.explicit ) {
             log.info("Notifying CDT about rename")
+            val jiraSdApiClient = JiraSdApiClient(sdUrl, sdUsername, sdPassword)
+            val vcsFacadeApiClient = VcsFacadeApiClient(vcsFacadeUrl)
             val description = buildJsonDescription(componentName, componentNewName)
             val summary = "Delivery Tool: rename component $componentName to $componentNewName"
             val issueKey = jiraSdApiClient.createSdIssue(summary, description)
