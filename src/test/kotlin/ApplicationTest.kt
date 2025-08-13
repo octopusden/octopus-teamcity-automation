@@ -647,7 +647,7 @@ class ApplicationTest {
             TeamcityReplaceVcsRootCommand.COMMAND,
             "${TeamcityReplaceVcsRootCommand.OLD_VCS_ROOT}=$oldUrl",
             "${TeamcityReplaceVcsRootCommand.NEW_VCS_ROOT}=$newUrl",
-            "${TeamcityReplaceVcsRootCommand.EMULATION}=false",
+            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false",
             "${TeamcityReplaceVcsRootCommand.JIRA_MESSAGE_FILE}=${messagesFile.path}"
         )
         Assertions.assertEquals(0, exitCode)

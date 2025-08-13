@@ -43,9 +43,9 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         .path(mustExist = false, canBeDir = false)
         .default(Paths.get("build", "vcs-replace-messages.txt"))
 
-    private val emulation by option(EMULATION, help = "Debug run")
-        .convert { it.toBooleanStrictOrNull() ?: throw IllegalArgumentException("$EMULATION must be 'true' or 'false'") }
-        .default(true)
+    private val dryRun by option(DRY_RUN, help = "Dry run only, do not apply")
+        .convert { it.toBooleanStrictOrNull() ?: throw IllegalArgumentException("$DRY_RUN must be 'true' or 'false'") }
+        .required()
 
     private val context by requireObject<MutableMap<String, Any>>()
 
@@ -71,7 +71,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
             messages += "(flag) {color:#ff0000} Git VCS Root update report {color}\r\n"
         }
         roots.forEach { root ->
-            if (!emulation) {
+            if (!dryRun) {
                 client.updateVcsRootProperty(root.id, PROPERTY_URL, newVcsRoot)
                 runCatching { client.getVcsRootProperty(root.id, PROPERTY_PUSH_URL) }
                     .onSuccess { client.updateVcsRootProperty(root.id, PROPERTY_PUSH_URL, newVcsRoot) }
@@ -103,18 +103,18 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
                 vcsRoot = TeamcityLinkVcsRoot(id = newVcs.id),
                 checkoutRules = checkoutRules
             )
-            if (!emulation) {
+            if (!dryRun) {
                 client.createBuildTypeVcsRootEntry(buildTypeLocator, createEntry)
             }
             messages += "Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${newVcs.id}, vcsRootName=${newVcs.name}, checkoutRules='${checkoutRules}'"
             migrateVcsLabeling(buildType.id, toDetach.map { it.vcsRoot.id }.toSet(), newVcs.id, messages)
             toDetach.forEach { oldEntry ->
-                if (!emulation) {
+                if (!dryRun) {
                     client.deleteBuildTypeVcsRootEntry(buildTypeLocator, oldEntry.id)
                 }
                 messages += "Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${oldEntry.vcsRoot.id}, vcsRootName=${oldEntry.vcsRoot.name}"
             }
-            log.info("Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${newVcs.id}-${newVcs.name}, checkoutRules='$checkoutRules' (emulation = $emulation)")
+            log.info("Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${newVcs.id}-${newVcs.name}, checkoutRules='$checkoutRules' (dryRun = $dryRun)")
         }
     }
 
@@ -169,25 +169,25 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
             properties = mutableListOf(
                 TeamcityProperty(PROPERTY_URL, newVcsUrl),
                 TeamcityProperty(PROPERTY_BRANCH, branch),
-                TeamcityProperty(PROPERTY_BRANCH_SPEC, DEFAULT_BRANCH_SPEC),
-                TeamcityProperty(PROPERTY_USERNAME, DEFAULT_GIT_USERNAME),
-                TeamcityProperty(PROPERTY_AUTH_METHOD, DEFAULT_AUTH_PRIVATE_KEY),
-                TeamcityProperty(PROPERTY_USERNAME_STYLE, USERNAME_STYLE_USERID),
-                TeamcityProperty(PROPERTY_SUBMODULE_CHECKOUT, SUBMODULE_IGNORE),
+                TeamcityProperty(PROPERTY_BRANCH_SPEC, PROPERTY_VALUE_BRANCH_SPEC),
+                TeamcityProperty(PROPERTY_USERNAME, PROPERTY_VALUE_USERNAME),
+                TeamcityProperty(PROPERTY_AUTH_METHOD, PROPERTY_VALUE_AUTH_METHOD),
+                TeamcityProperty(PROPERTY_USERNAME_STYLE, PROPERTY_VALUE_USERNAME_STYLE),
+                TeamcityProperty(PROPERTY_SUBMODULE_CHECKOUT, PROPERTY_VALUE_SUBMODULE_CHECKOUT),
                 TeamcityProperty(PROPERTY_IGNORE_KNOWN_HOSTS, TRUE),
-                TeamcityProperty(PROPERTY_AGENT_CLEAN_FILES_POLICY, CLEAN_FILES_ALL_UNTRACKED),
-                TeamcityProperty(PROPERTY_AGENT_CLEAN_POLICY, CLEAN_ON_BRANCH_CHANGE),
+                TeamcityProperty(PROPERTY_AGENT_CLEAN_FILES_POLICY, PROPERTY_VALUE_CLEAN_FILES_POLICY),
+                TeamcityProperty(PROPERTY_AGENT_CLEAN_POLICY, PROPERTY_VALUE_CLEAN_POLICY),
             )
         )
-        if (emulation) {
+        if (dryRun) {
             val fake = TeamcityVcsRoot(
-                id = "emulated",
-                name = "${name}_emulated",
+                id = "dryRun",
+                name = "${name}_dryRun",
                 vcsName = VCS_JETBRAINS_GIT,
                 href = "",
-                project = TeamcityProject(id = projectId, name = "Project Name emulated", href = "", webUrl = "")
+                project = TeamcityProject(id = projectId, name = "Project Name dryRun", href = "", webUrl = "")
             )
-            messages += "Created new VCS Root (emulated): projectId=$projectId, vcsRootId=${fake.id}, vcsRootName=${fake.name}, branch=$branch"
+            messages += "Created new VCS Root (dryRun): projectId=$projectId, vcsRootId=${fake.id}, vcsRootName=${fake.name}, branch=$branch"
             return fake
         } else {
             val created = client.createVcsRoot(
@@ -210,7 +210,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
             .forEach { feature ->
                 val bound = feature.properties.properties.firstOrNull { it.name == PROPERTY_VCS_ROOT_ID }?.value
                 if (bound != null && oldRootIds.contains(bound)) {
-                    if (!emulation) {
+                    if (!dryRun) {
                         client.updateBuildTypeFeatureParameter(BuildTypeLocator(buildTypeId), feature.id, PROPERTY_VCS_ROOT_ID, newRootId)
                     }
                     messages += "Updated VCS labeling: buildTypeId=$buildTypeId, featureId=${feature.id}, from=$bound, to=$newRootId"
@@ -240,7 +240,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         const val COMMAND = "replace-vcs-root"
         const val OLD_VCS_ROOT = "--old-vcs-root"
         const val NEW_VCS_ROOT = "--new-vcs-root"
-        const val EMULATION = "--emulation"
+        const val DRY_RUN = "--dry-run"
         const val JIRA_MESSAGE_FILE = "--jira-message-file"
 
         // Teamcity properties
@@ -260,13 +260,13 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
         // Teamcity default values
         const val VCS_JETBRAINS_GIT = "jetbrains.git"
-        const val DEFAULT_BRANCH_SPEC = "+:refs/heads/*"
-        const val DEFAULT_GIT_USERNAME = "git"
-        const val DEFAULT_AUTH_PRIVATE_KEY = "PRIVATE_KEY_DEFAULT"
-        const val USERNAME_STYLE_USERID = "USERID"
-        const val SUBMODULE_IGNORE = "IGNORE"
-        const val CLEAN_FILES_ALL_UNTRACKED = "ALL_UNTRACKED"
-        const val CLEAN_ON_BRANCH_CHANGE = "ON_BRANCH_CHANGE"
+        const val PROPERTY_VALUE_BRANCH_SPEC = "+:refs/heads/*"
+        const val PROPERTY_VALUE_USERNAME = "git"
+        const val PROPERTY_VALUE_AUTH_METHOD = "PRIVATE_KEY_DEFAULT"
+        const val PROPERTY_VALUE_USERNAME_STYLE = "USERID"
+        const val PROPERTY_VALUE_SUBMODULE_CHECKOUT = "IGNORE"
+        const val PROPERTY_VALUE_CLEAN_FILES_POLICY = "ALL_UNTRACKED"
+        const val PROPERTY_VALUE_CLEAN_POLICY = "ON_BRANCH_CHANGE"
         const val TRUE = "true"
 
         const val FEATURE_VCS_LABELING = "VcsLabeling"
