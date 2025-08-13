@@ -28,6 +28,7 @@ java.targetCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
     mavenCentral()
+    maven { setUrl("https://maven.artifacts.atlassian.com/") }
 }
 
 tasks.withType<Test> {
