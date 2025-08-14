@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.MethodSource
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityReplaceVcsRootCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterIncrementCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterSetCommand
@@ -36,6 +37,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
@@ -608,6 +610,48 @@ class ApplicationTest {
         Assertions.assertTrue(file.exists())
         Assertions.assertTrue(file.readText().contains("teamcity.agent.jvm.os.name;Mac OS X"))
         file.delete()
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityReplaceVcsRoot(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
+        val oldUrl = "ssh://git@example.org/old/repository.git"
+        val newUrl = "ssh://git@example.org/new/repository.git"
+        val created = teamcityClient.createVcsRoot(
+            TeamcityCreateVcsRoot(
+                name = "Old_Repository_For_Test",
+                vcsName = TeamcityReplaceVcsRootCommand.VCS_JETBRAINS_GIT,
+                projectLocator = "id:$TEST_PROJECT",
+                properties = TeamcityProperties(
+                    listOf(
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_URL, oldUrl),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH, "refs/heads/master"),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH_SPEC, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_BRANCH_SPEC),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AUTH_METHOD, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_AUTH_METHOD),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME_STYLE, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME_STYLE),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_SUBMODULE_CHECKOUT, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_SUBMODULE_CHECKOUT),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_IGNORE_KNOWN_HOSTS, TeamcityReplaceVcsRootCommand.TRUE),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_FILES_POLICY, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_FILES_POLICY),
+                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_POLICY, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_POLICY)
+                    )
+                )
+            )
+        )
+        val exitCode = execute(
+            testInfo.testMethod.get().name,
+            *getTeamcityOptions(config),
+            TeamcityReplaceVcsRootCommand.COMMAND,
+            "${TeamcityReplaceVcsRootCommand.OLD_VCS_ROOT}=$oldUrl",
+            "${TeamcityReplaceVcsRootCommand.NEW_VCS_ROOT}=$newUrl",
+            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false"
+        )
+        Assertions.assertEquals(0, exitCode)
+        val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
+        Assertions.assertEquals(newUrl, actualUrl, "VCS Root url property was not updated")
     }
 
     @ParameterizedTest
