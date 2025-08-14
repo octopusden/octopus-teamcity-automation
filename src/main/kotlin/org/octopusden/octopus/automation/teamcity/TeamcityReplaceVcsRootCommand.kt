@@ -28,11 +28,11 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
     private val oldVcsRoot by option(OLD_VCS_ROOT, help = "Old Git repository URL")
         .convert { it.trim() }.required()
-        .check("$OLD_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git)") { it.isValidGitUrl() }
+        .check("$OLD_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git or git@host:org/repo.git or https://host/org/repo.git). Use only lowercase.") { it.isValidGitUrl() }
 
     private val newVcsRoot by option(NEW_VCS_ROOT, help = "New Git repository URL")
         .convert { it.trim() }.required()
-        .check("$NEW_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git)") { it.isValidGitUrl() }
+        .check("$NEW_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git or git@host:org/repo.git or https://host/org/repo.git). Use only lowercase.") { it.isValidGitUrl() }
 
     private val dryRun by option(DRY_RUN, help = "Dry run only, do not apply")
         .convert { it.toBooleanStrictOrNull() ?: throw IllegalArgumentException("$DRY_RUN must be 'true' or 'false'") }
@@ -207,21 +207,36 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun generateVcsRootName(vcsUrl: String): String {
-        val base = URI(vcsUrl)
-            .path
-            .removePrefix("/")
+        val path = extractPathFromGitUrl(vcsUrl)
             .removeSuffix(".git")
             .replace("/", "_")
             .replace("-", "_")
             .split("_")
             .filter { it.isNotBlank() }
             .joinToString("_") { it.replaceFirstChar { c -> c.titlecase() } }
-        return "${base}_${UUID.randomUUID()}"
+        return "${path}_${UUID.randomUUID()}"
+    }
+
+    private fun extractPathFromGitUrl(vcsUrl: String): String {
+        return when {
+            vcsUrl.startsWith("ssh://", ignoreCase = true) || vcsUrl.startsWith("https://", ignoreCase = true) -> {
+                URI(vcsUrl).path.removePrefix("/")
+            }
+            else -> {
+                vcsUrl.substring(vcsUrl.indexOf(':') + 1)
+            }
+        }
     }
 
     private fun String.isValidGitUrl(): Boolean {
-        val sshScheme = Regex("""^ssh://[\w.-]+@[\w.-]+/[\w./~\-+%]+(\.git)$""")
-        return sshScheme.matches(this)
+        if (this != lowercase()) return false
+        val baseSshScheme = Regex("""^ssh://[\w.-]+@[\w.-]+/[\w./~\-+%]+(\.git)$""")
+        val githubSshScheme = Regex("""^[\w.-]+@[\w.-]+:[\w./~\-+%]+(\.git)$""")
+        val httpsScheme = Regex("""^https://[\w.-]+/[\w./~\-+%]+(\.git)$""")
+
+        return baseSshScheme.matches(this) ||
+                githubSshScheme.matches(this) ||
+                httpsScheme.matches(this)
     }
 
     private data class InstancesIndex(
