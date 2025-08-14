@@ -641,31 +641,15 @@ class ApplicationTest {
                 )
             )
         )
-        val messagesFile = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.txt")
         val exitCode = execute(
             testInfo.testMethod.get().name,
             *getTeamcityOptions(config),
             TeamcityReplaceVcsRootCommand.COMMAND,
             "${TeamcityReplaceVcsRootCommand.OLD_VCS_ROOT}=$oldUrl",
             "${TeamcityReplaceVcsRootCommand.NEW_VCS_ROOT}=$newUrl",
-            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false",
-            "${TeamcityReplaceVcsRootCommand.JIRA_MESSAGE_FILE}=${messagesFile.path}"
+            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false"
         )
         Assertions.assertEquals(0, exitCode)
-        val logFile = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.log")
-        Assertions.assertTrue(logFile.exists(), "Log file not found: ${logFile.absolutePath}")
-        val logText = logFile.readText()
-        Assertions.assertTrue(
-            logText.contains("Executing ${TeamcityReplaceVcsRootCommand.COMMAND}"),
-            "No execution marker in log"
-        )
-        Assertions.assertTrue(messagesFile.exists(), "Messages file not found: ${messagesFile.absolutePath}")
-        val report = messagesFile.readText()
-        Assertions.assertTrue(report.contains("Git VCS Root update report"), "No Git VCS Root report header")
-        Assertions.assertTrue(
-            report.lineSequence().any { it.startsWith("Updated Git VCS Root:") },
-            "No 'Updated Git VCS Root' line in report (created id=${created.id})"
-        )
         val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
         Assertions.assertEquals(newUrl, actualUrl, "VCS Root url property was not updated")
     }

@@ -4,10 +4,8 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import com.github.ajalt.clikt.parameters.types.path
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
@@ -24,24 +22,17 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
 import org.slf4j.Logger
 import java.net.URI
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.UUID
 
 class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
     private val oldVcsRoot by option(OLD_VCS_ROOT, help = "Old Git repository URL")
         .convert { it.trim() }.required()
-        .check("$OLD_VCS_ROOT must not be empty") { it.isNotEmpty() }
+        .check("$OLD_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git)") { it.isValidGitUrl() }
 
     private val newVcsRoot by option(NEW_VCS_ROOT, help = "New Git repository URL")
         .convert { it.trim() }.required()
-        .check("$NEW_VCS_ROOT must not be empty") { it.isNotEmpty() }
-
-    private val jiraMessageFile by option(JIRA_MESSAGE_FILE, help = "Path to a file where the operation log will be written (defaults to 'build/vcs-replace-messages.txt')")
-        .path(mustExist = false, canBeDir = false)
-        .default(Paths.get("build", "vcs-replace-messages.txt"))
+        .check("$NEW_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git)") { it.isValidGitUrl() }
 
     private val dryRun by option(DRY_RUN, help = "Dry run only, do not apply")
         .convert { it.toBooleanStrictOrNull() ?: throw IllegalArgumentException("$DRY_RUN must be 'true' or 'false'") }
@@ -55,20 +46,17 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
-        val messages = mutableListOf<String>()
-        updateExplicitGitVcsRoot(oldVcsRoot, newVcsRoot, messages)
-        replaceGenericVcsRoots(oldVcsRoot, newVcsRoot, messages)
-        Files.createDirectories(jiraMessageFile.parent)
-        Files.write(jiraMessageFile, messages.joinToString("\n").toByteArray(StandardCharsets.UTF_8))
+        updateExplicitGitVcsRoot(oldVcsRoot, newVcsRoot)
+        replaceGenericVcsRoots(oldVcsRoot, newVcsRoot)
     }
 
-    private fun updateExplicitGitVcsRoot(oldVcsRoot: String, newVcsRoot: String, messages: MutableList<String>) {
+    private fun updateExplicitGitVcsRoot(oldVcsRoot: String, newVcsRoot: String) {
         val locator = VcsRootLocator(
             property = listOf(PropertyLocator(name = PROPERTY_URL, value = oldVcsRoot, matchType = PropertyLocator.MatchType.EQUALS, ignoreCase = true))
         )
         val roots = client.getVcsRoots(locator).vcsRoots
         if (roots.isNotEmpty()) {
-            messages += "(flag) {color:#ff0000} Git VCS Root update report {color}\r\n"
+            log.info("Git VCS Root update report")
         }
         roots.forEach { root ->
             if (!dryRun) {
@@ -76,23 +64,23 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
                 runCatching { client.getVcsRootProperty(root.id, PROPERTY_PUSH_URL) }
                     .onSuccess { client.updateVcsRootProperty(root.id, PROPERTY_PUSH_URL, newVcsRoot) }
             }
-            messages += "Updated Git VCS Root: id=${root.id}, name=${root.name}"
+            log.info("Updated Git VCS Root: id=${root.id}, name=${root.name}")
         }
     }
 
-    private fun replaceGenericVcsRoots(oldVcsRoot: String, newVcsRoot: String, messages: MutableList<String>) {
+    private fun replaceGenericVcsRoots(oldVcsRoot: String, newVcsRoot: String) {
         val index = findVcsRootInstancesRootIdsByUrl(oldVcsRoot)
         if (index.rootIds.isEmpty() || index.byBuildType.isEmpty()) {
             log.info("No build configurations referencing $oldVcsRoot found")
             return
         }
-        messages += "(flag) {color:#ff0000} VCS Root replacing report {color}\r\n"
+        log.info("Git VCS Root replace report")
 
         index.byBuildType.forEach { (buildTypeLocator, entriesToDetach) ->
             val buildType = client.getBuildType(buildTypeLocator)
             val projectId = buildType.projectId
             val branch = extractBranchFromBuildType(buildType)
-            val newVcs = findOrCreateGitVcsRootInProject(projectId, newVcsRoot, branch, messages)
+            val newVcs = findOrCreateGitVcsRootInProject(projectId, newVcsRoot, branch)
 
             val toDetach = client.getBuildTypeVcsRootEntries(buildTypeLocator)
                 .entries
@@ -106,13 +94,13 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
             if (!dryRun) {
                 client.createBuildTypeVcsRootEntry(buildTypeLocator, createEntry)
             }
-            messages += "Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${newVcs.id}, vcsRootName=${newVcs.name}, checkoutRules='${checkoutRules}'"
-            migrateVcsLabeling(buildType.id, toDetach.map { it.vcsRoot.id }.toSet(), newVcs.id, messages)
+            log.info("Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${newVcs.id}, vcsRootName=${newVcs.name}, checkoutRules='${checkoutRules}'")
+            migrateVcsLabeling(buildType.id, toDetach.map { it.vcsRoot.id }.toSet(), newVcs.id)
             toDetach.forEach { oldEntry ->
                 if (!dryRun) {
                     client.deleteBuildTypeVcsRootEntry(buildTypeLocator, oldEntry.id)
                 }
-                messages += "Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${oldEntry.vcsRoot.id}, vcsRootName=${oldEntry.vcsRoot.name}"
+                log.info("Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${oldEntry.vcsRoot.id}, vcsRootName=${oldEntry.vcsRoot.name}")
             }
             log.info("Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${newVcs.id}-${newVcs.name}, checkoutRules='$checkoutRules' (dryRun = $dryRun)")
         }
@@ -149,7 +137,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         return if (raw.startsWith("refs/")) raw else "refs/heads/$raw"
     }
 
-    private fun findOrCreateGitVcsRootInProject(projectId: String, newVcsUrl: String, branch: String, messages: MutableList<String>): TeamcityVcsRoot {
+    private fun findOrCreateGitVcsRootInProject(projectId: String, newVcsUrl: String, branch: String): TeamcityVcsRoot {
         val candidates = client.getVcsRoots(
             VcsRootLocator(
                 project = ProjectLocator(id = projectId),
@@ -161,7 +149,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         ).vcsRoots
         if (candidates.isNotEmpty()) {
             val existing = client.getVcsRoot(VcsRootLocator(id = candidates.first().id))
-            messages += "Found existing VCS Root: projectId=$projectId, vcsRootId=${existing.id}, vcsRootName=${existing.name}, branch=$branch"
+            log.info("Found existing VCS Root: projectId=$projectId, vcsRootId=${existing.id}, vcsRootName=${existing.name}, branch=$branch")
             return existing
         }
         val name = generateVcsRootName(newVcsUrl)
@@ -187,7 +175,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
                 href = "",
                 project = TeamcityProject(id = projectId, name = "Project Name dryRun", href = "", webUrl = "")
             )
-            messages += "Created new VCS Root (dryRun): projectId=$projectId, vcsRootId=${fake.id}, vcsRootName=${fake.name}, branch=$branch"
+            log.info("Created new VCS Root (dryRun): projectId=$projectId, vcsRootId=${fake.id}, vcsRootName=${fake.name}, branch=$branch")
             return fake
         } else {
             val created = client.createVcsRoot(
@@ -198,12 +186,12 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
                     properties = props
                 )
             )
-            messages += "Created new VCS Root: projectId=$projectId, vcsRootId=${created.id}, vcsRootName=${created.name}, branch=$branch"
+            log.info("Created new VCS Root: projectId=$projectId, vcsRootId=${created.id}, vcsRootName=${created.name}, branch=$branch")
             return created
         }
     }
 
-    private fun migrateVcsLabeling(buildTypeId: String, oldRootIds: Set<String>, newRootId: String, messages: MutableList<String>) {
+    private fun migrateVcsLabeling(buildTypeId: String, oldRootIds: Set<String>, newRootId: String) {
         val features = client.getBuildTypeFeatures(BuildTypeLocator(buildTypeId))
         features.features
             .filter { it.type == FEATURE_VCS_LABELING }
@@ -213,7 +201,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
                     if (!dryRun) {
                         client.updateBuildTypeFeatureParameter(BuildTypeLocator(buildTypeId), feature.id, PROPERTY_VCS_ROOT_ID, newRootId)
                     }
-                    messages += "Updated VCS labeling: buildTypeId=$buildTypeId, featureId=${feature.id}, from=$bound, to=$newRootId"
+                    log.info("Updated VCS labeling: buildTypeId=$buildTypeId, featureId=${feature.id}, from=$bound, to=$newRootId")
                 }
             }
     }
@@ -231,6 +219,11 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         return "${base}_${UUID.randomUUID()}"
     }
 
+    private fun String.isValidGitUrl(): Boolean {
+        val sshScheme = Regex("""^ssh://[\w.-]+@[\w.-]+/[\w./~\-+%]+(\.git)$""")
+        return sshScheme.matches(this)
+    }
+
     private data class InstancesIndex(
         val rootIds: Set<String>,
         val byBuildType: Map<BuildTypeLocator, Set<String>>
@@ -241,7 +234,6 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         const val OLD_VCS_ROOT = "--old-vcs-root"
         const val NEW_VCS_ROOT = "--new-vcs-root"
         const val DRY_RUN = "--dry-run"
-        const val JIRA_MESSAGE_FILE = "--jira-message-file"
 
         // Teamcity properties
         const val PROPERTY_URL = "url"

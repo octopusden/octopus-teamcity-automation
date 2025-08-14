@@ -6,12 +6,11 @@
             <param name="OLD_VCS_ROOT" value="" spec="text description='Old Git repository URL' validationMode='not_empty' display='normal'"/>
             <param name="NEW_VCS_ROOT" value="" spec="text description='New Git repository URL' validationMode='not_empty' display='normal'"/>
             <param name="DRY_RUN" value="true" spec="text description='Dry run only, do not apply. Possible values are |'true|' or |'false|'' validationMode='not_empty' display='normal'" />
-            <param name="JIRA_MESSAGE_FILE" value="" spec="text description='Path to a file where the operation log will be written' display='normal'"/>
         </parameters>
         <build-runners>
             <runner name="replace vcs root" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% replace-vcs-root --old-vcs-root=%OLD_VCS_ROOT% --new-vcs-root=%NEW_VCS_ROOT% --dry-run=%DRY_RUN% --jira-message-file=%JIRA_MESSAGE_FILE%" />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% replace-vcs-root --old-vcs-root=%OLD_VCS_ROOT% --new-vcs-root=%NEW_VCS_ROOT% --dry-run=%DRY_RUN%"/>
                 </parameters>
             </runner>
         </build-runners>
