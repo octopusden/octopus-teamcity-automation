@@ -89,7 +89,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 BuildSystem.GRADLE -> TEMPLATE_GRADLE_COMPILE
                 BuildSystem.PROVIDED -> TEMPLATE_GRADLE_COMPILE
                 BuildSystem.IN_CONTAINER -> TEMPLATE_GRADLE_COMPILE
-                else -> throw NotFoundException("Unsupported build system: ${component.buildSystem?.name}")
+                else -> throw NotFoundException("Unsupported build system: ${component.buildSystem.name}")
             },
             "[${++counter}.0] Compile & UT [AUTO]",
             project.id
@@ -146,9 +146,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 releaseConfig
             }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
-        if (component.buildSystem == BuildSystem.GRADLE) {
-            disableBuildStep(releaseConfig.id, "Deploy to Share")
-        }
         setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
         setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
@@ -213,7 +210,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun createVcsRoot(projectId: String, component: DetailedComponent): TeamcityVcsRoot? {
-        return component.vcsSettings?.versionControlSystemRoots?.firstOrNull()?.let { vcsRootData ->
+        return component.vcsSettings.versionControlSystemRoots.firstOrNull()?.let { vcsRootData ->
             val vcsRootName = "${projectId}_VCS_ROOT"
             when (vcsRootData.type) {
                 RepositoryType.GIT -> client.createVcsRoot(
