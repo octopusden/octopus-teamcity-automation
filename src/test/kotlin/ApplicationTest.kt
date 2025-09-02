@@ -38,7 +38,9 @@ import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependen
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
@@ -641,6 +643,16 @@ class ApplicationTest {
                 )
             )
         )
+        teamcityClient.createBuildTypeVcsRootEntry(
+            buildType = BuildTypeLocator(TEST_SUBPROJECT_1_BUILD_1),
+            vcsRootEntry = TeamcityCreateVcsRootEntry(
+                id = created.id,
+                vcsRoot = TeamcityLinkVcsRoot(id = created.id),
+                checkoutRules = ""
+            )
+        )
+        teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, TeamcityReplaceVcsRootCommand.PROPERTY_BUILD_TYPE_BRANCH, "master")
+
         val exitCode = execute(
             testInfo.testMethod.get().name,
             *getTeamcityOptions(config),
@@ -652,6 +664,10 @@ class ApplicationTest {
         Assertions.assertEquals(0, exitCode)
         val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
         Assertions.assertEquals(newUrl, actualUrl, "VCS Root url property was not updated")
+
+        val entries = teamcityClient.getBuildTypeVcsRootEntries(TEST_SUBPROJECT_1_BUILD_1).entries
+        Assertions.assertEquals(1, entries.size)
+        Assertions.assertNotEquals(created.id, entries.first().vcsRoot.id)
     }
 
     @ParameterizedTest

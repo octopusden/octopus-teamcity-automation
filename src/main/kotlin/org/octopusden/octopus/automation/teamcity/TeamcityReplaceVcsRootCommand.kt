@@ -46,8 +46,8 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
-        updateExplicitGitVcsRoot(oldVcsRoot, newVcsRoot)
         replaceGenericVcsRoots(oldVcsRoot, newVcsRoot)
+        updateExplicitGitVcsRoot(oldVcsRoot, newVcsRoot)
     }
 
     private fun updateExplicitGitVcsRoot(oldVcsRoot: String, newVcsRoot: String) {
@@ -113,7 +113,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
         if (rootIds.isEmpty()) {
             return InstancesIndex(emptySet(), emptyMap())
         }
-        val fields = "buildType(id,name,projectId,projectName,webUrl,href,vcs-root-entries(id,vcs-root(id,name,href),checkout-rules))"
+        val fields = "buildType(id,name,projectId,projectName,webUrl,href,vcs-root-entries(vcs-root-entry(id,vcs-root(id,name,href),checkout-rules)))"
         val buildTypes = client.getBuildTypesWithVcsRootInstanceLocatorAndFields(VcsRootInstanceLocator(property = listOf(propertyLocator)), fields)
             .buildTypes
             .distinctBy { it.id }
