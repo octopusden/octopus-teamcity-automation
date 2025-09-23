@@ -66,6 +66,23 @@ if (project.ext["testPlatform"] == "okd") {
     mandatoryProperties.add("okdProject")
     mandatoryProperties.add("okdClusterDomain")
 }
+val undefinedProperties = mandatoryProperties.filter { (project.ext[it] as String).isBlank() }
+if (undefinedProperties.isNotEmpty()) {
+    throw IllegalArgumentException(
+        "Start gradle build with" +
+                (if (undefinedProperties.contains("dockerRegistry")) " -Pdocker.registry=..." else "") +
+                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " -Poctopus.github.docker.registry=..." else "") +
+                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " -Pokd.active-deadline-seconds=..." else "") +
+                (if (undefinedProperties.contains("okdProject")) " -Pokd.project=..." else "") +
+                (if (undefinedProperties.contains("okdClusterDomain")) " -Pokd.cluster-domain=..." else "") +
+                " or set env variable(s):" +
+                (if (undefinedProperties.contains("dockerRegistry")) " DOCKER_REGISTRY" else "") +
+                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " OCTOPUS_GITHUB_DOCKER_REGISTRY" else "") +
+                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " OKD_ACTIVE_DEADLINE_SECONDS" else "") +
+                (if (undefinedProperties.contains("okdProject")) " OKD_PROJECT" else "") +
+                (if (undefinedProperties.contains("okdClusterDomain")) " OKD_CLUSTER_DOMAIN" else "")
+    )
+}
 fun String.getExt() = project.ext[this].toString()
 
 val commonOkdParameters = mapOf(
