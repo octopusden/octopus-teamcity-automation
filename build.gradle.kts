@@ -242,11 +242,6 @@ tasks.withType<Test> {
     }
 }
 
-tasks.named("composeUp") {
-    dependsOn(prepareTeamcity2022Data)
-    dependsOn(prepareTeamcity2025Data)
-}
-
 val prepareTeamcity2022Data = tasks.register<Sync>("prepareTeamcity2022Data") {
     from(zipTree(layout.projectDirectory.file("docker/data.zip")))
     into(layout.buildDirectory.dir("teamcity-server-2022"))
@@ -255,6 +250,11 @@ val prepareTeamcity2022Data = tasks.register<Sync>("prepareTeamcity2022Data") {
 val prepareTeamcity2025Data = tasks.register<Sync>("prepareTeamcity2025Data") {
     from(zipTree(layout.projectDirectory.file("docker/dataV25.zip")))
     into(layout.buildDirectory.dir("teamcity-server-2025"))
+}
+
+tasks.named("composeUp") {
+    dependsOn(prepareTeamcity2022Data)
+    dependsOn(prepareTeamcity2025Data)
 }
 
 dependencies {
