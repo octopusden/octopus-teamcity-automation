@@ -4,6 +4,19 @@ metadata:
   name: components-registry-template
 objects:
   - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-components-registry-config-data
+    data:
+      Aggregator.groovy: |-
+        ${AGGREGATOR_GROOVY_CONTENT}
+      Defaults.groovy: |-
+        ${DEFAULTS_GROOVY_CONTENT}
+      TestComponents.groovy: |-
+        ${TEST_COMPONENTS_GROOVY_CONTENT}
+      application-ft.yaml: |-
+        ${APPLICATION_FT_CONTENT}
+  - apiVersion: v1
     kind: Pod
     metadata:
       name: ${DEPLOYMENT_PREFIX}-comp-reg
@@ -20,7 +33,7 @@ objects:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /rest/api/2/components-registry/service/ping
+              path: /actuator/health/readiness
               port: 4567
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -32,20 +45,17 @@ objects:
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
           volumeMounts:
-            - name: comp-reg-application-ft
+            - name: components-registry-dir
+              mountPath: /components-registry
+              readOnly: true
+            - name: application-ft
               mountPath: /application-ft.yaml
               subPath: application-ft.yaml
               readOnly: true
-            - name: comp-reg-config-dir
-              mountPath: /components-registry
-              readOnly: true
       volumes:
-        - name: comp-reg-application-ft
+        - name: components-registry-dir
           configMap:
-            name: ${CONFIGMAP_NAME}
-        - name: comp-reg-config-dir
-          configMap:
-            name: ${CONFIGMAP_NAME}
+            name: ${DEPLOYMENT_PREFIX}-components-registry-config-data
             items:
               - key: Aggregator.groovy
                 path: Aggregator.groovy
@@ -53,6 +63,12 @@ objects:
                 path: Defaults.groovy
               - key: TestComponents.groovy
                 path: TestComponents.groovy
+        - name: application-ft
+          configMap:
+            name: ${DEPLOYMENT_PREFIX}-components-registry-config-data
+            items:
+              - key: application-ft.yaml
+                path: application-ft.yaml
   - apiVersion: v1
     kind: Service
     metadata:
@@ -87,6 +103,15 @@ parameters:
   - description: Components registry service version
     name: COMPONENTS_REGISTRY_SERVICE_VERSION
     required: true
-  - name: CONFIGMAP_NAME
-    description: Name of pre-created ConfigMap with config files
+  - description: Aggregator.groovy content
+    name: AGGREGATOR_GROOVY_CONTENT
+    required: true
+  - description: Defaults.groovy content
+    name: DEFAULTS_GROOVY_CONTENT
+    required: true
+  - description: TestComponents.groovy content
+    name: TEST_COMPONENTS_GROOVY_CONTENT
+    required: true
+  - description: application-ft.yaml content
+    name: APPLICATION_FT_CONTENT
     required: true

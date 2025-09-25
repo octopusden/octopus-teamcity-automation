@@ -157,9 +157,13 @@ ocTemplate {
     group("componentsRegistry").apply {
         service("comp-reg") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/components-registry.yaml"))
+            val componentsRegistryWorkDir = layout.projectDirectory.dir("src/test/resources/components-registry").asFile.absolutePath
             parameters.set(commonOkdParameters + mapOf(
                 "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"] as String,
-                "CONFIGMAP_NAME" to "tc-auto-comp-reg-config-$defaultVersion"
+                "AGGREGATOR_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Aggregator.groovy").readText(),
+                "DEFAULTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Defaults.groovy").readText(),
+                "TEST_COMPONENTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/TestComponents.groovy").readText(),
+                "APPLICATION_FT_CONTENT" to layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.readText()
             ))
         }
     }
@@ -193,26 +197,6 @@ val copyFilesTeamcity2025 = tasks.register<Exec>("copyFilesTeamcity2025") {
         "${ocTemplate.getPod("teamcity25-uploader")}:/seed/seed.zip")
 }
 
-val createConfigMapComponentsRegistry = tasks.register<Exec>("createConfigMapComponentsRegistry") {
-    val applicationFtFile = layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.absolutePath
-    val componentsRegistryFiles = layout.projectDirectory.dir("src/test/resources/components-registry").asFile.absolutePath
-    commandLine(
-        "oc", "create", "configmap", "tc-auto-comp-reg-config-$defaultVersion",
-        "--from-file=application-ft.yaml=$applicationFtFile",
-        "--from-file=Aggregator.groovy=$componentsRegistryFiles/Aggregator.groovy",
-        "--from-file=Defaults.groovy=$componentsRegistryFiles/Defaults.groovy",
-        "--from-file=TestComponents.groovy=$componentsRegistryFiles/TestComponents.groovy",
-        "-n", "okdProject".getExt()
-    )
-}
-
-val deleteConfigMapComponentsRegistry = tasks.register<Exec>("deleteConfigMapComponentsRegistry") {
-    commandLine(
-        "oc", "delete", "configmap", "tc-auto-comp-reg-config-$defaultVersion",
-        "-n", "okdProject".getExt()
-    )
-}
-
 val seedTeamcity = tasks.register("seedTeamcity") {
     dependsOn(copyFilesTeamcity2022, copyFilesTeamcity2025)
     finalizedBy("ocLogsTeamcitySeedUploaders", "ocDeleteTeamcitySeedUploaders")
@@ -228,26 +212,19 @@ tasks.withType<Test> {
             systemProperties["test.teamcity-2022-host"] = ocTemplate.getOkdHost("teamcity22")
             systemProperties["test.teamcity-2025-host"] = ocTemplate.getOkdHost("teamcity25")
             systemProperties["test.components-registry-host"] = ocTemplate.getOkdHost("comp-reg")
-
             useJUnitPlatform()
             testLogging {
                 info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
             }
             systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
 
-            dependsOn(
-                createConfigMapComponentsRegistry,
-                "ocCreateTeamcityServers",
-                "ocCreateComponentsRegistry",
-                "shadowJar"
-            )
+            dependsOn("ocCreateTeamcityServers", "ocCreateComponentsRegistry", "shadowJar")
             finalizedBy(
                 "ocLogsTeamcityServers",
                 "ocLogsComponentsRegistry",
                 "ocDeleteTeamcityServers",
                 "ocDeleteTeamcityPVCs",
-                "ocDeleteComponentsRegistry",
-                deleteConfigMapComponentsRegistry
+                "ocDeleteComponentsRegistry"
             )
         }
         "docker" -> {
