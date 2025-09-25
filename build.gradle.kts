@@ -206,6 +206,10 @@ tasks.named("ocCreateTeamcityServers").configure {
     dependsOn(seedTeamcity)
 }
 
+tasks.named("ocDeleteTeamcityPVCs").configure {
+    dependsOn("ocDeleteTeamcityServers")
+}
+
 tasks.withType<Test> {
     when ("testPlatform".getExt()) {
         "okd" -> {
@@ -222,7 +226,6 @@ tasks.withType<Test> {
             finalizedBy(
                 "ocLogsTeamcityServers",
                 "ocLogsComponentsRegistry",
-                "ocDeleteTeamcityServers",
                 "ocDeleteTeamcityPVCs",
                 "ocDeleteComponentsRegistry"
             )
