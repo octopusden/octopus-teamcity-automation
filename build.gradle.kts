@@ -2,6 +2,8 @@ import com.avast.gradle.dockercompose.ComposeExtension
 import java.time.Duration
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.InetAddress
+import java.util.zip.CRC32
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -12,6 +14,18 @@ plugins {
     id("io.github.gradle-nexus.publish-plugin")
     signing
     id("org.octopusden.octopus-release-management")
+    id("org.octopusden.octopus.oc-template")
+}
+
+val defaultVersion = "${
+    with(CRC32()) {
+        update(InetAddress.getLocalHost().hostName.toByteArray())
+        value
+    }
+}-snapshot"
+
+if (version == "unspecified") {
+    version = defaultVersion
 }
 
 group = "org.octopusden.octopus.automation.teamcity"
@@ -30,12 +44,129 @@ repositories {
     mavenCentral()
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
-    testLogging {
-        info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+ext {
+    System.getenv().let {
+        set("signingRequired", it.containsKey("ORG_GRADLE_PROJECT_signingKey") && it.containsKey("ORG_GRADLE_PROJECT_signingPassword"))
+        set("testPlatform", it.getOrDefault("TEST_PLATFORM", properties["test.platform"]))
+        set("dockerRegistry", it.getOrDefault("DOCKER_REGISTRY", properties["docker.registry"]))
+        set("octopusGithubDockerRegistry", it.getOrDefault("OCTOPUS_GITHUB_DOCKER_REGISTRY", project.properties["octopus.github.docker.registry"]))
+        set("okdActiveDeadlineSeconds", it.getOrDefault("OKD_ACTIVE_DEADLINE_SECONDS", properties["okd.active-deadline-seconds"]))
+        set("okdProject", it.getOrDefault("OKD_PROJECT", properties["okd.project"]))
+        set("okdClusterDomain", it.getOrDefault("OKD_CLUSTER_DOMAIN", properties["okd.cluster-domain"]))
+        set("okdWebConsoleUrl", (it.getOrDefault("OKD_WEB_CONSOLE_URL", properties["okd.web-console-url"]) as String).trimEnd('/'))
     }
-    systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
+}
+val supportedTestPlatforms = listOf("docker", "okd")
+if (project.ext["testPlatform"] !in supportedTestPlatforms) {
+    throw IllegalArgumentException("Test platform must be set to one of the following $supportedTestPlatforms. Start gradle build with -Ptest.platform=... or set env variable TEST_PLATFORM")
+}
+val mandatoryProperties = mutableListOf("dockerRegistry", "octopusGithubDockerRegistry")
+if (project.ext["testPlatform"] == "okd") {
+    mandatoryProperties.add("okdActiveDeadlineSeconds")
+    mandatoryProperties.add("okdProject")
+    mandatoryProperties.add("okdClusterDomain")
+}
+val undefinedProperties = mandatoryProperties.filter { (project.ext[it] as String).isBlank() }
+if (undefinedProperties.isNotEmpty()) {
+    throw IllegalArgumentException(
+        "Start gradle build with" +
+                (if (undefinedProperties.contains("dockerRegistry")) " -Pdocker.registry=..." else "") +
+                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " -Poctopus.github.docker.registry=..." else "") +
+                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " -Pokd.active-deadline-seconds=..." else "") +
+                (if (undefinedProperties.contains("okdProject")) " -Pokd.project=..." else "") +
+                (if (undefinedProperties.contains("okdClusterDomain")) " -Pokd.cluster-domain=..." else "") +
+                " or set env variable(s):" +
+                (if (undefinedProperties.contains("dockerRegistry")) " DOCKER_REGISTRY" else "") +
+                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " OCTOPUS_GITHUB_DOCKER_REGISTRY" else "") +
+                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " OKD_ACTIVE_DEADLINE_SECONDS" else "") +
+                (if (undefinedProperties.contains("okdProject")) " OKD_PROJECT" else "") +
+                (if (undefinedProperties.contains("okdClusterDomain")) " OKD_CLUSTER_DOMAIN" else "")
+    )
+}
+fun String.getExt() = project.ext[this].toString()
+
+val commonOkdParameters = mapOf(
+    "ACTIVE_DEADLINE_SECONDS" to "okdActiveDeadlineSeconds".getExt(),
+    "DOCKER_REGISTRY" to "dockerRegistry".getExt()
+)
+
+ocTemplate {
+    workDir.set(layout.buildDirectory.dir("okd"))
+    clusterDomain.set("okdClusterDomain".getExt())
+    namespace.set("okdProject".getExt())
+    prefix.set("tc-auto")
+    projectVersion.set(defaultVersion)
+
+    "okdWebConsoleUrl".getExt().takeIf { it.isNotBlank() }?.let{
+        webConsoleUrl.set(it)
+    }
+
+    group("teamcityPVCs").apply {
+        service("teamcity22-pvc") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-pvc.yaml"))
+            parameters.set(mapOf(
+                "TEAMCITY_ID" to "22"
+            ))
+        }
+        service("teamcity25-pvc") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-pvc.yaml"))
+            parameters.set(mapOf(
+                "TEAMCITY_ID" to "25"
+            ))
+        }
+    }
+
+    group("teamcitySeedUploaders").apply {
+        service("teamcity22-uploader") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-uploader.yaml"))
+            parameters.set(mapOf(
+                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                "ACTIVE_DEADLINE_SECONDS" to "okdActiveDeadlineSeconds".getExt(),
+                "TEAMCITY_ID" to "22"
+            ))
+        }
+        service("teamcity25-uploader") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-uploader.yaml"))
+            parameters.set(mapOf(
+                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                "ACTIVE_DEADLINE_SECONDS" to "okdActiveDeadlineSeconds".getExt(),
+                "TEAMCITY_ID" to "25"
+            ))
+        }
+    }
+
+    group("teamcityServers").apply {
+        service("teamcity22") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity.yaml"))
+            parameters.set(commonOkdParameters + mapOf(
+                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                "TEAMCITY_IMAGE_TAG" to properties["teamcity-2022.image-tag"] as String,
+                "TEAMCITY_ID" to "22"
+            ))
+        }
+        service("teamcity25") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity.yaml"))
+            parameters.set(commonOkdParameters + mapOf(
+                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                "TEAMCITY_IMAGE_TAG" to project.properties["teamcity-2025.image-tag"] as String,
+                "TEAMCITY_ID" to "25"
+            ))
+        }
+    }
+
+    group("componentsRegistry").apply {
+        service("comp-reg") {
+            templateFile.set(rootProject.layout.projectDirectory.file("okd/components-registry.yaml"))
+            val componentsRegistryWorkDir = layout.projectDirectory.dir("src/test/resources/components-registry").asFile.absolutePath
+            parameters.set(commonOkdParameters + mapOf(
+                "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"] as String,
+                "AGGREGATOR_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Aggregator.groovy").readText(),
+                "DEFAULTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Defaults.groovy").readText(),
+                "TEST_COMPONENTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/TestComponents.groovy").readText(),
+                "APPLICATION_FT_CONTENT" to layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.readText()
+            ))
+        }
+    }
 }
 
 configure<ComposeExtension> {
@@ -44,29 +175,89 @@ configure<ComposeExtension> {
     captureContainersOutputToFiles.set(layout.buildDirectory.dir("docker-logs"))
     environment.putAll(
         mapOf(
-            "DOCKER_REGISTRY" to properties["docker.registry"],
-            "TEAMCITY_VERSION" to "2022.04.7",
-            "TEAMCITY_V25_VERSION" to "2025.03.3",
-            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"],
+            "DOCKER_REGISTRY" to "dockerRegistry".getExt(),
+            "TEAMCITY_2022_IMAGE_TAG" to properties["teamcity-2022.image-tag"],
+            "TEAMCITY_2025_IMAGE_TAG" to properties["teamcity-2025.image-tag"],
+            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"]
         )
     )
 }
 
-dockerCompose.isRequiredBy(tasks["test"])
-
-tasks.register<Sync>("prepareTeamcityServerData") {
-    from(zipTree(layout.projectDirectory.file("docker/data.zip")))
-    into(layout.buildDirectory.dir("teamcity-server"))
+val copyFilesTeamcity2022 = tasks.register<Exec>("copyFilesTeamcity2022") {
+    dependsOn("ocCreateTeamcityPVCs", "ocCreateTeamcitySeedUploaders")
+    val localFile = layout.projectDirectory.dir("docker/data.zip").asFile.absolutePath
+    commandLine("oc", "cp", localFile, "-n", "okdProject".getExt(),
+        "${ocTemplate.getPod("teamcity22-uploader")}:/seed/seed.zip")
 }
 
-tasks.register<Sync>("prepareTeamcityServerDataV25") {
+val copyFilesTeamcity2025 = tasks.register<Exec>("copyFilesTeamcity2025") {
+    dependsOn("ocCreateTeamcityPVCs", "ocCreateTeamcitySeedUploaders")
+    val localFile = layout.projectDirectory.dir("docker/dataV25.zip").asFile.absolutePath
+    commandLine("oc", "cp", localFile, "-n", "okdProject".getExt(),
+        "${ocTemplate.getPod("teamcity25-uploader")}:/seed/seed.zip")
+}
+
+val seedTeamcity = tasks.register("seedTeamcity") {
+    dependsOn(copyFilesTeamcity2022, copyFilesTeamcity2025)
+    finalizedBy("ocLogsTeamcitySeedUploaders", "ocDeleteTeamcitySeedUploaders")
+}
+
+tasks.named("ocCreateTeamcityServers").configure {
+    dependsOn(seedTeamcity)
+}
+
+tasks.named("ocDeleteTeamcityPVCs").configure {
+    dependsOn("ocDeleteTeamcityServers")
+}
+
+tasks.withType<Test> {
+    when ("testPlatform".getExt()) {
+        "okd" -> {
+            systemProperties["test.teamcity-2022-host"] = ocTemplate.getOkdHost("teamcity22")
+            systemProperties["test.teamcity-2025-host"] = ocTemplate.getOkdHost("teamcity25")
+            systemProperties["test.components-registry-host"] = ocTemplate.getOkdHost("comp-reg")
+            useJUnitPlatform()
+            testLogging {
+                info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+            }
+            systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
+
+            dependsOn("ocCreateTeamcityServers", "ocCreateComponentsRegistry", "shadowJar")
+            finalizedBy(
+                "ocLogsTeamcityServers",
+                "ocLogsComponentsRegistry",
+                "ocDeleteTeamcityPVCs",
+                "ocDeleteComponentsRegistry"
+            )
+        }
+        "docker" -> {
+            systemProperties["test.teamcity-2022-host"] = "localhost:8111"
+            systemProperties["test.teamcity-2025-host"] = "localhost:8112"
+            systemProperties["test.components-registry-host"] = "localhost:4567"
+            dependsOn("shadowJar")
+            useJUnitPlatform()
+            testLogging {
+                info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+            }
+            systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
+            dockerCompose.isRequiredBy(this)
+        }
+    }
+}
+
+val prepareTeamcity2022Data = tasks.register<Sync>("prepareTeamcity2022Data") {
+    from(zipTree(layout.projectDirectory.file("docker/data.zip")))
+    into(layout.buildDirectory.dir("teamcity-server-2022"))
+}
+
+val prepareTeamcity2025Data = tasks.register<Sync>("prepareTeamcity2025Data") {
     from(zipTree(layout.projectDirectory.file("docker/dataV25.zip")))
     into(layout.buildDirectory.dir("teamcity-server-2025"))
 }
 
 tasks.named("composeUp") {
-    dependsOn("prepareTeamcityServerData")
-    dependsOn("prepareTeamcityServerDataV25")
+    dependsOn(prepareTeamcity2022Data)
+    dependsOn(prepareTeamcity2025Data)
 }
 
 dependencies {
@@ -163,8 +354,7 @@ publishing {
 }
 
 signing {
-    isRequired = System.getenv().containsKey("ORG_GRADLE_PROJECT_signingKey") && System.getenv()
-        .containsKey("ORG_GRADLE_PROJECT_signingPassword")
+    isRequired = "signingRequired".getExt().toBooleanStrict()
     val signingKey: String? by project
     val signingPassword: String? by project
     useInMemoryPgpKeys(signingKey, signingPassword)

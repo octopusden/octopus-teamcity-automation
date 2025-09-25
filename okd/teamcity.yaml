@@ -1,0 +1,76 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: teamcity-template
+objects:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}
+      labels:
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}
+    spec:
+      restartPolicy: Never
+      activeDeadlineSeconds: ${{ACTIVE_DEADLINE_SECONDS}}
+      serviceAccountName: ${SERVICE_ACCOUNT_ANYUID}
+      securityContext:
+        runAsUser: 0
+      volumes:
+        - name: teamcity${TEAMCITY_ID}-data
+          persistentVolumeClaim:
+            claimName: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-datadir
+      containers:
+        - name: teamcity${TEAMCITY_ID}
+          image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_IMAGE_TAG}
+          ports:
+            - containerPort: 8111
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /login.html
+              port: 8111
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          volumeMounts:
+            - name: teamcity${TEAMCITY_ID}-data
+              mountPath: /data/teamcity_server/datadir
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-service
+    spec:
+      ports:
+        - port: 8111
+          protocol: TCP
+          targetPort: 8111
+      selector:
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-route
+    spec:
+      port:
+        targetPort: 8111
+      to:
+        kind: Service
+        name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-service
+parameters:
+  - description: Unique deployment prefix
+    name: DEPLOYMENT_PREFIX
+    required: true
+  - description: Active deadline seconds
+    name: ACTIVE_DEADLINE_SECONDS
+    required: true
+  - description: Docker registry
+    name: DOCKER_REGISTRY
+    required: true
+  - description: Tag of TeamCity image
+    name: TEAMCITY_IMAGE_TAG
+    required: true
+  - description: Service account name with SCC - anyuid
+    name: SERVICE_ACCOUNT_ANYUID
+    required: true
+  - description: TeamCity instance identifier
+    name: TEAMCITY_ID
+    required: true

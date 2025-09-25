@@ -1,0 +1,67 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: teamcity-uploader-template
+objects:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-uploader
+      labels:
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-uploader
+    spec:
+      restartPolicy: Never
+      activeDeadlineSeconds: ${{ACTIVE_DEADLINE_SECONDS}}
+      serviceAccountName: ${SERVICE_ACCOUNT_ANYUID}
+      securityContext:
+        runAsUser: 0
+      volumes:
+        - name: datadir
+          persistentVolumeClaim:
+            claimName: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-datadir
+        - name: seed
+          emptyDir: { }
+      containers:
+        - name: uploader
+          image: public.ecr.aws/docker/library/busybox:1.37
+          command: ["sh","-c"]
+          args:
+            - |
+              mkdir -p /seed /data/teamcity_server/datadir /opt/teamcity/logs
+              echo "Waiting for seed.zip..."
+              until [ -f /seed/seed.zip ]; do
+                sleep 1
+              done
+              until unzip -t /seed/seed.zip >/dev/null 2>&1; do
+                sleep 1
+              done
+              echo "Unzipping..."
+              mkdir -p /seed/unpacked
+              unzip -o /seed/seed.zip -d /seed/unpacked
+              if [ -d /seed/unpacked/datadir ]; then
+                echo "Copying datadir -> /data/teamcity_server/datadir"
+                cp -a /seed/unpacked/datadir/. /data/teamcity_server/datadir/
+              else
+                echo "!! /seed/unpacked/datadir not found"
+              fi
+              echo "Cleanup..."
+              rm -rf /seed/*
+              echo ">> Done, exiting."
+              exit 0
+          volumeMounts:
+            - name: datadir
+              mountPath: /data/teamcity_server/datadir
+            - name: seed
+              mountPath: /seed
+parameters:
+  - name: DEPLOYMENT_PREFIX
+    required: true
+  - description: Active deadline seconds
+    name: ACTIVE_DEADLINE_SECONDS
+    required: true
+  - description: Service account name with SCC - anyuid
+    name: SERVICE_ACCOUNT_ANYUID
+    required: true
+  - description: TeamCity instance identifier
+    name: TEAMCITY_ID
+    required: true

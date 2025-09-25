@@ -71,7 +71,7 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
             "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
-            "${TeamcityCreateBuildChainCommand.CR}=$COMPONENTS_REGISTRY_SERVICE_URL",
+            "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
             "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
@@ -830,7 +830,12 @@ class ApplicationTest {
         const val TEAMCITY_USER = "admin"
         const val TEAMCITY_PASSWORD = "admin"
 
-        const val COMPONENTS_REGISTRY_SERVICE_URL = "http://localhost:4567"
+        private val hostTeamcity2022 = System.getProperty("test.teamcity-2022-host")
+            ?: throw Exception("System property 'test.teamcity-2022-host' must be defined")
+        private val hostTeamcity2025 = System.getProperty("test.teamcity-2025-host")
+            ?: throw Exception("System property 'test.teamcity-2025-host' must be defined")
+        private val hostComponentsRegistry = System.getProperty("test.components-registry-host")
+            ?: throw Exception("System property 'test.teamcity-2025-host' must be defined")
 
         private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient {
             return TeamcityClassicClient(object : ClientParametersProvider {
@@ -849,12 +854,12 @@ class ApplicationTest {
         fun teamcityConfigurations(): List<TeamcityTestConfiguration> = listOf(
             TeamcityTestConfiguration(
                 name = "v22",
-                host = "http://localhost:8111",
+                host = "http://$hostTeamcity2022",
                 version = 2022
             ),
             TeamcityTestConfiguration(
                 name = "v25",
-                host = "http://localhost:8112",
+                host = "http://$hostTeamcity2025",
                 version = 2025
             )
         )
