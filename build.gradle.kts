@@ -22,7 +22,7 @@ val defaultVersion = "${
         update(InetAddress.getLocalHost().hostName.toByteArray())
         value
     }
-}-snapshot"
+}-SNAPSHOT"
 
 if (version == "unspecified") {
     version = defaultVersion
