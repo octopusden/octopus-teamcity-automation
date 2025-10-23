@@ -14,8 +14,8 @@ objects:
         ${DEFAULTS_GROOVY_CONTENT}
       TestComponents.groovy: |-
         ${TEST_COMPONENTS_GROOVY_CONTENT}
-      application-ft.yaml: |-
-        ${APPLICATION_FT_CONTENT}
+      application-dev.yaml: |-
+        ${APPLICATION_DEV_CONTENT}
   - apiVersion: v1
     kind: Pod
     metadata:
@@ -41,16 +41,16 @@ objects:
             - name: SPRING_CONFIG_ADDITIONAL_LOCATION
               value: "/"
             - name: SPRING_PROFILES_ACTIVE
-              value: "ft"
+              value: "dev"
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
           volumeMounts:
             - name: components-registry-dir
               mountPath: /components-registry
               readOnly: true
-            - name: application-ft
-              mountPath: /application-ft.yaml
-              subPath: application-ft.yaml
+            - name: application-dev
+              mountPath: /application-dev.yaml
+              subPath: application-dev.yaml
               readOnly: true
       volumes:
         - name: components-registry-dir
@@ -63,12 +63,12 @@ objects:
                 path: Defaults.groovy
               - key: TestComponents.groovy
                 path: TestComponents.groovy
-        - name: application-ft
+        - name: application-dev
           configMap:
             name: ${DEPLOYMENT_PREFIX}-components-registry-config-data
             items:
-              - key: application-ft.yaml
-                path: application-ft.yaml
+              - key: application-dev.yaml
+                path: application-dev.yaml
   - apiVersion: v1
     kind: Service
     metadata:
@@ -112,6 +112,6 @@ parameters:
   - description: TestComponents.groovy content
     name: TEST_COMPONENTS_GROOVY_CONTENT
     required: true
-  - description: application-ft.yaml content
-    name: APPLICATION_FT_CONTENT
+  - description: application-dev.yaml content
+    name: APPLICATION_DEV_CONTENT
     required: true
