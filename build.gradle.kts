@@ -163,7 +163,7 @@ ocTemplate {
                 "AGGREGATOR_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Aggregator.groovy").readText(),
                 "DEFAULTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Defaults.groovy").readText(),
                 "TEST_COMPONENTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/TestComponents.groovy").readText(),
-                "APPLICATION_FT_CONTENT" to layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.readText()
+                "APPLICATION_DEV_CONTENT" to layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.readText()
             ))
         }
     }
