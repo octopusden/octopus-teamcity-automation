@@ -2,30 +2,17 @@ import com.avast.gradle.dockercompose.ComposeExtension
 import java.time.Duration
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.net.InetAddress
-import java.util.zip.CRC32
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
-    id("com.github.johnrengelman.shadow")
+    id("com.gradleup.shadow")
     id("com.avast.gradle.docker-compose")
     `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
     signing
     id("org.octopusden.octopus-release-management")
     id("org.octopusden.octopus.oc-template")
-}
-
-val defaultVersion = "${
-    with(CRC32()) {
-        update(InetAddress.getLocalHost().hostName.toByteArray())
-        value
-    }
-}-SNAPSHOT"
-
-if (version == "unspecified") {
-    version = defaultVersion
 }
 
 group = "org.octopusden.octopus.automation.teamcity"
@@ -95,7 +82,6 @@ ocTemplate {
     clusterDomain.set("okdClusterDomain".getExt())
     namespace.set("okdProject".getExt())
     prefix.set("tc-auto")
-    projectVersion.set(defaultVersion)
 
     "okdWebConsoleUrl".getExt().takeIf { it.isNotBlank() }?.let{
         webConsoleUrl.set(it)
@@ -220,9 +206,9 @@ tasks.withType<Test> {
             testLogging {
                 info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
             }
-            systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
-
-            dependsOn("ocCreateTeamcityServers", "ocCreateComponentsRegistry", "shadowJar")
+            val jar = tasks.shadowJar.flatMap { it.archiveFile }.also { inputs.file(it) }
+            systemProperties["jar"] = jar.get().asFile.absolutePath
+            dependsOn("ocCreateTeamcityServers", "ocCreateComponentsRegistry")
             finalizedBy(
                 "ocLogsTeamcityServers",
                 "ocLogsComponentsRegistry",
@@ -234,12 +220,12 @@ tasks.withType<Test> {
             systemProperties["test.teamcity-2022-host"] = "localhost:8111"
             systemProperties["test.teamcity-2025-host"] = "localhost:8112"
             systemProperties["test.components-registry-host"] = "localhost:4567"
-            dependsOn("shadowJar")
             useJUnitPlatform()
             testLogging {
                 info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
             }
-            systemProperties["jar"] = configurations["shadow"].artifacts.files.asPath
+            val jar = tasks.shadowJar.flatMap { it.archiveFile }.also { inputs.file(it) }
+            systemProperties["jar"] = jar.get().asFile.absolutePath
             dockerCompose.isRequiredBy(this)
         }
     }
