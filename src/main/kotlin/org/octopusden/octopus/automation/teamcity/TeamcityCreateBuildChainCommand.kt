@@ -222,6 +222,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                             listOf(
                                 TeamcityProperty("url", vcsRootData.vcsPath),
                                 TeamcityProperty("branch", "master"),
+                                TeamcityProperty("teamcity:branchSpec", "+:<default>"),
                                 TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
                                 TeamcityProperty("userForTags", "tcagent"),
                                 TeamcityProperty("username", "git"),
