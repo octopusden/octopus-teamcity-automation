@@ -236,6 +236,10 @@ class ApplicationTest {
             }
         }
 
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
         Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
@@ -292,6 +296,9 @@ class ApplicationTest {
                 Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -375,6 +382,8 @@ class ApplicationTest {
                 }
             }
 
+            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+
             val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
             Assertions.assertEquals(2, buildSteps.size)
             Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
@@ -437,6 +446,9 @@ class ApplicationTest {
                 Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -777,6 +789,24 @@ class ApplicationTest {
                 )
             )
         }
+    }
+
+    private fun validateSnapshotDependencyFailureAction(
+        teamcityClient: TeamcityClassicClient,
+        buildTypeId: String,
+        expectedAction: String
+    ) {
+        val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypeId).snapshotDependencies
+        Assertions.assertEquals(1, snapshotDependencies.size)
+        val properties = snapshotDependencies[0].properties.properties.associate { it.name to it.value }
+        Assertions.assertEquals(
+            expectedAction, properties["run-build-if-dependency-failed"],
+            "run-build-if-dependency-failed for $buildTypeId"
+        )
+        Assertions.assertEquals(
+            expectedAction, properties["run-build-if-dependency-failed-to-start"],
+            "run-build-if-dependency-failed-to-start for $buildTypeId"
+        )
     }
 
     private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
