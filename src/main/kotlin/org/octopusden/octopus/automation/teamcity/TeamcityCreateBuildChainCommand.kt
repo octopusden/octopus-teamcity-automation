@@ -115,7 +115,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         project.id
                     )
                     attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
-                    addSnapshotDependency(checklistConfig, rcConfig, "MAKE_FAILED_TO_START")
+                    addSnapshotDependency(checklistConfig, rcConfig, "CANCEL")
                     setBuildTypeParameter(
                         checklistConfig.id,
                         "BUILD_VERSION",
@@ -185,7 +185,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 properties = TeamcityProperties(
                     listOf(
                         TeamcityProperty("run-build-if-dependency-failed", onDependencyFailure),
-                        TeamcityProperty("run-build-if-dependency-failed-to-start", "MAKE_FAILED_TO_START"),
+                        TeamcityProperty("run-build-if-dependency-failed-to-start", onDependencyFailure),
                         TeamcityProperty("run-build-on-the-same-agent", "false"),
                         TeamcityProperty("take-started-build-with-same-revisions", "true"),
                         TeamcityProperty("take-successful-builds-only", "true"),
