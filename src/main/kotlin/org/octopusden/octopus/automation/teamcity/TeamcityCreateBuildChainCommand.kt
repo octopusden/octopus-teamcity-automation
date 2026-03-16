@@ -115,7 +115,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         project.id
                     )
                     attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
-                    addSnapshotDependency(checklistConfig, rcConfig)
+                    addSnapshotDependency(checklistConfig, rcConfig, "MAKE_FAILED_TO_START")
                     setBuildTypeParameter(
                         checklistConfig.id,
                         "BUILD_VERSION",
@@ -175,7 +175,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private fun addSnapshotDependency(
         buildType: TeamcityBuildType,
         sourceBuildType: TeamcityBuildType,
-        onDependencyFailure: String = "MAKE_FAILED_TO_START"
+        onDependencyFailure: String
     ) {
         client.createSnapshotDependency(
             buildType.id,
