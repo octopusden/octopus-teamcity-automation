@@ -14,6 +14,7 @@ import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
+import org.octopusden.octopus.automation.teamcity.DependencyFailureAction
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
@@ -236,9 +237,9 @@ class ApplicationTest {
             }
         }
 
-        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
-        validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, "CANCEL")
-        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -297,8 +298,8 @@ class ApplicationTest {
             }
         }
 
-        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
-        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -382,7 +383,7 @@ class ApplicationTest {
                 }
             }
 
-            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
             val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
             Assertions.assertEquals(2, buildSteps.size)
@@ -447,8 +448,8 @@ class ApplicationTest {
             }
         }
 
-        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, "CANCEL")
-        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, "CANCEL")
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -794,17 +795,17 @@ class ApplicationTest {
     private fun validateSnapshotDependencyFailureAction(
         teamcityClient: TeamcityClassicClient,
         buildTypeId: String,
-        expectedAction: String
+        expectedAction: DependencyFailureAction
     ) {
         val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypeId).snapshotDependencies
         Assertions.assertEquals(1, snapshotDependencies.size)
         val properties = snapshotDependencies[0].properties.properties.associate { it.name to it.value }
         Assertions.assertEquals(
-            expectedAction, properties["run-build-if-dependency-failed"],
+            expectedAction.value, properties["run-build-if-dependency-failed"],
             "run-build-if-dependency-failed for $buildTypeId"
         )
         Assertions.assertEquals(
-            expectedAction, properties["run-build-if-dependency-failed-to-start"],
+            expectedAction.value, properties["run-build-if-dependency-failed-to-start"],
             "run-build-if-dependency-failed-to-start for $buildTypeId"
         )
     }
