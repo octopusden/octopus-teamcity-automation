@@ -130,8 +130,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
 
-                addSnapshotDependency(rcConfig, compileConfig)
-                addSnapshotDependency(releaseConfig, rcConfig)
+                addSnapshotDependency(rcConfig, compileConfig, "CANCEL")
+                addSnapshotDependency(releaseConfig, rcConfig, "CANCEL")
 
                 setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
                 releaseConfig
@@ -142,7 +142,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     project.id
                 )
                 attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
-                addSnapshotDependency(releaseConfig, compileConfig)
+                addSnapshotDependency(releaseConfig, compileConfig, "CANCEL")
                 releaseConfig
             }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
@@ -172,7 +172,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             )
         )
 
-    private fun addSnapshotDependency(buildType: TeamcityBuildType, sourceBuildType: TeamcityBuildType) {
+    private fun addSnapshotDependency(
+        buildType: TeamcityBuildType,
+        sourceBuildType: TeamcityBuildType,
+        onDependencyFailure: String = "MAKE_FAILED_TO_START"
+    ) {
         client.createSnapshotDependency(
             buildType.id,
             TeamcitySnapshotDependency(
@@ -180,7 +184,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 type = "snapshot_dependency",
                 properties = TeamcityProperties(
                     listOf(
-                        TeamcityProperty("run-build-if-dependency-failed", "MAKE_FAILED_TO_START"),
+                        TeamcityProperty("run-build-if-dependency-failed", onDependencyFailure),
                         TeamcityProperty("run-build-if-dependency-failed-to-start", "MAKE_FAILED_TO_START"),
                         TeamcityProperty("run-build-on-the-same-agent", "false"),
                         TeamcityProperty("take-started-build-with-same-revisions", "true"),
