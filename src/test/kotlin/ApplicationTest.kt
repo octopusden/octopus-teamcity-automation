@@ -14,6 +14,7 @@ import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
+import org.octopusden.octopus.automation.teamcity.DependencyFailureAction
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
@@ -236,6 +237,10 @@ class ApplicationTest {
             }
         }
 
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
         Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
@@ -292,6 +297,9 @@ class ApplicationTest {
                 Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -375,6 +383,8 @@ class ApplicationTest {
                 }
             }
 
+            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
             val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
             Assertions.assertEquals(2, buildSteps.size)
             Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
@@ -437,6 +447,9 @@ class ApplicationTest {
                 Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
 
         val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
         Assertions.assertEquals(2, buildSteps.size)
@@ -777,6 +790,24 @@ class ApplicationTest {
                 )
             )
         }
+    }
+
+    private fun validateSnapshotDependencyFailureAction(
+        teamcityClient: TeamcityClassicClient,
+        buildTypeId: String,
+        expectedAction: DependencyFailureAction
+    ) {
+        val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypeId).snapshotDependencies
+        Assertions.assertEquals(1, snapshotDependencies.size)
+        val properties = snapshotDependencies[0].properties.properties.associate { it.name to it.value }
+        Assertions.assertEquals(
+            expectedAction.value, properties["run-build-if-dependency-failed"],
+            "run-build-if-dependency-failed for $buildTypeId"
+        )
+        Assertions.assertEquals(
+            expectedAction.value, properties["run-build-if-dependency-failed-to-start"],
+            "run-build-if-dependency-failed-to-start for $buildTypeId"
+        )
     }
 
     private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
