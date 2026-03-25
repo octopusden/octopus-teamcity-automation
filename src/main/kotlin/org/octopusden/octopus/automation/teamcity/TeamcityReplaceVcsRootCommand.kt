@@ -78,7 +78,7 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
         index.byBuildType.forEach { (buildTypeLocator, entriesToDetach) ->
             val buildType = client.getBuildType(buildTypeLocator)
-            val projectId = buildType.projectId
+            val projectId = buildType.projectId!!
             val branch = extractBranchFromBuildType(buildType)
             val newVcs = findOrCreateGitVcsRootInProject(projectId, newVcsRoot, branch)
 
