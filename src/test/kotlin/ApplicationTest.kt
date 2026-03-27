@@ -81,7 +81,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityUpdateParameterSet(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "OLD")
@@ -133,7 +133,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityUpdateParameterIncrement(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "1.0")
@@ -197,7 +197,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForEEComponent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val minorVersion = "1.0"
         val componentName = "ee-component"
@@ -257,7 +257,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainGrantsProjectAdminRole(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val componentName = "ee-component"
         val projectId = "TestTeamcityAutomation_EeComponent"
@@ -266,9 +266,9 @@ class ApplicationTest {
             0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
         )
 
-        val roles = getUserRoles(config.host, TEAMCITY_USER)
+        val roles = getUserRoles(config.host, TEST_USER)
         val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
-        Assertions.assertTrue(hasProjectAdmin, "User '$TEAMCITY_USER' should have PROJECT_ADMIN role on project '$projectId'")
+        Assertions.assertTrue(hasProjectAdmin, "User '$TEST_USER' should have PROJECT_ADMIN role on project '$projectId'")
 
         teamcityClient.deleteProject(projectId)
     }
@@ -277,7 +277,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForEEComponentWithoutCheckList(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val minorVersion = "1.0"
         val componentName = "ee-component"
@@ -358,7 +358,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForNonEEComponent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val minorVersion = "1.0"
         val componentNamesToProjectId = mapOf(
@@ -415,7 +415,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForIEComponentWithRc(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val minorVersion = "1.0"
         val projectId = "TestTeamcityAutomation_IeComponent"
@@ -492,7 +492,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForJDKVersion(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val defaultJDKComponentName = "default-jdk-component"
         val defaultJDKProjectId = "TestTeamcityAutomation_DefaultJdkComponent"
@@ -533,7 +533,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityCreateBuildChainForCompileTemplate(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val componentNames = listOf("maven-component", "gradle-component", "provided-component", "in-container-component")
 
@@ -557,7 +557,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityUpdateParameterIncrementCurrent(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val parameter = "TEST_PARAMETER"
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter, "1.0")
@@ -601,7 +601,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityUploadMetarunners(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val metarunners = ApplicationTest::class.java.getResource("metarunners.zip")!!
         Assertions.assertEquals(
@@ -639,7 +639,7 @@ class ApplicationTest {
     @MethodSource("teamcityContexts")
     fun testTeamCityReplaceVcsRoot(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
-        cleanUpResources(teamcityClient)
+        cleanUpResources(teamcityClient, config)
 
         val oldUrl = "ssh://git@example.org/old/repository.git"
         val newUrl = "ssh://git@example.org/new/repository.git"
@@ -704,12 +704,13 @@ class ApplicationTest {
         this.testInfo = testInfo
     }
 
-    private fun cleanUpResources(teamcityClient: TeamcityClassicClient) {
+    private fun cleanUpResources(teamcityClient: TeamcityClassicClient, config: TeamcityTestConfiguration) {
         try {
             teamcityClient.deleteProject(TEST_PROJECT)
         } catch (e: Exception) {
             //do nothing
         }
+        createTestUser(config.host, TEST_USER)
         teamcityClient.createProject(
             TeamcityCreateProject(
                 TEST_PROJECT, TEST_PROJECT, TeamcityLinkProject("RDDepartment")
@@ -800,6 +801,22 @@ class ApplicationTest {
         }
     }
 
+    private fun createTestUser(host: String, username: String) {
+        HttpClient.newHttpClient().send(
+            HttpRequest.newBuilder()
+                .uri(URI("$host/app/rest/users"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header(
+                    "Authorization",
+                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
+                )
+                .POST(HttpRequest.BodyPublishers.ofString("""{"username":"$username","password":"$username"}"""))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+    }
+
     private data class RoleEntry(val roleId: String, val scope: String)
 
     private fun getUserRoles(host: String, username: String): List<RoleEntry> {
@@ -875,6 +892,7 @@ class ApplicationTest {
 
         const val TEAMCITY_USER = "admin"
         const val TEAMCITY_PASSWORD = "admin"
+        const val TEST_USER = "testuser"
 
         private val hostTeamcity2022 = System.getProperty("test.teamcity-2022-host")
             ?: throw Exception("System property 'test.teamcity-2022-host' must be defined")
