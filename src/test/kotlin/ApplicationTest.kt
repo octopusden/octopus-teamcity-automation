@@ -6,6 +6,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.Base64
 import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
@@ -249,6 +250,26 @@ class ApplicationTest {
 
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
+        teamcityClient.deleteProject(projectId)
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainGrantsProjectAdminRole(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient)
+
+        val componentName = "ee-component"
+        val projectId = "TestTeamcityAutomation_EeComponent"
+
+        Assertions.assertEquals(
+            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+        )
+
+        val roles = getUserRoles(config.host, TEAMCITY_USER)
+        val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
+        Assertions.assertTrue(hasProjectAdmin, "User '$TEAMCITY_USER' should have PROJECT_ADMIN role on project '$projectId'")
+
         teamcityClient.deleteProject(projectId)
     }
 
@@ -777,6 +798,31 @@ class ApplicationTest {
                 )
             )
         }
+    }
+
+    private data class RoleEntry(val roleId: String, val scope: String)
+
+    private fun getUserRoles(host: String, username: String): List<RoleEntry> {
+        val response = HttpClient.newHttpClient().send(
+            HttpRequest.newBuilder()
+                .uri(URI("$host/app/rest/users/username:$username/roles"))
+                .header("Accept", "application/json")
+                .header(
+                    "Authorization",
+                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
+                )
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+        Assertions.assertEquals(200, response.statusCode(), "Failed to get roles for user '$username'")
+        val tree = ObjectMapper().readTree(response.body())
+        return tree["role"]?.map { node ->
+            RoleEntry(
+                roleId = node["roleId"].asText(),
+                scope = node["scope"].asText()
+            )
+        } ?: emptyList()
     }
 
     private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
