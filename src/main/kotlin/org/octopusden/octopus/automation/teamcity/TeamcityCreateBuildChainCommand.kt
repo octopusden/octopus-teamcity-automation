@@ -116,7 +116,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         project.id
                     )
                     attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
-                    addSnapshotDependency(checklistConfig, rcConfig)
+                    addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
                     setBuildTypeParameter(
                         checklistConfig.id,
                         "BUILD_VERSION",
@@ -131,8 +131,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
 
-                addSnapshotDependency(rcConfig, compileConfig)
-                addSnapshotDependency(releaseConfig, rcConfig)
+                addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
+                addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
 
                 setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
                 releaseConfig
@@ -143,7 +143,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     project.id
                 )
                 attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
-                addSnapshotDependency(releaseConfig, compileConfig)
+                addSnapshotDependency(releaseConfig, compileConfig, DependencyFailureAction.CANCEL)
                 releaseConfig
             }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
@@ -178,7 +178,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             )
         )
 
-    private fun addSnapshotDependency(buildType: TeamcityBuildType, sourceBuildType: TeamcityBuildType) {
+    private fun addSnapshotDependency(
+        buildType: TeamcityBuildType,
+        sourceBuildType: TeamcityBuildType,
+        onDependencyFailure: DependencyFailureAction
+    ) {
         client.createSnapshotDependency(
             buildType.id,
             TeamcitySnapshotDependency(
@@ -186,8 +190,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 type = "snapshot_dependency",
                 properties = TeamcityProperties(
                     listOf(
-                        TeamcityProperty("run-build-if-dependency-failed", "MAKE_FAILED_TO_START"),
-                        TeamcityProperty("run-build-if-dependency-failed-to-start", "MAKE_FAILED_TO_START"),
+                        TeamcityProperty("run-build-if-dependency-failed", onDependencyFailure.value),
+                        TeamcityProperty("run-build-if-dependency-failed-to-start", onDependencyFailure.value),
                         TeamcityProperty("run-build-on-the-same-agent", "false"),
                         TeamcityProperty("take-started-build-with-same-revisions", "true"),
                         TeamcityProperty("take-successful-builds-only", "true"),
