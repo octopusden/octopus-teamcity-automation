@@ -865,7 +865,7 @@ class ApplicationTest {
     }
 
     private fun createTestUser(host: String, username: String) {
-        HttpClient.newHttpClient().send(
+        val response = HttpClient.newHttpClient().send(
             HttpRequest.newBuilder()
                 .uri(URI("$host/app/rest/users"))
                 .header("Content-Type", "application/json")
@@ -877,6 +877,11 @@ class ApplicationTest {
                 .POST(HttpRequest.BodyPublishers.ofString("""{"username":"$username","password":"$username"}"""))
                 .build(),
             HttpResponse.BodyHandlers.ofString()
+        )
+        val status = response.statusCode()
+        Assertions.assertTrue(
+            status in 200..299 || status == 400,
+            "Failed to create user '$username': HTTP $status - ${response.body()}"
         )
     }
 
