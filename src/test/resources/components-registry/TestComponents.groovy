@@ -139,3 +139,14 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
         javaVersion = "11"
     }
 }
+
+"nonexistent-user-component" {
+    componentDisplayName = "Nonexistent User Component"
+    componentOwner = "nonexistentuser"
+    releaseManager = "nonexistentuser"
+    groupId = "corp.domain"
+    vcsUrl = "ssh://git@git.domain.corp/ee/nonexistent-user-component.git"
+    jira {
+        projectKey = 'BUILDSYS'
+    }
+}

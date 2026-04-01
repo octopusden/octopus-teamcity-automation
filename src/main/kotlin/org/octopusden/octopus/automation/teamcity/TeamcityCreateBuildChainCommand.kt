@@ -10,6 +10,7 @@ import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
+import feign.FeignException
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClient
@@ -213,8 +214,12 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         }
 
     private fun assignProjectAdminRoleToUser(projectId: String, username: String) {
-        client.assignProjectRoleToUser(username, TeamcityRole.PROJECT_ADMIN, projectId)
-        log.info("Assigned PROJECT_ADMIN role to user $username for project $projectId")
+        try {
+            client.assignProjectRoleToUser(username, TeamcityRole.PROJECT_ADMIN, projectId)
+            log.info("Assigned PROJECT_ADMIN role to user $username for project $projectId")
+        } catch (e: FeignException.NotFound) {
+            log.warn("Failed to assign PROJECT_ADMIN role to user '{}' for project '{}': user not found in TeamCity", username, projectId)
+        }
     }
 
     private fun disableBuildStep(buildTypeId: String, stepNameOrType: String, disable: Boolean = true) {
