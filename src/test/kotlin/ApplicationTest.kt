@@ -208,57 +208,53 @@ class ApplicationTest {
             0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
         )
 
-        try {
-            Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
-            val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
-            Assertions.assertEquals(4, buildTypes.size)
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(4, buildTypes.size)
 
-            val compileConfigId = "${projectId}_10CompileUtAuto"
-            val rcConfigId = "${projectId}_20ReleaseCandidateManual"
-            val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
-            val releaseConfigId = "${projectId}_40ReleaseManual"
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
+        val releaseConfigId = "${projectId}_40ReleaseManual"
 
-            validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-            validateBuildTypeTemplate(teamcityClient, checklistConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST)
-            validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, checklistConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
-            val buildTypesIdAndDependencyId = mapOf(
-                compileConfigId to null,
-                rcConfigId to compileConfigId,
-                checklistConfigId to rcConfigId,
-                releaseConfigId to rcConfigId
-            )
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            checklistConfigId to rcConfigId,
+            releaseConfigId to rcConfigId
+        )
 
-            buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
-                Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
-                dependencyId?.let {
-                    val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
-                    Assertions.assertEquals(1, snapshotDependencies.size)
-                    Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
-                }
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
-
-            validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
-            validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, DependencyFailureAction.CANCEL)
-            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
-
-            val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
-            Assertions.assertEquals(2, buildSteps.size)
-            Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
-
-            val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
-            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"))
-            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
-            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
-
-            Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
-
-            Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
-            Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
-        } finally {
-            teamcityClient.deleteProject(projectId)
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, checklistConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+
+        Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+
+        Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
+        Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
     }
 
     @ParameterizedTest
@@ -274,13 +270,9 @@ class ApplicationTest {
             0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
         )
 
-        try {
-            val roles = getUserRoles(config.host, TEST_USER)
-            val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
-            Assertions.assertTrue(hasProjectAdmin, "User '$TEST_USER' should have PROJECT_ADMIN role on project '$projectId'")
-        } finally {
-            teamcityClient.deleteProject(projectId)
-        }
+        val roles = getUserRoles(config.host, TEST_USER)
+        val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
+        Assertions.assertTrue(hasProjectAdmin, "User '$TEST_USER' should have PROJECT_ADMIN role on project '$projectId'")
     }
 
     @ParameterizedTest
@@ -292,13 +284,9 @@ class ApplicationTest {
         val componentName = "nonexistent-user-component"
         val projectId = "TestTeamcityAutomation_NonexistentUserComponent"
 
-        try {
-            Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
-            )
-        } finally {
-            teamcityClient.deleteProject(projectId)
-        }
+        Assertions.assertEquals(
+            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+        )
     }
 
     @ParameterizedTest
@@ -315,67 +303,63 @@ class ApplicationTest {
             0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion, false)
         )
 
-        try {
-            Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
-            val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
-            Assertions.assertEquals(3, buildTypes.size)
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(3, buildTypes.size)
 
-            val compileConfigId = "${projectId}_10CompileUtAuto"
-            val rcConfigId = "${projectId}_20ReleaseCandidateManual"
-            val releaseConfigId = "${projectId}_30ReleaseManual"
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val releaseConfigId = "${projectId}_30ReleaseManual"
 
-            validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-            validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
-            val buildTypesIdAndDependencyId = mapOf(
-                compileConfigId to null,
-                rcConfigId to compileConfigId,
-                releaseConfigId to rcConfigId
-            )
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            releaseConfigId to rcConfigId
+        )
 
-            buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
-                Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
-                dependencyId?.let {
-                    val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
-                    Assertions.assertEquals(1, snapshotDependencies.size)
-                    Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
-                }
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
-
-            validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
-            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
-
-            val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
-            Assertions.assertEquals(2, buildSteps.size)
-            Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
-
-            val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
-            Assertions.assertEquals(
-                compileBuildVersion,
-                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION")
-            )
-            Assertions.assertEquals(
-                compileBuildVersion,
-                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
-            )
-
-            Assertions.assertEquals(
-                compileConfigId,
-                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
-            )
-
-            Assertions.assertEquals(
-                componentName,
-                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
-            )
-            Assertions.assertEquals(
-                minorVersion,
-                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
-            )
-        } finally {
-            teamcityClient.deleteProject(projectId)
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION")
+        )
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            compileConfigId,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
+        )
+
+        Assertions.assertEquals(
+            componentName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+        )
+        Assertions.assertEquals(
+            minorVersion,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+        )
     }
 
     /**
@@ -406,47 +390,43 @@ class ApplicationTest {
                 0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
             )
 
-            try {
-                Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
-                val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
-                Assertions.assertEquals(2, buildTypes.size)
+            Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+            val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+            Assertions.assertEquals(2, buildTypes.size)
 
-                val compileConfigId = "${projectId}_10CompileUtAuto"
-                val releaseConfigId = "${projectId}_20ReleaseManual"
+            val compileConfigId = "${projectId}_10CompileUtAuto"
+            val releaseConfigId = "${projectId}_20ReleaseManual"
 
-                validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+            validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
-                val buildTypesIdAndDependencyId = mapOf(
-                    compileConfigId to null,
-                    releaseConfigId to compileConfigId
-                )
+            val buildTypesIdAndDependencyId = mapOf(
+                compileConfigId to null,
+                releaseConfigId to compileConfigId
+            )
 
-                buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
-                    Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-                    Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
-                    dependencyId?.let {
-                        val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
-                        Assertions.assertEquals(1, snapshotDependencies.size)
-                        Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
-                    }
+            buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+                Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+                dependencyId?.let {
+                    val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                    Assertions.assertEquals(1, snapshotDependencies.size)
+                    Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
                 }
-
-                validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
-
-                val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
-                Assertions.assertEquals(2, buildSteps.size)
-                Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
-
-                val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
-                Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
-
-                Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
-
-                Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
-                Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
-            } finally {
-                teamcityClient.deleteProject(projectId)
             }
+
+            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
+            val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+            Assertions.assertEquals(2, buildSteps.size)
+            Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+            val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+
+            Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+
+            Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
+            Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
         }
     }
 
@@ -471,63 +451,59 @@ class ApplicationTest {
             )
         )
 
-        try {
-            Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
-            val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
-            Assertions.assertEquals(3, buildTypes.size)
+        Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
+        val buildTypes = teamcityClient.getBuildTypes(projectId).buildTypes
+        Assertions.assertEquals(3, buildTypes.size)
 
-            val compileConfigId = "${projectId}_10CompileUtAuto"
-            val rcConfigId = "${projectId}_20ReleaseCandidateManual"
-            val releaseConfigId = "${projectId}_30ReleaseManual"
+        val compileConfigId = "${projectId}_10CompileUtAuto"
+        val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+        val releaseConfigId = "${projectId}_30ReleaseManual"
 
-            validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
-            validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
+        validateBuildTypeTemplate(teamcityClient, rcConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RC)
+        validateBuildTypeTemplate(teamcityClient, releaseConfigId, TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE)
 
-            val buildTypesIdAndDependencyId = mapOf(
-                compileConfigId to null,
-                rcConfigId to compileConfigId,
-                releaseConfigId to rcConfigId
-            )
+        val buildTypesIdAndDependencyId = mapOf(
+            compileConfigId to null,
+            rcConfigId to compileConfigId,
+            releaseConfigId to rcConfigId
+        )
 
-            buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
-                Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
-                dependencyId?.let {
-                    val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
-                    Assertions.assertEquals(1, snapshotDependencies.size)
-                    Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
-                }
+        buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
+            Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
+            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            dependencyId?.let {
+                val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
+                Assertions.assertEquals(1, snapshotDependencies.size)
+                Assertions.assertEquals(dependencyId, snapshotDependencies.get(0).sourceBuildType.id)
             }
-
-            validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
-            validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
-
-            val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
-            Assertions.assertEquals(2, buildSteps.size)
-            Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
-
-            val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
-            Assertions.assertEquals(
-                compileBuildVersion,
-                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
-            )
-
-            Assertions.assertEquals(
-                compileConfigId,
-                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
-            )
-
-            Assertions.assertEquals(
-                componentName,
-                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
-            )
-            Assertions.assertEquals(
-                minorVersion,
-                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
-            )
-        } finally {
-            teamcityClient.deleteProject(projectId)
         }
+
+        validateSnapshotDependencyFailureAction(teamcityClient, rcConfigId, DependencyFailureAction.CANCEL)
+        validateSnapshotDependencyFailureAction(teamcityClient, releaseConfigId, DependencyFailureAction.CANCEL)
+
+        val buildSteps = teamcityClient.getBuildSteps(releaseConfigId).steps
+        Assertions.assertEquals(2, buildSteps.size)
+        Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
+
+        val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+        )
+
+        Assertions.assertEquals(
+            compileConfigId,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
+        )
+
+        Assertions.assertEquals(
+            componentName,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+        )
+        Assertions.assertEquals(
+            minorVersion,
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+        )
     }
 
     /**
