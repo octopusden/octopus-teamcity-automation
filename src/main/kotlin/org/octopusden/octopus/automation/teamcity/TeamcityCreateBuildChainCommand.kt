@@ -10,11 +10,13 @@ import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
+import feign.FeignException
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClient
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClientUrlProvider
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
+import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityRole
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityVCSType
 import org.octopusden.octopus.infrastructure.teamcity.client.disableBuildStep
@@ -150,6 +152,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
+        listOfNotNull(component.componentOwner, component.releaseManager)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .forEach { assignProjectAdminRoleToUser(project.id, it) }
     }
 
     private fun attachVcsRootToBuildType(buildTypeId: String, vcsRootId: String?) =
@@ -180,7 +187,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         client.createSnapshotDependency(
             buildType.id,
             TeamcitySnapshotDependency(
-                id = sourceBuildType.name,
+                id = requireNotNull(sourceBuildType.name) { "Build type name is null for ${sourceBuildType.id}" },
                 type = "snapshot_dependency",
                 properties = TeamcityProperties(
                     listOf(
@@ -205,6 +212,15 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         client.setParameter(ConfigurationType.PROJECT, projectId, name, value).also {
             log.info("Set parameter $name value $value for project with id $projectId")
         }
+
+    private fun assignProjectAdminRoleToUser(projectId: String, username: String) {
+        try {
+            client.assignProjectRoleToUser(username, TeamcityRole.PROJECT_ADMIN, projectId)
+            log.info("Assigned PROJECT_ADMIN role to user $username for project $projectId")
+        } catch (e: FeignException.NotFound) {
+            log.warn("Failed to assign PROJECT_ADMIN role to user '{}' for project '{}': user not found in TeamCity", username, projectId)
+        }
+    }
 
     private fun disableBuildStep(buildTypeId: String, stepNameOrType: String, disable: Boolean = true) {
         client.getBuildSteps(buildTypeId)

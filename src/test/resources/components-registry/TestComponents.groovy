@@ -2,8 +2,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "ee-component" {
     componentDisplayName = "EE Component"
-    componentOwner = "EE Component Owner"
-    releaseManager = "EE Component Release Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "https://github.com/octopusden/octopus-teamcity-automation.git"
     jira {
@@ -13,8 +13,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "ie-component" {
     componentDisplayName = "IE Component"
-    componentOwner = "IE Component Owner"
-    releaseManager = "IE Component Release Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ie/ie-component.git"
     jira {
@@ -28,8 +28,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "ei-component" {
     componentDisplayName = "EI Component"
-    componentOwner = "EI Component Owner"
-    releaseManager = "EI Component Release Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ei/ei-component.git"
     jira {
@@ -43,8 +43,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "ii-component" {
     componentDisplayName = "II Component"
-    componentOwner = "II Component Owner"
-    releaseManager = "II Component Release Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ii/ii-component.git"
     jira {
@@ -58,8 +58,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "maven-component" {
     componentDisplayName = "Maven component"
-    componentOwner = "Maven component Owner"
-    releaseManager = "Maven component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/maven-component.git"
     jira {
@@ -70,8 +70,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 "gradle-component" {
     buildSystem = GRADLE
     componentDisplayName = "Gradle component"
-    componentOwner = "Gradle component Owner"
-    releaseManager = "Gradle component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/gradle-component.git"
     jira {
@@ -82,8 +82,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 "provided-component" {
     buildSystem = PROVIDED
     componentDisplayName = "Provided component"
-    componentOwner = "Provided component Owner"
-    releaseManager = "Provided component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/provided-component.git"
     jira {
@@ -94,8 +94,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 "in-container-component" {
     buildSystem = IN_CONTAINER
     componentDisplayName = "In container component"
-    componentOwner = "In container component Owner"
-    releaseManager = "In container component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/in-container-component.git"
     jira {
@@ -106,8 +106,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 "not-supported-component" {
     buildSystem = ESCROW_NOT_SUPPORTED
     componentDisplayName = "Not supported component"
-    componentOwner = "Not supported component Owner"
-    releaseManager = "Not supported component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/not-supported-component.git"
     jira {
@@ -117,8 +117,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "default-jdk-component" {
     componentDisplayName = "Default JDK component"
-    componentOwner = "Default JDK component Owner"
-    releaseManager = "Default JDK component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/default-jdk-component.git"
     jira {
@@ -128,8 +128,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 
 "custom-jdk-component" {
     componentDisplayName = "Custom JDK component"
-    componentOwner = "Custom JDK component Owner"
-    releaseManager = "Custom JDK component Manager"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
     groupId = "corp.domain"
     vcsUrl = "ssh://git@git.domain.corp/ee/custom-jdk-component.git"
     jira {
@@ -137,5 +137,16 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     }
     build {
         javaVersion = "11"
+    }
+}
+
+"nonexistent-user-component" {
+    componentDisplayName = "Nonexistent User Component"
+    componentOwner = "nonexistentuser"
+    releaseManager = "nonexistentuser"
+    groupId = "corp.domain"
+    vcsUrl = "ssh://git@git.domain.corp/ee/nonexistent-user-component.git"
+    jira {
+        projectKey = 'BUILDSYS'
     }
 }
