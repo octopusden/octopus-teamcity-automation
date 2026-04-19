@@ -41,7 +41,7 @@ objects:
             - name: SPRING_CONFIG_ADDITIONAL_LOCATION
               value: "/"
             - name: SPRING_PROFILES_ACTIVE
-              value: "dev"
+              value: "dev,ft-db"
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
           volumeMounts:
