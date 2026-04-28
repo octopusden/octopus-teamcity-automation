@@ -141,9 +141,9 @@ ocTemplate {
                 "TEAMCITY_IMAGE_TAG" to project.properties["teamcity-2025.image-tag"] as String,
                 "TEAMCITY_ID" to "25",
                 "CPU_REQUEST" to "200m",
-                "CPU_LIMIT" to "1000m",
+                "CPU_LIMIT" to "2500m",
                 "MEM_REQUEST" to "1.2Gi",
-                "MEM_LIMIT" to "1.5Gi"
+                "MEM_LIMIT" to "2Gi"
             ))
         }
     }
