@@ -23,7 +23,7 @@ objects:
           emptyDir: { }
       containers:
         - name: uploader
-          image: public.ecr.aws/docker/library/busybox:1.37
+          image: ${DOCKER_REGISTRY}/busybox:1.37
           command: ["sh","-c"]
           args:
             - |
@@ -58,6 +58,9 @@ parameters:
     required: true
   - description: Active deadline seconds
     name: ACTIVE_DEADLINE_SECONDS
+    required: true
+  - description: Docker registry
+    name: DOCKER_REGISTRY
     required: true
   - description: Service account name with SCC - anyuid
     name: SERVICE_ACCOUNT_ANYUID
