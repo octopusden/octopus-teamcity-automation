@@ -129,7 +129,7 @@ ocTemplate {
                 "CPU_REQUEST" to "500m",
                 "CPU_LIMIT" to "2500m",
                 "MEM_REQUEST" to "1.5Gi",
-                "MEM_LIMIT" to "2Gi"
+                "MEM_LIMIT" to "3Gi"
             ))
         }
         service("teamcity25") {
