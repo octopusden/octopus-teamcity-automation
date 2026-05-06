@@ -1,3 +1,11 @@
+# FT runs CRS without a Keycloak. CRS 2.0.84-3312+ skips its eager OIDC discovery
+# (and switches to AnonymousSecurityConfig) when this property is true. Method
+# security stays enabled — v1-v3 + v4 reads are anonymous, v4 writes return 403.
+# Must NEVER be set in production: WebSecurityConfig.@ConditionalOnProperty has
+# matchIfMissing = true so a missing prop keeps the prod fail-fast behaviour.
+auth-server:
+  disabled: true
+
 eureka:
   client:
     enabled: false
