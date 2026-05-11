@@ -57,7 +57,7 @@ objects:
     metadata:
       name: ${DEPLOYMENT_PREFIX}-teamcity${TEAMCITY_ID}-route
       annotations:
-        haproxy.router.openshift.io/timeout: 120s
+        haproxy.router.openshift.io/timeout: 240s
     spec:
       port:
         targetPort: 8111
