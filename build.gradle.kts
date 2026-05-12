@@ -126,7 +126,7 @@ ocTemplate {
                 "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
                 "TEAMCITY_IMAGE_TAG" to properties["teamcity-2022.image-tag"] as String,
                 "TEAMCITY_ID" to "22",
-                "CPU_REQUEST" to "500m",
+                "CPU_REQUEST" to "1000m",
                 "CPU_LIMIT" to "2500m",
                 "MEM_REQUEST" to "1.5Gi",
                 "MEM_LIMIT" to "3Gi"
