@@ -109,6 +109,7 @@ ocTemplate {
                 "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
                 "TEAMCITY_ID" to "22"
             ))
+            waitForCompletion.set(true)
         }
         service("teamcity25-uploader") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-uploader.yaml"))
@@ -116,6 +117,7 @@ ocTemplate {
                 "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
                 "TEAMCITY_ID" to "25"
             ))
+            waitForCompletion.set(true)
         }
     }
 
