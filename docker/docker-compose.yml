@@ -14,15 +14,15 @@ services:
       timeout: 10s
       retries: 5
 
-  teamcity-2025:
-    image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_2025_IMAGE_TAG}
+  teamcity-2026:
+    image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_2026_IMAGE_TAG}
     ports:
       - "8112:8111"
     volumes:
-      - ./../build/teamcity-server-2025/datadir:/data/teamcity_server/datadir
-      - ./../build/teamcity-server-2025/logs:/opt/teamcity/logs
+      - ./../build/teamcity-server-2026/datadir:/data/teamcity_server/datadir
+      - ./../build/teamcity-server-2026/logs:/opt/teamcity/logs
     healthcheck:
-      test: curl -u admin:admin -f teamcity-2025:8111/app/rest/server >/dev/null || exit 1
+      test: curl -u admin:admin -f teamcity-2026:8111/app/rest/server >/dev/null || exit 1
       interval: 30s
       timeout: 10s
       retries: 5

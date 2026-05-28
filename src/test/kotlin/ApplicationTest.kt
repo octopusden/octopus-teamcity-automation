@@ -940,10 +940,10 @@ class ApplicationTest {
 
         private val hostTeamcity2022 = System.getProperty("test.teamcity-2022-host")
             ?: throw Exception("System property 'test.teamcity-2022-host' must be defined")
-        private val hostTeamcity2025 = System.getProperty("test.teamcity-2025-host")
-            ?: throw Exception("System property 'test.teamcity-2025-host' must be defined")
+        private val hostTeamcity2026 = System.getProperty("test.teamcity-2026-host")
+            ?: throw Exception("System property 'test.teamcity-2026-host' must be defined")
         private val hostComponentsRegistry = System.getProperty("test.components-registry-host")
-            ?: throw Exception("System property 'test.teamcity-2025-host' must be defined")
+            ?: throw Exception("System property 'test.components-registry-host' must be defined")
 
         private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient {
             return TeamcityClassicClient(object : ClientParametersProvider {
@@ -966,9 +966,9 @@ class ApplicationTest {
                 version = 2022
             ),
             TeamcityTestConfiguration(
-                name = "v25",
-                host = "http://$hostTeamcity2025",
-                version = 2025
+                name = "v26",
+                host = "http://$hostTeamcity2026",
+                version = 2026
             )
         )
 
