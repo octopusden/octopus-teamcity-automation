@@ -28,6 +28,7 @@ import org.octopusden.octopus.infrastructure.client.commons.ClientParametersProv
 import org.octopusden.octopus.infrastructure.client.commons.StandardBasicCredCredentialProvider
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
+import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
 import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityAgentRequirement
@@ -635,8 +636,7 @@ class ApplicationTest {
             )
         )
 
-        val tabName = if (config.version < 2025) "metaRunner" else "recipe"
-        validateUploadedMetarunners("${config.host}/admin/editProject.html?projectId=$TEST_PROJECT&tab=$tabName")
+        validateUploadedMetarunners(config, teamcityClient)
     }
 
     @ParameterizedTest
@@ -892,31 +892,37 @@ class ApplicationTest {
         Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
     }
 
-    private fun validateUploadedMetarunners(url: String) {
-        htmlDocument(
-            HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder()
-                    .uri(URI(url))
-                    .header(
-                        "Authorization",
-                        "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
-                    )
-                    .method("GET", HttpRequest.BodyPublishers.noBody())
-                    .build(),
-                HttpResponse.BodyHandlers.ofString()
-            ).body()
-        ) {
-            tr {
-                withAttribute = "data-id" to "TestMetarunner"
-                findAll { size toBe 1 }
+    private fun validateUploadedMetarunners(config: TeamcityTestConfiguration, client: TeamcityClient) {
+        val expected = listOf("TestMetarunner", "TestMetarunner2", "TestMetarunner3")
+        if (config.version >= 2026) {
+            expected.forEach { recipeId ->
+                Assertions.assertNotNull(
+                    client.getRecipeOverviewV2026(recipeId, TEST_PROJECT),
+                    "Recipe '$recipeId' not found in project $TEST_PROJECT"
+                )
             }
-            tr {
-                withAttribute = "data-id" to "TestMetarunner2"
-                findAll { size toBe 1 }
-            }
-            tr {
-                withAttribute = "data-id" to "TestMetarunner3"
-                findAll { size toBe 1 }
+        } else {
+            val tabName = if (config.version < 2025) "metaRunner" else "recipe"
+            val url = "${config.host}/admin/editProject.html?projectId=$TEST_PROJECT&tab=$tabName"
+            htmlDocument(
+                HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder()
+                        .uri(URI(url))
+                        .header(
+                            "Authorization",
+                            "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
+                        )
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString()
+                ).body()
+            ) {
+                expected.forEach { id ->
+                    tr {
+                        withAttribute = "data-id" to id
+                        findAll { size toBe 1 }
+                    }
+                }
             }
         }
     }
