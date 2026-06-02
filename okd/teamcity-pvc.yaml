@@ -12,7 +12,7 @@ objects:
         - ReadWriteOnce
       resources:
         requests:
-          storage: 1Gi
+          storage: 2Gi
       volumeMode: Filesystem
 parameters:
   - description: Unique deployment prefix
