@@ -41,6 +41,11 @@ objects:
               if [ -d /seed/unpacked/datadir ]; then
                 echo "Copying datadir -> /data/teamcity_server/datadir"
                 cp -a /seed/unpacked/datadir/. /data/teamcity_server/datadir/
+                echo "Ensuring required pluginData dirs exist"
+                mkdir -p /data/teamcity_server/datadir/system/pluginData/backgroundPersist
+                mkdir -p /data/teamcity_server/datadir/system/pluginData/healthReports
+                mkdir -p /data/teamcity_server/datadir/system/pluginData/versionedSettings
+                chmod -R a+rwX /data/teamcity_server/datadir
               else
                 echo "!! /seed/unpacked/datadir not found"
               fi
