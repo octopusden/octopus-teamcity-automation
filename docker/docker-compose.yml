@@ -16,7 +16,6 @@ services:
 
   teamcity-2026:
     image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_2026_IMAGE_TAG}
-    user: "0:0"
     ports:
       - "8112:8111"
     volumes:
