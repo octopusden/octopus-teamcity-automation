@@ -271,9 +271,11 @@ class ApplicationTest {
             0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
         )
 
-        val roles = getUserRoles(config.host, TEST_USER)
-        val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
-        Assertions.assertTrue(hasProjectAdmin, "User '$TEST_USER' should have PROJECT_ADMIN role on project '$projectId'")
+        listOf(TEST_USER, TEST_USER_2).forEach { username ->
+            val roles = getUserRoles(config.host, username)
+            val hasProjectAdmin = roles.any { it.roleId == "PROJECT_ADMIN" && it.scope == "p:$projectId" }
+            Assertions.assertTrue(hasProjectAdmin, "User '$username' should have PROJECT_ADMIN role on project '$projectId'")
+        }
     }
 
     @ParameterizedTest
@@ -732,6 +734,7 @@ class ApplicationTest {
             //do nothing
         }
         createTestUser(config.host, TEST_USER)
+        createTestUser(config.host, TEST_USER_2)
         teamcityClient.createProject(
             TeamcityCreateProject(
                 TEST_PROJECT, TEST_PROJECT, TeamcityLinkProject("RDDepartment")
@@ -943,6 +946,7 @@ class ApplicationTest {
         const val TEAMCITY_USER = "admin"
         const val TEAMCITY_PASSWORD = "admin"
         const val TEST_USER = "testuser"
+        const val TEST_USER_2 = "testuser2"
 
         private val hostTeamcity2022 = System.getProperty("test.teamcity-2022-host")
             ?: throw Exception("System property 'test.teamcity-2022-host' must be defined")
