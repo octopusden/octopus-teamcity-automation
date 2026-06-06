@@ -129,7 +129,7 @@ ocTemplate {
                 "TEAMCITY_IMAGE_TAG" to properties["teamcity-2022.image-tag"] as String,
                 "TEAMCITY_ID" to "22",
                 "CPU_REQUEST" to "1000m",
-                "CPU_LIMIT" to "2500m",
+                "CPU_LIMIT" to "4000m",
                 "MEM_REQUEST" to "1.5Gi",
                 "MEM_LIMIT" to "3Gi"
             ))
