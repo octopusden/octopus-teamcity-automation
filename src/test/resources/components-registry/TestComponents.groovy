@@ -3,7 +3,7 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
 "ee-component" {
     componentDisplayName = "EE Component"
     componentOwner = "testuser"
-    releaseManager = "testuser, testuser2"
+    releaseManager = "testuser,testuser2"
     groupId = "corp.domain"
     vcsUrl = "https://github.com/octopusden/octopus-teamcity-automation.git"
     jira {
