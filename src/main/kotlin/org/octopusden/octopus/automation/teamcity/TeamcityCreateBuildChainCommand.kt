@@ -152,7 +152,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
         setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
-        listOfNotNull(component.componentOwner, component.releaseManager)
+        (listOfNotNull(component.componentOwner) +
+                (component.releaseManager?.split(",") ?: emptyList()))
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
