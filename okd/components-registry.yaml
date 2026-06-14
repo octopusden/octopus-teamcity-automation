@@ -28,6 +28,13 @@ objects:
       containers:
         - name: comp-reg
           image: ${DOCKER_REGISTRY}/octopusden/components-registry-service:${COMPONENTS_REGISTRY_SERVICE_VERSION}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 800Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
           ports:
             - containerPort: 4567
               protocol: TCP
