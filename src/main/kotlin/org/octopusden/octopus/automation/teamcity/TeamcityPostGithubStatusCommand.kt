@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 import org.slf4j.Logger
@@ -71,7 +72,28 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         val entries = client.getBuildTypeVcsRootEntries(BuildTypeLocator(id = buildTypeId)).entries
         val entry = entries.firstOrNull()
             ?: throw IllegalStateException("No VCS root attached to build configuration '$buildTypeId'")
-        return client.getVcsRootProperty(entry.vcsRoot.id, PROPERTY_URL)
+        val rawUrl = client.getVcsRootProperty(entry.vcsRoot.id, PROPERTY_URL)
+        // The VCS root URL may reference TeamCity parameters (e.g. %OCTOPUS_MODULE_NAME%); the
+        // REST API returns them unexpanded, so resolve them against the build configuration.
+        return expandParameters(rawUrl, buildTypeId)
+    }
+
+    private fun expandParameters(value: String, buildTypeId: String, depth: Int = 0): String {
+        if (depth >= MAX_PARAM_DEPTH || !value.contains('%')) {
+            return value
+        }
+        val resolved = PARAM_REGEX.replace(value) { match ->
+            val name = match.groupValues[1]
+            try {
+                client.getParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name)
+            } catch (e: Exception) {
+                throw IllegalStateException(
+                    "Cannot resolve TeamCity parameter '%$name%' referenced in the VCS root URL of build configuration '$buildTypeId'",
+                    e
+                )
+            }
+        }
+        return if (resolved == value) resolved else expandParameters(resolved, buildTypeId, depth + 1)
     }
 
     private fun postStatus(owner: String, repo: String) {
@@ -121,8 +143,10 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val PROPERTY_URL = "url"
         const val DEFAULT_CONTEXT = "TeamCity / build"
         const val DEFAULT_GITHUB_API_URL = "https://api.github.com"
+        const val MAX_PARAM_DEPTH = 10
         val ALLOWED_STATES = setOf("pending", "success", "failure", "error")
 
+        private val PARAM_REGEX = Regex("%([^%]+)%")
         private val OBJECT_MAPPER = ObjectMapper()
     }
 }
