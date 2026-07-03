@@ -50,8 +50,6 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
 
     private val description by option(DESCRIPTION, help = "Short status description").default("")
 
-    private val targetUrl by option(TARGET_URL, help = "URL linked from the GitHub status").default("")
-
     private val githubApiUrl by option(GITHUB_API_URL, help = "GitHub API base URL")
         .convert { it.trim().trimEnd('/') }.default(DEFAULT_GITHUB_API_URL)
 
@@ -67,7 +65,6 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
     private fun postStatus() {
         val payload = linkedMapOf<String, String>("state" to state, "context" to statusContext)
         if (description.isNotEmpty()) payload["description"] = description
-        if (targetUrl.isNotEmpty()) payload["target_url"] = targetUrl
         val body = OBJECT_MAPPER.writeValueAsBytes(payload)
 
         val endpoint = "$githubApiUrl/repos/$owner/$repo/statuses/$commit"
@@ -105,7 +102,6 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val STATE = "--state"
         const val CONTEXT = "--context"
         const val DESCRIPTION = "--description"
-        const val TARGET_URL = "--target-url"
         const val GITHUB_API_URL = "--github-api-url"
 
         const val DEFAULT_CONTEXT = "TeamCity / build"

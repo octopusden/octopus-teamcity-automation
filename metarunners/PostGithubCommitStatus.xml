@@ -12,7 +12,7 @@
         <build-runners>
             <runner name="post github status" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%build.vcs.number% --token=%OCTOPUS_GITHUB_TOKEN% --state=%GITHUB_STATE% --context=%GITHUB_CONTEXT% --description=%GITHUB_DESCRIPTION% --target-url=%teamcity.serverUrl%/viewLog.html?buildId=%teamcity.build.id%"/>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%build.vcs.number% --token=%OCTOPUS_GITHUB_TOKEN% --state=%GITHUB_STATE% --context=%GITHUB_CONTEXT% --description=%GITHUB_DESCRIPTION%"/>
                 </parameters>
             </runner>
         </build-runners>
