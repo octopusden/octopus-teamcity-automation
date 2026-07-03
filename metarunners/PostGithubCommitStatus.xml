@@ -3,6 +3,8 @@
     <description>Post commit status to GitHub for branch protection</description>
     <settings>
         <parameters>
+            <param name="GITHUB_OWNER" value="octopusden" spec="text description='GitHub organization / owner' validationMode='not_empty' display='normal'"/>
+            <param name="GITHUB_REPO" value="%OCTOPUS_MODULE_NAME%" spec="text description='GitHub repository name' validationMode='not_empty' display='normal'"/>
             <param name="GITHUB_STATE" value="success" spec="select description='Commit status state' data_1='pending' data_2='success' data_3='failure' data_4='error' display='normal'"/>
             <param name="GITHUB_CONTEXT" value="TeamCity / build" spec="text description='Status check context (must match branch protection rule)' validationMode='not_empty' display='normal'"/>
             <param name="GITHUB_DESCRIPTION" value="" spec="text description='Short status description' display='normal'"/>
@@ -10,7 +12,7 @@
         <build-runners>
             <runner name="post github status" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --build-type-id=%system.teamcity.buildType.id% --commit=%build.vcs.number% --token=%OCTOPUS_GITHUB_TOKEN% --state=%GITHUB_STATE% --context=%GITHUB_CONTEXT% --description=%GITHUB_DESCRIPTION% --target-url=%teamcity.serverUrl%/viewLog.html?buildId=%teamcity.build.id%"/>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%build.vcs.number% --token=%OCTOPUS_GITHUB_TOKEN% --state=%GITHUB_STATE% --context=%GITHUB_CONTEXT% --description=%GITHUB_DESCRIPTION% --target-url=%teamcity.serverUrl%/viewLog.html?buildId=%teamcity.build.id%"/>
                 </parameters>
             </runner>
         </build-runners>
