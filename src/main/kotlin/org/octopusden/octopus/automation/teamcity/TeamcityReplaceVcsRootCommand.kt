@@ -21,7 +21,6 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.Propert
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootInstanceLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
 import org.slf4j.Logger
-import java.net.URI
 import java.util.UUID
 
 class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
@@ -218,17 +217,6 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
             .filter { it.isNotBlank() }
             .joinToString("_") { it.replaceFirstChar { c -> c.titlecase() } }
         return "${path}_${UUID.randomUUID()}"
-    }
-
-    private fun extractPathFromGitUrl(vcsUrl: String): String {
-        return when {
-            vcsUrl.startsWith("ssh://", ignoreCase = true) || vcsUrl.startsWith("https://", ignoreCase = true) -> {
-                URI(vcsUrl).path.removePrefix("/")
-            }
-            else -> {
-                vcsUrl.substring(vcsUrl.indexOf(':') + 1)
-            }
-        }
     }
 
     private fun String.isValidGitUrl(): Boolean {
