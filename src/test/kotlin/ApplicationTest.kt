@@ -19,6 +19,7 @@ import org.octopusden.octopus.automation.teamcity.DependencyFailureAction
 import org.octopusden.octopus.automation.teamcity.TeamcityCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityCreateBuildChainCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityGetBuildTypesAgentRequirementsCommand
+import org.octopusden.octopus.automation.teamcity.TeamcityPostGithubStatusCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityReplaceVcsRootCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterCommand
 import org.octopusden.octopus.automation.teamcity.TeamcityUpdateParameterIncrementCommand
@@ -1018,6 +1019,11 @@ class ApplicationTest {
                         *getTeamcityOptions(config),
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         HELP_OPTION
+                    ),
+                    "validCommand6" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityPostGithubStatusCommand.COMMAND,
+                        HELP_OPTION
                     )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
@@ -1078,6 +1084,24 @@ class ApplicationTest {
                         TeamcityUploadMetarunnersCommand.COMMAND,
                         "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
                         "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
+                    ),
+                    "invalidCommand10" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityPostGithubStatusCommand.COMMAND,
+                        "${TeamcityPostGithubStatusCommand.OWNER}=owner",
+                        "${TeamcityPostGithubStatusCommand.REPO}=repo",
+                        "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
+                        "${TeamcityPostGithubStatusCommand.TOKEN}=token",
+                        "${TeamcityPostGithubStatusCommand.STATE}=invalid"
+                    ),
+                    "invalidCommand11" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityPostGithubStatusCommand.COMMAND,
+                        "${TeamcityPostGithubStatusCommand.OWNER}= ",
+                        "${TeamcityPostGithubStatusCommand.REPO}=repo",
+                        "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
+                        "${TeamcityPostGithubStatusCommand.TOKEN}=token",
+                        "${TeamcityPostGithubStatusCommand.STATE}=success"
                     )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
