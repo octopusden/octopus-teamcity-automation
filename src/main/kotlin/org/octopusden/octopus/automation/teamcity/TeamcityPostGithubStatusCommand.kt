@@ -1,6 +1,5 @@
 package org.octopusden.octopus.automation.teamcity
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.check
@@ -8,12 +7,9 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.kohsuke.github.GHCommitState
+import org.kohsuke.github.GitHubBuilder
 import org.slf4j.Logger
-import java.io.IOException
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.nio.charset.StandardCharsets
 
 /**
  * Posts a commit status to GitHub (`POST /repos/{owner}/{repo}/statuses/{sha}`) so TeamCity
@@ -63,35 +59,20 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun postStatus() {
-        val payload = linkedMapOf<String, String>("state" to state, "context" to statusContext)
-        if (description.isNotEmpty()) payload["description"] = description
-        val body = OBJECT_MAPPER.writeValueAsBytes(payload)
-
-        val endpoint = "$githubApiUrl/repos/$owner/$repo/statuses/$commit"
         log.info("Posting GitHub commit status '$state' (context '$statusContext') to $owner/$repo@$commit")
-
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            doOutput = true
-            setRequestProperty("Authorization", "token $token")
-            setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("Content-Type", "application/json")
-        }
-        try {
-            connection.outputStream.use { it.write(body) }
-            val code = connection.responseCode
-            if (code >= 400) {
-                val error = connection.errorStream?.readBytesSafely() ?: ""
-                throw IOException("Failed to post GitHub status (HTTP $code): $error")
-            }
-            log.info("GitHub commit status posted (HTTP $code)")
-        } finally {
-            connection.disconnect()
-        }
+        val github = GitHubBuilder()
+            .withEndpoint(githubApiUrl)
+            .withOAuthToken(token)
+            .build()
+        github.getRepository("$owner/$repo").createCommitStatus(
+            commit,
+            GHCommitState.valueOf(state.uppercase()),
+            null,
+            description.ifEmpty { null },
+            statusContext,
+        )
+        log.info("GitHub commit status posted")
     }
-
-    private fun InputStream.readBytesSafely(): String =
-        use { it.readBytes().toString(StandardCharsets.UTF_8) }
 
     companion object {
         const val COMMAND = "post-github-status"
@@ -107,7 +88,5 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val DEFAULT_CONTEXT = "TeamCity / build"
         const val DEFAULT_GITHUB_API_URL = "https://api.github.com"
         val ALLOWED_STATES = setOf("pending", "success", "failure", "error")
-
-        private val OBJECT_MAPPER = ObjectMapper()
     }
 }
