@@ -1024,6 +1024,13 @@ class ApplicationTest {
                         *getTeamcityOptions(config),
                         TeamcityPostGithubStatusCommand.COMMAND,
                         HELP_OPTION
+                    ),
+                    "validCommand7" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityPostGithubStatusCommand.COMMAND,
+                        "${TeamcityPostGithubStatusCommand.CONNECT_TIMEOUT}=5000",
+                        "${TeamcityPostGithubStatusCommand.READ_TIMEOUT}=15000",
+                        HELP_OPTION
                     )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()
@@ -1102,6 +1109,16 @@ class ApplicationTest {
                         "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
                         "${TeamcityPostGithubStatusCommand.TOKEN}=token",
                         "${TeamcityPostGithubStatusCommand.STATE}=success"
+                    ),
+                    "invalidCommand12" to arrayOf(
+                        *getTeamcityOptions(config),
+                        TeamcityPostGithubStatusCommand.COMMAND,
+                        "${TeamcityPostGithubStatusCommand.OWNER}=owner",
+                        "${TeamcityPostGithubStatusCommand.REPO}=repo",
+                        "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
+                        "${TeamcityPostGithubStatusCommand.TOKEN}=token",
+                        "${TeamcityPostGithubStatusCommand.STATE}=success",
+                        "${TeamcityPostGithubStatusCommand.CONNECT_TIMEOUT}=0"
                     )
                 ).map { (name, args) -> Arguments.of(name, args) }
             }.stream()

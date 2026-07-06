@@ -7,9 +7,11 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.int
 import org.kohsuke.github.GHCommitState
 import org.kohsuke.github.GitHubBuilder
 import org.slf4j.Logger
+import java.net.HttpURLConnection
 
 /**
  * Posts a commit status to GitHub (`POST /repos/{owner}/{repo}/statuses/{sha}`) so TeamCity
@@ -49,6 +51,14 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
     private val githubApiUrl by option(GITHUB_API_URL, help = "GitHub API base URL")
         .convert { it.trim().trimEnd('/') }.default(DEFAULT_GITHUB_API_URL)
 
+    private val connectTimeoutMs by option(CONNECT_TIMEOUT, help = "GitHub API connection timeout, ms")
+        .int().default(DEFAULT_CONNECT_TIMEOUT_MS)
+        .check("$CONNECT_TIMEOUT must be positive") { it > 0 }
+
+    private val readTimeoutMs by option(READ_TIMEOUT, help = "GitHub API read timeout, ms")
+        .int().default(DEFAULT_READ_TIMEOUT_MS)
+        .check("$READ_TIMEOUT must be positive") { it > 0 }
+
     private val context by requireObject<MutableMap<String, Any>>()
 
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
@@ -63,6 +73,12 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         val github = GitHubBuilder()
             .withEndpoint(githubApiUrl)
             .withOAuthToken(token)
+            .withConnector { url ->
+                (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = connectTimeoutMs
+                    readTimeout = readTimeoutMs
+                }
+            }
             .build()
         github.getRepository("$owner/$repo").createCommitStatus(
             commit,
@@ -84,9 +100,13 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val CONTEXT = "--context"
         const val DESCRIPTION = "--description"
         const val GITHUB_API_URL = "--github-api-url"
+        const val CONNECT_TIMEOUT = "--connect-timeout-ms"
+        const val READ_TIMEOUT = "--read-timeout-ms"
 
         const val DEFAULT_CONTEXT = "TeamCity / build"
         const val DEFAULT_GITHUB_API_URL = "https://api.github.com"
+        const val DEFAULT_CONNECT_TIMEOUT_MS = 10_000
+        const val DEFAULT_READ_TIMEOUT_MS = 30_000
         val ALLOWED_STATES = setOf("pending", "success", "failure", "error")
     }
 }
