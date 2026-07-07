@@ -3,12 +3,9 @@
     <description>
         Depends on following TeamCity parameters:
         * OCTOPUS_GITHUB_TOKEN
-        * OCTOPUS_GITHUB_USERNAME
-        * OCTOPUS_MODULE_NAME
         * TEAMCITY_URL
         * TEAMCITY_USER
         * TEAMCITY_PASSWORD
-        * build.vcs.number
         Posts a commit status to GitHub so builds can gate branch protection.
     </description>
     <settings>
@@ -19,7 +16,7 @@
             <param name="COMMIT_STATUS_STATE" value="success" spec="select description='Commit status state: pending (build running), success (build passed), failure (build failed), error (unexpected/config problem)' data_1='pending' data_2='success' data_3='failure' data_4='error' display='normal'"/>
             <param name="COMMIT_STATUS_CONTEXT" value="TeamCity / build" spec="text description='Status check context (must match branch protection rule)' validationMode='not_empty' display='normal'"/>
             <param name="COMMIT_STATUS_DESCRIPTION" value="" spec="text description='Short status description' display='normal'"/>
-            <param name="GITHUB_API_URL" value="https://api.github.com" spec="text description='GitHub API base URL (change for GitHub Enterprise)' validationMode='not_empty' display='normal'"/>
+            <param name="GITHUB_API_URL" value="%GITHUB_API_URL%" spec="text description='GitHub API base URL (change for GitHub Enterprise)' validationMode='not_empty' display='normal'"/>
         </parameters>
         <build-runners>
             <runner name="post github status" type="OctopusTeamcityAutomation">
