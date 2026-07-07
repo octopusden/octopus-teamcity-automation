@@ -7,10 +7,11 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import java.util.concurrent.TimeUnit
+import okhttp3.OkHttpClient
 import org.kohsuke.github.GHCommitState
 import org.kohsuke.github.GitHubBuilder
-import org.kohsuke.github.HttpConnector
-import org.kohsuke.github.extras.ImpatientHttpConnector
+import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector
 import org.slf4j.Logger
 
 /**
@@ -65,9 +66,14 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         val github = GitHubBuilder()
             .withEndpoint(githubApiUrl)
             .withOAuthToken(token)
-            // ImpatientHttpConnector is deprecated but the non-deprecated GitHubConnector impls
-            // need Java 11+ (HttpClientGitHubConnector) or an okhttp dep; project targets Java 8. Swap when we bump the JVM target.
-            .withConnector(ImpatientHttpConnector(HttpConnector.DEFAULT, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS))
+            .withConnector(
+                OkHttpGitHubConnector(
+                    OkHttpClient.Builder()
+                        .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
+                        .readTimeout(READ_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
+                        .build()
+                )
+            )
             .build()
         github.getRepository("$owner/$repo").createCommitStatus(
             commit,
