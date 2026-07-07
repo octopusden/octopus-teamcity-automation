@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <meta-runner name="${description}">
-    <description>Run ${name}</description>
+    <description>
+        Depends on following TeamCity parameters:
+        * OCTOPUS_TEAMCITY_AUTOMATION_JDK_HOME
+        Run ${name}
+    </description>
     <settings>
         <parameters>
             <param name="ARGS" value="--help" spec="text description='${name} arguments.' validationMode='not_empty' display='normal'"/>
-            <param name="OCTOPUS_TEAMCITY_AUTOMATION_JDK_HOME" value="%env.JAVA_HOME%" spec="text description='Path to the JDK 21 home used to run ${name} (defaults to the agent JAVA_HOME; must be JDK 21).' validationMode='not_empty' display='normal'"/>
         </parameters>
 
         <build-runners>
