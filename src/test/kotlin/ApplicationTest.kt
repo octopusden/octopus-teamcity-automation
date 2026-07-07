@@ -53,10 +53,11 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTy
 
 class ApplicationTest {
     private val jar = System.getProperty("jar") ?: throw IllegalStateException("System property 'jar' must be provided")
+    private val javaBin = "${System.getProperty("java.home")}/bin/java"
     private lateinit var testInfo: TestInfo
 
     private fun execute(name: String, vararg command: String) =
-        ProcessBuilder("java", "-jar", jar, *command).redirectErrorStream(true).redirectOutput(
+        ProcessBuilder(javaBin, "-jar", jar, *command).redirectErrorStream(true).redirectOutput(
             File("").resolve("build").resolve("logs").resolve("$name.log").also { it.parentFile.mkdirs() }).start()
             .waitFor()
 
