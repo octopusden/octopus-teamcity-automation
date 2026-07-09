@@ -21,11 +21,12 @@ description = "Octopus Teamcity Automation"
 tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions {
         suppressWarnings = true
-        jvmTarget = "1.8"
+        jvmTarget = "21"
     }
 }
 
-java.targetCompatibility = JavaVersion.VERSION_1_8
+java.sourceCompatibility = JavaVersion.VERSION_21
+java.targetCompatibility = JavaVersion.VERSION_21
 
 repositories {
     mavenCentral()
@@ -260,6 +261,8 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
     implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}")
+    implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
+    implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
     with("5.9.2") {
         testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
         testImplementation("org.junit.jupiter:junit-jupiter-params:$this")

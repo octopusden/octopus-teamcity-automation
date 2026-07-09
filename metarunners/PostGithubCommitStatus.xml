@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta-runner name="Post GitHub commit status">
+    <description>
+        Depends on following TeamCity parameters:
+        * OCTOPUS_GITHUB_TOKEN
+        * TEAMCITY_URL
+        * TEAMCITY_USER
+        * TEAMCITY_PASSWORD
+        Posts a commit status to GitHub so builds can gate branch protection.
+    </description>
+    <settings>
+        <parameters>
+            <param name="GITHUB_OWNER" value="%OCTOPUS_GITHUB_USERNAME%" spec="text description='GitHub organization / owner' validationMode='not_empty' display='normal'"/>
+            <param name="GITHUB_REPO" value="%OCTOPUS_MODULE_NAME%" spec="text description='GitHub repository name' validationMode='not_empty' display='normal'"/>
+            <param name="COMMIT_SHA" value="%build.vcs.number%" spec="text description='Git commit SHA the status is attached to' validationMode='not_empty' display='normal'"/>
+            <param name="COMMIT_STATUS_STATE" value="success" spec="select description='Commit status state: pending (build running), success (build passed), failure (build failed), error (unexpected/config problem)' data_1='pending' data_2='success' data_3='failure' data_4='error' display='normal'"/>
+            <param name="COMMIT_STATUS_CONTEXT" value="TeamCity / build" spec="text description='Status check context (must match branch protection rule)' validationMode='not_empty' display='normal'"/>
+            <param name="COMMIT_STATUS_DESCRIPTION" value="" spec="text description='Short status description' display='normal'"/>
+            <param name="GITHUB_API_URL" value="%GITHUB_API_URL%" spec="text description='GitHub API base URL (change for GitHub Enterprise)' validationMode='not_empty' display='normal'"/>
+        </parameters>
+        <build-runners>
+            <runner name="post github status" type="OctopusTeamcityAutomation">
+                <parameters>
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%COMMIT_SHA% --token=%OCTOPUS_GITHUB_TOKEN% --state=%COMMIT_STATUS_STATE% --context='%COMMIT_STATUS_CONTEXT%' --description='%COMMIT_STATUS_DESCRIPTION%' --github-api-url=%GITHUB_API_URL%"/>
+                </parameters>
+            </runner>
+        </build-runners>
+        <requirements />
+    </settings>
+</meta-runner>
