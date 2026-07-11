@@ -1,0 +1,15 @@
+# PUBLIC — static quality gates. Runs on push to main, via workflow_call (merge-gate), and manually.
+name: Quality
+
+on:
+  push:
+    branches: [ main ]
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-quality-gates.yml@v2.3.5
+    with:
+      java-version: '21'
+    secrets: inherit

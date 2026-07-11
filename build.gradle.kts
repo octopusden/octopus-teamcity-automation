@@ -1,7 +1,7 @@
 import com.avast.gradle.dockercompose.ComposeExtension
-import java.time.Duration
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.time.Duration
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -13,6 +13,21 @@ plugins {
     signing
     id("org.octopusden.octopus-release-management")
     id("org.octopusden.octopus.oc-template")
+    id("io.gitlab.arturbosch.detekt")
+    id("org.jlleitschuh.gradle.ktlint")
+    id("org.octopusden.octopus-quality")
+}
+
+octopusQuality {
+    // Repo has no coverage tool configured — disable coverage verification.
+    coverage {
+        enabled.set(false)
+    }
+    // Enforce Kotlin static analysis (detekt + ktlint); current debt is absorbed by
+    // detekt-baseline.xml / ktlint-baseline.xml so the gate stays green while enforcing.
+    kotlin {
+        failOnViolation.set(true)
+    }
 }
 
 group = "org.octopusden.octopus.automation.teamcity"
@@ -37,7 +52,10 @@ ext {
         set("signingRequired", it.containsKey("ORG_GRADLE_PROJECT_signingKey") && it.containsKey("ORG_GRADLE_PROJECT_signingPassword"))
         set("testPlatform", it.getOrDefault("TEST_PLATFORM", properties["test.platform"]))
         set("dockerRegistry", it.getOrDefault("DOCKER_REGISTRY", properties["docker.registry"]))
-        set("octopusGithubDockerRegistry", it.getOrDefault("OCTOPUS_GITHUB_DOCKER_REGISTRY", project.properties["octopus.github.docker.registry"]))
+        set(
+            "octopusGithubDockerRegistry",
+            it.getOrDefault("OCTOPUS_GITHUB_DOCKER_REGISTRY", project.properties["octopus.github.docker.registry"]),
+        )
         set("okdActiveDeadlineSeconds", it.getOrDefault("OKD_ACTIVE_DEADLINE_SECONDS", properties["okd.active-deadline-seconds"]))
         set("okdProject", it.getOrDefault("OKD_PROJECT", properties["okd.project"]))
         set("okdClusterDomain", it.getOrDefault("OKD_CLUSTER_DOMAIN", properties["okd.cluster-domain"]))
@@ -46,7 +64,9 @@ ext {
 }
 val supportedTestPlatforms = listOf("docker", "okd")
 if (project.ext["testPlatform"] !in supportedTestPlatforms) {
-    throw IllegalArgumentException("Test platform must be set to one of the following $supportedTestPlatforms. Start gradle build with -Ptest.platform=... or set env variable TEST_PLATFORM")
+    throw IllegalArgumentException(
+        "Test platform must be set to one of the following $supportedTestPlatforms. Start gradle build with -Ptest.platform=... or set env variable TEST_PLATFORM",
+    )
 }
 val mandatoryProperties = mutableListOf("dockerRegistry", "octopusGithubDockerRegistry")
 if (project.ext["testPlatform"] == "okd") {
@@ -58,24 +78,25 @@ val undefinedProperties = mandatoryProperties.filter { (project.ext[it] as Strin
 if (undefinedProperties.isNotEmpty()) {
     throw IllegalArgumentException(
         "Start gradle build with" +
-                (if (undefinedProperties.contains("dockerRegistry")) " -Pdocker.registry=..." else "") +
-                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " -Poctopus.github.docker.registry=..." else "") +
-                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " -Pokd.active-deadline-seconds=..." else "") +
-                (if (undefinedProperties.contains("okdProject")) " -Pokd.project=..." else "") +
-                (if (undefinedProperties.contains("okdClusterDomain")) " -Pokd.cluster-domain=..." else "") +
-                " or set env variable(s):" +
-                (if (undefinedProperties.contains("dockerRegistry")) " DOCKER_REGISTRY" else "") +
-                (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " OCTOPUS_GITHUB_DOCKER_REGISTRY" else "") +
-                (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " OKD_ACTIVE_DEADLINE_SECONDS" else "") +
-                (if (undefinedProperties.contains("okdProject")) " OKD_PROJECT" else "") +
-                (if (undefinedProperties.contains("okdClusterDomain")) " OKD_CLUSTER_DOMAIN" else "")
+            (if (undefinedProperties.contains("dockerRegistry")) " -Pdocker.registry=..." else "") +
+            (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " -Poctopus.github.docker.registry=..." else "") +
+            (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " -Pokd.active-deadline-seconds=..." else "") +
+            (if (undefinedProperties.contains("okdProject")) " -Pokd.project=..." else "") +
+            (if (undefinedProperties.contains("okdClusterDomain")) " -Pokd.cluster-domain=..." else "") +
+            " or set env variable(s):" +
+            (if (undefinedProperties.contains("dockerRegistry")) " DOCKER_REGISTRY" else "") +
+            (if (undefinedProperties.contains("octopusGithubDockerRegistry")) " OCTOPUS_GITHUB_DOCKER_REGISTRY" else "") +
+            (if (undefinedProperties.contains("okdActiveDeadlineSeconds")) " OKD_ACTIVE_DEADLINE_SECONDS" else "") +
+            (if (undefinedProperties.contains("okdProject")) " OKD_PROJECT" else "") +
+            (if (undefinedProperties.contains("okdClusterDomain")) " OKD_CLUSTER_DOMAIN" else ""),
     )
 }
+
 fun String.getExt() = project.ext[this].toString()
 
 val commonOkdParameters = mapOf(
     "ACTIVE_DEADLINE_SECONDS" to "okdActiveDeadlineSeconds".getExt(),
-    "DOCKER_REGISTRY" to "dockerRegistry".getExt()
+    "DOCKER_REGISTRY" to "dockerRegistry".getExt(),
 )
 
 ocTemplate {
@@ -84,40 +105,48 @@ ocTemplate {
     namespace.set("okdProject".getExt())
     prefix.set("tc-auto")
 
-    "okdWebConsoleUrl".getExt().takeIf { it.isNotBlank() }?.let{
+    "okdWebConsoleUrl".getExt().takeIf { it.isNotBlank() }?.let {
         webConsoleUrl.set(it)
     }
 
     group("teamcityPVCs").apply {
         service("teamcity22-pvc") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-pvc.yaml"))
-            parameters.set(mapOf(
-                "TEAMCITY_ID" to "22"
-            ))
+            parameters.set(
+                mapOf(
+                    "TEAMCITY_ID" to "22",
+                ),
+            )
         }
         service("teamcity26-pvc") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-pvc.yaml"))
-            parameters.set(mapOf(
-                "TEAMCITY_ID" to "26"
-            ))
+            parameters.set(
+                mapOf(
+                    "TEAMCITY_ID" to "26",
+                ),
+            )
         }
     }
 
     group("teamcitySeedUploaders").apply {
         service("teamcity22-uploader") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-uploader.yaml"))
-            parameters.set(commonOkdParameters + mapOf(
-                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
-                "TEAMCITY_ID" to "22"
-            ))
+            parameters.set(
+                commonOkdParameters + mapOf(
+                    "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                    "TEAMCITY_ID" to "22",
+                ),
+            )
             waitForCompletion.set(true)
         }
         service("teamcity26-uploader") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-uploader.yaml"))
-            parameters.set(commonOkdParameters + mapOf(
-                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
-                "TEAMCITY_ID" to "26"
-            ))
+            parameters.set(
+                commonOkdParameters + mapOf(
+                    "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                    "TEAMCITY_ID" to "26",
+                ),
+            )
             waitForCompletion.set(true)
         }
     }
@@ -125,47 +154,62 @@ ocTemplate {
     group("teamcityServers").apply {
         service("teamcity22") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity.yaml"))
-            parameters.set(commonOkdParameters + mapOf(
-                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
-                "TEAMCITY_IMAGE_TAG" to properties["teamcity-2022.image-tag"] as String,
-                "TEAMCITY_ID" to "22",
-                "CPU_REQUEST" to "1000m",
-                "CPU_LIMIT" to "4000m",
-                "MEM_REQUEST" to "1.5Gi",
-                "MEM_LIMIT" to "3Gi"
-            ))
+            parameters.set(
+                commonOkdParameters + mapOf(
+                    "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                    "TEAMCITY_IMAGE_TAG" to properties["teamcity-2022.image-tag"] as String,
+                    "TEAMCITY_ID" to "22",
+                    "CPU_REQUEST" to "1000m",
+                    "CPU_LIMIT" to "4000m",
+                    "MEM_REQUEST" to "1.5Gi",
+                    "MEM_LIMIT" to "3Gi",
+                ),
+            )
         }
         service("teamcity26") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity.yaml"))
-            parameters.set(commonOkdParameters + mapOf(
-                "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
-                "TEAMCITY_IMAGE_TAG" to project.properties["teamcity-2026.image-tag"] as String,
-                "TEAMCITY_ID" to "26",
-                "CPU_REQUEST" to "200m",
-                "CPU_LIMIT" to "2500m",
-                "MEM_REQUEST" to "1.5Gi",
-                "MEM_LIMIT" to "3Gi"
-            ))
+            parameters.set(
+                commonOkdParameters + mapOf(
+                    "SERVICE_ACCOUNT_ANYUID" to project.properties["okd.service-account-anyuid"] as String,
+                    "TEAMCITY_IMAGE_TAG" to project.properties["teamcity-2026.image-tag"] as String,
+                    "TEAMCITY_ID" to "26",
+                    "CPU_REQUEST" to "200m",
+                    "CPU_LIMIT" to "2500m",
+                    "MEM_REQUEST" to "1.5Gi",
+                    "MEM_LIMIT" to "3Gi",
+                ),
+            )
         }
     }
 
     group("componentsRegistry").apply {
         service("comp-reg") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/components-registry.yaml"))
-            val componentsRegistryWorkDir = layout.projectDirectory.dir("src/test/resources/components-registry").asFile.absolutePath
-            parameters.set(commonOkdParameters + mapOf(
-                "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"] as String,
-                "AGGREGATOR_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Aggregator.groovy").readText(),
-                "DEFAULTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/Defaults.groovy").readText(),
-                "TEST_COMPONENTS_GROOVY_CONTENT" to file("${componentsRegistryWorkDir}/TestComponents.groovy").readText(),
-                "APPLICATION_DEV_CONTENT" to layout.projectDirectory.dir("docker/components-registry-service.yaml").asFile.readText()
-            ))
+            val componentsRegistryWorkDir = layout.projectDirectory
+                .dir("src/test/resources/components-registry")
+                .asFile.absolutePath
+            parameters.set(
+                commonOkdParameters + mapOf(
+                    "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"] as String,
+                    "AGGREGATOR_GROOVY_CONTENT" to file("$componentsRegistryWorkDir/Aggregator.groovy").readText(),
+                    "DEFAULTS_GROOVY_CONTENT" to file("$componentsRegistryWorkDir/Defaults.groovy").readText(),
+                    "TEST_COMPONENTS_GROOVY_CONTENT" to file("$componentsRegistryWorkDir/TestComponents.groovy").readText(),
+                    "APPLICATION_DEV_CONTENT" to layout.projectDirectory
+                        .dir("docker/components-registry-service.yaml")
+                        .asFile
+                        .readText(),
+                ),
+            )
         }
     }
 }
 
 configure<ComposeExtension> {
-    useComposeFiles.add(layout.projectDirectory.file("docker/docker-compose.yml").asFile.path)
+    useComposeFiles.add(
+        layout.projectDirectory
+            .file("docker/docker-compose.yml")
+            .asFile.path,
+    )
     waitForTcpPorts.set(true)
     captureContainersOutputToFiles.set(layout.buildDirectory.dir("docker-logs"))
     environment.putAll(
@@ -173,23 +217,39 @@ configure<ComposeExtension> {
             "DOCKER_REGISTRY" to "dockerRegistry".getExt(),
             "TEAMCITY_2022_IMAGE_TAG" to properties["teamcity-2022.image-tag"],
             "TEAMCITY_2026_IMAGE_TAG" to properties["teamcity-2026.image-tag"],
-            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"]
-        )
+            "COMPONENTS_REGISTRY_SERVICE_VERSION" to properties["octopus-components-registry-service.version"],
+        ),
     )
 }
 
 val copyFilesTeamcity2022 = tasks.register<Exec>("copyFilesTeamcity2022") {
     dependsOn("ocCreateTeamcityPVCs", "ocCreateTeamcitySeedUploaders")
-    val localFile = layout.projectDirectory.dir("docker/data.zip").asFile.absolutePath
-    commandLine("oc", "cp", localFile, "-n", "okdProject".getExt(),
-        "${ocTemplate.getPod("teamcity22-uploader")}:/seed/seed.zip")
+    val localFile = layout.projectDirectory
+        .dir("docker/data.zip")
+        .asFile.absolutePath
+    commandLine(
+        "oc",
+        "cp",
+        localFile,
+        "-n",
+        "okdProject".getExt(),
+        "${ocTemplate.getPod("teamcity22-uploader")}:/seed/seed.zip",
+    )
 }
 
 val copyFilesTeamcity2026 = tasks.register<Exec>("copyFilesTeamcity2026") {
     dependsOn("ocCreateTeamcityPVCs", "ocCreateTeamcitySeedUploaders")
-    val localFile = layout.projectDirectory.dir("docker/dataV26.zip").asFile.absolutePath
-    commandLine("oc", "cp", localFile, "-n", "okdProject".getExt(),
-        "${ocTemplate.getPod("teamcity26-uploader")}:/seed/seed.zip")
+    val localFile = layout.projectDirectory
+        .dir("docker/dataV26.zip")
+        .asFile.absolutePath
+    commandLine(
+        "oc",
+        "cp",
+        localFile,
+        "-n",
+        "okdProject".getExt(),
+        "${ocTemplate.getPod("teamcity26-uploader")}:/seed/seed.zip",
+    )
 }
 
 val seedTeamcity = tasks.register("seedTeamcity") {
@@ -222,7 +282,7 @@ tasks.withType<Test> {
                 "ocLogsTeamcityServers",
                 "ocLogsComponentsRegistry",
                 "ocDeleteTeamcityPVCs",
-                "ocDeleteComponentsRegistry"
+                "ocDeleteComponentsRegistry",
             )
         }
         "docker" -> {
@@ -260,7 +320,9 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
-    implementation("org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}")
+    implementation(
+        "org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}",
+    )
     implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
     implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
     with("5.9.2") {
@@ -298,7 +360,10 @@ configurations {
 
 val metarunners = artifacts.add(
     "distributions",
-    layout.buildDirectory.file("distributions/metarunners.zip").get().asFile
+    layout.buildDirectory
+        .file("distributions/metarunners.zip")
+        .get()
+        .asFile,
 ) {
     classifier = "metarunners"
     type = "zip"
