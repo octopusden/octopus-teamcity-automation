@@ -14,5 +14,6 @@ fun main(args: Array<String>) {
         ),
         TeamcityUploadMetarunnersCommand(),
         TeamcityGetBuildTypesAgentRequirementsCommand(),
+        TeamcityPostGithubStatusCommand(),
     ).main(args)
 }
