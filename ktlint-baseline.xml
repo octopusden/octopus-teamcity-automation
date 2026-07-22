@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<baseline version="1.0">
+    <file name="src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityReplaceVcsRootCommand.kt">
+        <error line="144" column="141" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityUpdateParameterIncrementCommand.kt">
+        <error line="18" column="141" source="standard:max-line-length" />
+    </file>
+</baseline>

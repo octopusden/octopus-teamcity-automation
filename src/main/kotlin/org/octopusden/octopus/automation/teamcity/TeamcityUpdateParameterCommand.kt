@@ -9,17 +9,29 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 
 class TeamcityUpdateParameterCommand : CliktCommand(name = COMMAND) {
-    private val name by option(NAME_OPTION, help = "TeamCity parameter name").convert { it.trim() }.required()
+    private val name by option(NAME_OPTION, help = "TeamCity parameter name")
+        .convert { it.trim() }
+        .required()
         .check("$NAME_OPTION is empty") { it.isNotEmpty() }
     private val projectIds by option(
-        PROJECT_IDS_OPTION, help = "TeamCity project ids (separated by comma/semicolon), optional"
+        PROJECT_IDS_OPTION,
+        help = "TeamCity project ids (separated by comma/semicolon), optional",
     ).convert { projectIdsValue ->
-        projectIdsValue.split(SPLIT_SYMBOLS.toRegex()).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        projectIdsValue
+            .split(SPLIT_SYMBOLS.toRegex())
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
     }.default(emptySet())
     private val buildTypeIds by option(
-        BUILD_TYPE_IDS_OPTION, help = "TeamCity build configuration ids (separated by comma/semicolon), optional"
+        BUILD_TYPE_IDS_OPTION,
+        help = "TeamCity build configuration ids (separated by comma/semicolon), optional",
     ).convert { buildTypeIdsValue ->
-        buildTypeIdsValue.split(SPLIT_SYMBOLS.toRegex()).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        buildTypeIdsValue
+            .split(SPLIT_SYMBOLS.toRegex())
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
     }.default(emptySet())
 
     private val context by requireObject<MutableMap<String, Any>>()
@@ -38,6 +50,10 @@ class TeamcityUpdateParameterCommand : CliktCommand(name = COMMAND) {
         const val BUILD_TYPE_IDS_OPTION = "--build-type-ids"
         const val CONFIG = "config"
 
-        data class UpdateParameterConfig(val name: String, val projectIds: Set<String>, val buildTypeIds: Set<String>)
+        data class UpdateParameterConfig(
+            val name: String,
+            val projectIds: Set<String>,
+            val buildTypeIds: Set<String>,
+        )
     }
 }

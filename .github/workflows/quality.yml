@@ -1,0 +1,22 @@
+# PUBLIC — static quality gates. Runs on push to main, via workflow_call (merge-gate), and manually.
+name: Quality
+
+on:
+  push:
+    branches: [ main ]
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-quality-gates.yml@v2.4.1
+    with:
+      java-version: '21'
+      # Coverage is disabled for this repo (octopusQuality.coverage.enabled = false), so
+      # qualityCoverage is a no-op. The default coverage-command still pulls in the `test`
+      # task, whose testcontainers wiring (dockerCompose.isRequiredBy(test)) drives
+      # composeBuild/composeUp -> docker-compose, which is unavailable on the GitHub runner.
+      # Exclude `test` (and the compose lifecycle it triggers) so the gate can run without
+      # Docker/OKD infrastructure.
+      coverage-command: ./gradlew qualityCoverage --no-daemon --stacktrace -x composeBuild -x composeUp -x composeDown -x composeDownForcedOnFailure -x test
+    secrets: inherit

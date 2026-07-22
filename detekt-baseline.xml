@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LargeClass:ApplicationTest.kt$ApplicationTest</ID>
+    <ID>MaxLineLength:ApplicationTest.kt$ApplicationTest$"${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_BUILD_2;$TEST_SUBPROJECT_1_BUILD_1,$TEST_SUBPROJECT_1_BUILD_2;$TEST_SUBPROJECT_2_BUILD_1,$TEST_SUBPROJECT_2_BUILD_2"</ID>
+    <ID>MaxLineLength:ApplicationTest.kt$ApplicationTest$"${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1;$TEST_SUBPROJECT_1_BUILD_1;$TEST_SUBPROJECT_1_BUILD_1"</ID>
+    <ID>MaxLineLength:ApplicationTest.kt$ApplicationTest$* Tests CreateTeamCityBuildChain for overriding the JDK_VERSION parameter in compile build configurations based on the component's javaVersion.</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$"$NEW_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git or git@host:org/repo.git or https://host/org/repo.git). Use only lowercase."</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$"$OLD_VCS_ROOT must be a valid Git URL (e.g. ssh://git@host/org/repo.git or git@host:org/repo.git or https://host/org/repo.git). Use only lowercase."</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$"Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${newVcs.id}, vcsRootName=${newVcs.name}, checkoutRules='$checkoutRules'"</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$"Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, vcsRootId=${oldEntry.vcsRoot.id}, vcsRootName=${oldEntry.vcsRoot.name}"</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$"Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${newVcs.id}-${newVcs.name}, checkoutRules='$checkoutRules' (dryRun = $dryRun)"</ID>
+    <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$val fields = "buildType(id,name,projectId,projectName,webUrl,href,vcs-root-entries(vcs-root-entry(id,vcs-root(id,name,href),checkout-rules)))"</ID>
+    <ID>MaxLineLength:TeamcityUpdateParameterIncrementCommand.kt$TeamcityUpdateParameterIncrementCommand$help = "Configures additional check, optional. If defined, incrementation is performed only if '--current' contains all components of current value of the parameter (for instance, if --current=1.2.7 and parameter value is 1.2, it will be incremented to 1.3)"</ID>
+    <ID>SwallowedException:ApplicationTest.kt$ApplicationTest$e: Exception</ID>
+    <ID>SwallowedException:TeamcityCreateBuildChainCommand.kt$TeamcityCreateBuildChainCommand$e: FeignException.NotFound</ID>
+    <ID>TooGenericExceptionCaught:TeamcityUpdateParameterIncrementCommand.kt$TeamcityUpdateParameterIncrementCommand$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:ApplicationTest.kt$ApplicationTest.Companion$throw Exception("System property 'test.components-registry-host' must be defined")</ID>
+    <ID>TooGenericExceptionThrown:ApplicationTest.kt$ApplicationTest.Companion$throw Exception("System property 'test.teamcity-2022-host' must be defined")</ID>
+    <ID>TooGenericExceptionThrown:ApplicationTest.kt$ApplicationTest.Companion$throw Exception("System property 'test.teamcity-2026-host' must be defined")</ID>
+    <ID>UnusedPrivateMember:ApplicationTest.kt$ApplicationTest.Companion$@JvmStatic private fun invalidCommands(): Stream&lt;Arguments></ID>
+    <ID>UseCheckOrError:ApplicationTest.kt$ApplicationTest$throw IllegalStateException("System property 'jar' must be provided")</ID>
+    <ID>UseRequire:TeamcityUpdateParameterCommand.kt$TeamcityUpdateParameterCommand$throw IllegalArgumentException("Both options --project-ids and --build-type-ids are empty")</ID>
+  </CurrentIssues>
+</SmellBaseline>

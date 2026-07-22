@@ -7,12 +7,12 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import org.kohsuke.github.GHCommitState
 import org.kohsuke.github.GitHubBuilder
 import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector
 import org.slf4j.Logger
+import java.util.concurrent.TimeUnit
 
 /**
  * Posts a commit status to GitHub (`POST /repos/{owner}/{repo}/statuses/{sha}`) so TeamCity
@@ -23,34 +23,40 @@ import org.slf4j.Logger
  * not an issue.
  */
 class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
-
     private val owner by option(OWNER, help = "GitHub organization / owner")
-        .convert { it.trim() }.required()
+        .convert { it.trim() }
+        .required()
         .check("$OWNER is empty") { it.isNotEmpty() }
 
     private val repo by option(REPO, help = "GitHub repository name")
-        .convert { it.trim() }.required()
+        .convert { it.trim() }
+        .required()
         .check("$REPO is empty") { it.isNotEmpty() }
 
     private val commit by option(COMMIT, help = "Git commit SHA to attach the status to")
-        .convert { it.trim() }.required()
+        .convert { it.trim() }
+        .required()
         .check("$COMMIT is empty") { it.isNotEmpty() }
 
     private val token by option(TOKEN, help = "GitHub API token")
-        .convert { it.trim() }.required()
+        .convert { it.trim() }
+        .required()
         .check("$TOKEN is empty") { it.isNotEmpty() }
 
     private val state by option(STATE, help = "Commit status state: one of $ALLOWED_STATES")
-        .convert { it.trim().lowercase() }.required()
+        .convert { it.trim().lowercase() }
+        .required()
         .check("$STATE must be one of $ALLOWED_STATES") { ALLOWED_STATES.contains(it) }
 
     private val statusContext by option(CONTEXT, help = "Status check context (must match the branch protection rule)")
-        .convert { it.trim() }.default(DEFAULT_CONTEXT)
+        .convert { it.trim() }
+        .default(DEFAULT_CONTEXT)
 
     private val description by option(DESCRIPTION, help = "Short status description").default("")
 
     private val githubApiUrl by option(GITHUB_API_URL, help = "GitHub API base URL")
-        .convert { it.trim().trimEnd('/') }.default(DEFAULT_GITHUB_API_URL)
+        .convert { it.trim().trimEnd('/') }
+        .default(DEFAULT_GITHUB_API_URL)
 
     private val context by requireObject<MutableMap<String, Any>>()
 
@@ -68,13 +74,13 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
             .withOAuthToken(token)
             .withConnector(
                 OkHttpGitHubConnector(
-                    OkHttpClient.Builder()
+                    OkHttpClient
+                        .Builder()
                         .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
                         .readTimeout(READ_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
-                        .build()
-                )
-            )
-            .build()
+                        .build(),
+                ),
+            ).build()
         github.getRepository("$owner/$repo").createCommitStatus(
             commit,
             GHCommitState.valueOf(state.uppercase()),

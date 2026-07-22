@@ -12,7 +12,9 @@ import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.slf4j.Logger
 
 class TeamcityUpdateParameterSetCommand : CliktCommand(name = COMMAND) {
-    private val value by option(VALUE_OPTION, help = "TeamCity parameter value").convert { it.trim() }.required()
+    private val value by option(VALUE_OPTION, help = "TeamCity parameter value")
+        .convert { it.trim() }
+        .required()
         .check("$VALUE_OPTION is empty") { it.isNotEmpty() }
 
     private val context by requireObject<MutableMap<String, Any>>()
