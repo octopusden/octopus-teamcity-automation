@@ -6,20 +6,23 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
+import org.octopusden.octopus.infrastructure.teamcity.client.uploadMetarunner
+import org.slf4j.Logger
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.nio.file.Paths
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import kotlin.io.path.name
-import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
-import org.octopusden.octopus.infrastructure.teamcity.client.uploadMetarunner
-import org.slf4j.Logger
 
 class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
-    private val projectId by option(PROJECT_ID_OPTION, help = "TeamCity project id").convert { it.trim() }.required()
+    private val projectId by option(PROJECT_ID_OPTION, help = "TeamCity project id")
+        .convert { it.trim() }
+        .required()
         .check("PROJECT_ID_OPTION is empty") { it.isNotEmpty() }
-    private val zip by option(ZIP_OPTION, help = "URL of a zip file with metarunners").convert { URI(it).toURL() }
+    private val zip by option(ZIP_OPTION, help = "URL of a zip file with metarunners")
+        .convert { URI(it).toURL() }
         .required()
 
     private val context by requireObject<MutableMap<String, Any>>()
@@ -35,13 +38,15 @@ class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
                         val metarunner = Paths.get(it.name).name
                         log.info("Upload metarunner '$metarunner' for project with id $projectId")
                         client.uploadMetarunner(
-                            projectId, metarunner, ByteArrayOutputStream().apply {
-                                zipFile.copyTo(this)
-                            }.toByteArray()
+                            projectId,
+                            metarunner,
+                            ByteArrayOutputStream()
+                                .apply {
+                                    zipFile.copyTo(this)
+                                }.toByteArray(),
                         )
                     }
                 }
-
             }
         }
     }

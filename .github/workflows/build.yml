@@ -1,10 +1,16 @@
+# PUBLIC — Gradle compile & UT. Runs on push to main, via workflow_call (merge-gate), and manually.
 name: Gradle Build
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [ main ]
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   build:
-    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-build.yml@v2.1.8
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-build.yml@v2.4.1
     with:
       flow-type: hybrid
       java-version: '21'
+    secrets: inherit

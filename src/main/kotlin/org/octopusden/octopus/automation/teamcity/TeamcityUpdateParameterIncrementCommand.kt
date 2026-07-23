@@ -15,7 +15,7 @@ class TeamcityUpdateParameterIncrementCommand : CliktCommand(name = COMMAND) {
 
     private val current by option(
         CURRENT_OPTION,
-        help = "Configures additional check, optional. If defined, incrementation is performed only if '--current' contains all components of current value of the parameter (for instance, if --current=1.2.7 and parameter value is 1.2, it will be incremented to 1.3)"
+        help = "Configures additional check, optional. If defined, incrementation is performed only if '--current' contains all components of current value of the parameter (for instance, if --current=1.2.7 and parameter value is 1.2, it will be incremented to 1.3)",
     ).convert { it.trim() }.default("")
 
     override fun run() {
@@ -28,7 +28,11 @@ class TeamcityUpdateParameterIncrementCommand : CliktCommand(name = COMMAND) {
         }
     }
 
-    private fun increment(type: ConfigurationType, id: String, name: String) {
+    private fun increment(
+        type: ConfigurationType,
+        id: String,
+        name: String,
+    ) {
         val componentDelimiters = "[.-]".toRegex()
         val typeName = when (type) {
             ConfigurationType.PROJECT -> "project"

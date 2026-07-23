@@ -6,22 +6,21 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import java.io.BufferedWriter
-import java.io.FileWriter
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.getAgentRequirements
 import org.slf4j.Logger
+import java.io.BufferedWriter
+import java.io.FileWriter
 
 /**
  * Command to get agent requirements for build types in TeamCity.
  */
-class TeamcityGetBuildTypesAgentRequirementsCommand :
-    CliktCommand(name = COMMAND) {
-
+class TeamcityGetBuildTypesAgentRequirementsCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
-    private val file by option(FILE, help = "File to save the agent requirements").required()
+    private val file by option(FILE, help = "File to save the agent requirements")
+        .required()
         .check("File must be a valid path") { it.isNotBlank() }
     private val archived by option(ARCHIVED, help = "Include archived projects").flag(default = false)
 
@@ -30,7 +29,7 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
         val buildTypes =
             client.getBuildTypesWithFields("buildType(id,projectId,projectName,name,href,paused,project(id,name,archived,href,webUrl))")
         BufferedWriter(FileWriter(file)).use { bufferWriter ->
-            //Header
+            // Header
             bufferWriter.write("Project ID;")
             bufferWriter.write("Project Name;")
             bufferWriter.write("Build Type ID;")
@@ -41,12 +40,11 @@ class TeamcityGetBuildTypesAgentRequirementsCommand :
             bufferWriter.write("Disabled;")
             bufferWriter.write("Paused;")
             bufferWriter.write("Archived;\n")
-            //Data
+            // Data
             buildTypes.buildTypes
                 .filter { buildType ->
                     archived || buildType.project?.archived != true
-                }
-                .forEach { buildType ->
+                }.forEach { buildType ->
                     val agentRequirements = client.getAgentRequirements(buildType.id)
                     agentRequirements.agentRequirements.forEach { ar ->
                         bufferWriter.write("${buildType.projectId};")

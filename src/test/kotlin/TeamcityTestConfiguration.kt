@@ -1,5 +1,5 @@
 data class TeamcityTestConfiguration(
     val name: String,
     val host: String,
-    val version: Int
+    val version: Int,
 )

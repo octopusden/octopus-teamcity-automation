@@ -1,14 +1,7 @@
+import com.fasterxml.jackson.databind.ObjectMapper
 import it.skrape.core.htmlDocument
 import it.skrape.matchers.toBe
 import it.skrape.selects.html5.tr
-import java.io.File
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import com.fasterxml.jackson.databind.ObjectMapper
-import java.util.Base64
-import java.util.stream.Stream
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInfo
@@ -33,33 +26,48 @@ import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildStep
 import org.octopusden.octopus.infrastructure.teamcity.client.deleteProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityAgentRequirement
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
-import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
-import org.octopusden.octopus.infrastructure.teamcity.client.getProject
-import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
-
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
+import org.octopusden.octopus.infrastructure.teamcity.client.getProject
+import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
+import java.io.File
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.util.Base64
+import java.util.stream.Stream
 
 class ApplicationTest {
     private val jar = System.getProperty("jar") ?: throw IllegalStateException("System property 'jar' must be provided")
     private val javaBin = "${System.getProperty("java.home")}/bin/java"
     private lateinit var testInfo: TestInfo
 
-    private fun execute(name: String, vararg command: String) =
-        ProcessBuilder(javaBin, "-jar", jar, *command).redirectErrorStream(true).redirectOutput(
-            File("").resolve("build").resolve("logs").resolve("$name.log").also { it.parentFile.mkdirs() }).start()
-            .waitFor()
+    private fun execute(
+        name: String,
+        vararg command: String,
+    ) = ProcessBuilder(javaBin, "-jar", jar, *command)
+        .redirectErrorStream(true)
+        .redirectOutput(
+            File("")
+                .resolve("build")
+                .resolve("logs")
+                .resolve("$name.log")
+                .also { it.parentFile.mkdirs() },
+        ).start()
+        .waitFor()
 
     private fun executeForCreateBuildChainCommand(
         config: TeamcityTestConfiguration,
@@ -67,7 +75,7 @@ class ApplicationTest {
         componentName: String,
         minorVersion: String? = "1.0",
         createChecklist: Boolean = true,
-        createRcForce: Boolean = false
+        createRcForce: Boolean = false,
     ): Int =
         execute(
             testMethodName,
@@ -93,7 +101,8 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter, "OLD")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter, "OLD")
         Assertions.assertEquals(
-            0, execute(
+            0,
+            execute(
                 testInfo.testMethod.get().name,
                 *getTeamcityOptions(config),
                 TeamcityUpdateParameterCommand.COMMAND,
@@ -101,35 +110,44 @@ class ApplicationTest {
                 "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2;$TEST_PROJECT",
                 "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_SUBPROJECT_1_BUILD_1",
                 TeamcityUpdateParameterSetCommand.COMMAND,
-                "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW"
-            )
+                "${TeamcityUpdateParameterSetCommand.VALUE_OPTION}=NEW",
+            ),
         )
         Assertions.assertEquals(
-            "NEW", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, parameter)
+            "NEW",
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, parameter),
         )
         Assertions.assertEquals(
-            "NEW", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter)
+            "NEW",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "OLD", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter)
+            "OLD",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "OLD", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter)
+            "OLD",
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter),
         )
         Assertions.assertEquals(
-            "NEW", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter)
+            "NEW",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "OLD", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter)
+            "OLD",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "NEW", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, parameter)
+            "NEW",
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, parameter),
         )
         Assertions.assertEquals(
-            "OLD", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter)
+            "OLD",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "NEW", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter)
+            "NEW",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter),
         )
     }
 
@@ -146,42 +164,51 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, parameter, "INVALID")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter, "1.3")
         Assertions.assertEquals(
-            0, execute(
+            0,
+            execute(
                 testInfo.testMethod.get().name,
                 *getTeamcityOptions(config),
                 TeamcityUpdateParameterCommand.COMMAND,
                 "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
                 "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=$TEST_SUBPROJECT_2,$TEST_PROJECT",
                 "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1;$TEST_SUBPROJECT_1_BUILD_1;$TEST_SUBPROJECT_1_BUILD_1",
-                TeamcityUpdateParameterIncrementCommand.COMMAND
-            )
+                TeamcityUpdateParameterIncrementCommand.COMMAND,
+            ),
         )
         Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
             teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_PROJECT, parameter)
         }
         Assertions.assertEquals(
-            "1.1", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter)
+            "1.1",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "1.1", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter)
+            "1.1",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "1.2", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter)
+            "1.2",
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_1, parameter),
         )
         Assertions.assertEquals(
-            "1.3", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter)
+            "1.3",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "1.2", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter)
+            "1.2",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "INVALID", teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, parameter)
+            "INVALID",
+            teamcityClient.getParameter(ConfigurationType.PROJECT, TEST_SUBPROJECT_2, parameter),
         )
         Assertions.assertEquals(
-            "1.3", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter)
+            "1.3",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "INVALID", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter)
+            "INVALID",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter),
         )
     }
 
@@ -208,7 +235,8 @@ class ApplicationTest {
 
         val projectId = "TestTeamcityAutomation_EeComponent"
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
+            0,
+            executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion),
         )
 
         Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -228,7 +256,7 @@ class ApplicationTest {
             compileConfigId to null,
             rcConfigId to compileConfigId,
             checklistConfigId to rcConfigId,
-            releaseConfigId to rcConfigId
+            releaseConfigId to rcConfigId,
         )
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
@@ -251,10 +279,19 @@ class ApplicationTest {
 
         val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
         Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"))
-        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"))
-        Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, checklistConfigId, "BUILD_VERSION"),
+        )
+        Assertions.assertEquals(
+            compileBuildVersion,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"),
+        )
 
-        Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+        Assertions.assertEquals(
+            compileConfigId,
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"),
+        )
 
         Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
         Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
@@ -270,7 +307,8 @@ class ApplicationTest {
         val projectId = "TestTeamcityAutomation_EeComponent"
 
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+            0,
+            executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName),
         )
 
         listOf(TEST_USER, TEST_USER_2).forEach { username ->
@@ -290,7 +328,8 @@ class ApplicationTest {
         val projectId = "TestTeamcityAutomation_NonexistentUserComponent"
 
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+            0,
+            executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName),
         )
     }
 
@@ -305,7 +344,8 @@ class ApplicationTest {
 
         val projectId = "TestTeamcityAutomation_EeComponent"
         Assertions.assertEquals(
-            0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion, false)
+            0,
+            executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion, false),
         )
 
         Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -322,7 +362,7 @@ class ApplicationTest {
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
             rcConfigId to compileConfigId,
-            releaseConfigId to rcConfigId
+            releaseConfigId to rcConfigId,
         )
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
@@ -345,25 +385,25 @@ class ApplicationTest {
         val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
         Assertions.assertEquals(
             compileBuildVersion,
-            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION")
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, rcConfigId, "BUILD_VERSION"),
         )
         Assertions.assertEquals(
             compileBuildVersion,
-            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"),
         )
 
         Assertions.assertEquals(
             compileConfigId,
-            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"),
         )
 
         Assertions.assertEquals(
             componentName,
-            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"),
         )
         Assertions.assertEquals(
             minorVersion,
-            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"),
         )
     }
 
@@ -387,12 +427,13 @@ class ApplicationTest {
         val componentNamesToProjectId = mapOf(
             "ie-component" to "TestTeamcityAutomation_IeComponent",
             "ei-component" to "TestTeamcityAutomation_EiComponent",
-            "ii-component" to "TestTeamcityAutomation_IiComponent"
+            "ii-component" to "TestTeamcityAutomation_IiComponent",
         )
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion)
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, minorVersion),
             )
 
             Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -406,7 +447,7 @@ class ApplicationTest {
 
             val buildTypesIdAndDependencyId = mapOf(
                 compileConfigId to null,
-                releaseConfigId to compileConfigId
+                releaseConfigId to compileConfigId,
             )
 
             buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
@@ -426,9 +467,15 @@ class ApplicationTest {
             Assertions.assertTrue(buildSteps.find { it.name == "IncrementTeamCityBuildConfigurationParameter" }?.disabled!!)
 
             val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
-            Assertions.assertEquals(compileBuildVersion, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"))
+            Assertions.assertEquals(
+                compileBuildVersion,
+                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"),
+            )
 
-            Assertions.assertEquals(compileConfigId, teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"))
+            Assertions.assertEquals(
+                compileConfigId,
+                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"),
+            )
 
             Assertions.assertEquals(componentName, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"))
             Assertions.assertEquals(minorVersion, teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"))
@@ -447,13 +494,14 @@ class ApplicationTest {
 
         Assertions.assertEquals(
             0,
-            executeForCreateBuildChainCommand(config,
+            executeForCreateBuildChainCommand(
+                config,
                 testInfo.methodName(),
                 componentName,
                 minorVersion,
                 createChecklist = false,
-                createRcForce = true
-            )
+                createRcForce = true,
+            ),
         )
 
         Assertions.assertEquals(TEST_PROJECT, teamcityClient.getProject(projectId).parentProjectId)
@@ -470,7 +518,7 @@ class ApplicationTest {
         val buildTypesIdAndDependencyId = mapOf(
             compileConfigId to null,
             rcConfigId to compileConfigId,
-            releaseConfigId to rcConfigId
+            releaseConfigId to rcConfigId,
         )
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
@@ -493,21 +541,21 @@ class ApplicationTest {
         val compileBuildVersion = "%dep.$compileConfigId.BUILD_VERSION%"
         Assertions.assertEquals(
             compileBuildVersion,
-            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION")
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BUILD_VERSION"),
         )
 
         Assertions.assertEquals(
             compileConfigId,
-            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID")
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, releaseConfigId, "BASE_CONFIGURATION_ID"),
         )
 
         Assertions.assertEquals(
             componentName,
-            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME")
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "COMPONENT_NAME"),
         )
         Assertions.assertEquals(
             minorVersion,
-            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION")
+            teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "PROJECT_VERSION"),
         )
     }
 
@@ -527,17 +575,18 @@ class ApplicationTest {
 
         val componentNamesToProjectId = mapOf(
             defaultJDKComponentName to defaultJDKProjectId,
-            customJDKComponentName to customJDKProjectId
+            customJDKComponentName to customJDKProjectId,
         )
 
         componentNamesToProjectId.forEach { (componentName, projectId) ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName),
             )
             val nonCompileConfigIds = listOf(
                 "${projectId}_20ReleaseCandidateManual",
                 "${projectId}_30ReleaseChecklistValidationManual",
-                "${projectId}_40ReleaseManual"
+                "${projectId}_40ReleaseManual",
             )
             nonCompileConfigIds.forEach { configId ->
                 Assertions.assertEquals("1.8", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "JDK_VERSION"))
@@ -545,10 +594,12 @@ class ApplicationTest {
         }
 
         Assertions.assertEquals(
-            "1.8", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${defaultJDKProjectId}_10CompileUtAuto", "JDK_VERSION")
+            "1.8",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${defaultJDKProjectId}_10CompileUtAuto", "JDK_VERSION"),
         )
         Assertions.assertEquals(
-            "11", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${customJDKProjectId}_10CompileUtAuto", "JDK_VERSION")
+            "11",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${customJDKProjectId}_10CompileUtAuto", "JDK_VERSION"),
         )
     }
 
@@ -565,17 +616,35 @@ class ApplicationTest {
 
         componentNames.forEach { componentName ->
             Assertions.assertEquals(
-                0, executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName)
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName),
             )
         }
 
-        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_MavenComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE)
-        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_GradleComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
-        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
-        validateBuildTypeTemplate(teamcityClient, "TestTeamcityAutomation_InContainerComponent_10CompileUtAuto", TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE)
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_MavenComponent_10CompileUtAuto",
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+        )
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_GradleComponent_10CompileUtAuto",
+            TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE,
+        )
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_ProvidedComponent_10CompileUtAuto",
+            TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE,
+        )
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_InContainerComponent_10CompileUtAuto",
+            TeamcityCreateBuildChainCommand.TEMPLATE_GRADLE_COMPILE,
+        )
 
         Assertions.assertEquals(
-            1, executeForCreateBuildChainCommand(config, testInfo.methodName(), "not-supported-component")
+            1,
+            executeForCreateBuildChainCommand(config, testInfo.methodName(), "not-supported-component"),
         )
     }
 
@@ -593,33 +662,40 @@ class ApplicationTest {
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter, "1.1.2")
         teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter, "1.2.1")
         Assertions.assertEquals(
-            0, execute(
+            0,
+            execute(
                 testInfo.testMethod.get().name,
                 *getTeamcityOptions(config),
                 TeamcityUpdateParameterCommand.COMMAND,
                 "${TeamcityUpdateParameterCommand.NAME_OPTION}=$parameter",
                 "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=$TEST_BUILD_1,$TEST_BUILD_2;$TEST_SUBPROJECT_1_BUILD_1,$TEST_SUBPROJECT_1_BUILD_2;$TEST_SUBPROJECT_2_BUILD_1,$TEST_SUBPROJECT_2_BUILD_2",
                 TeamcityUpdateParameterIncrementCommand.COMMAND,
-                "${TeamcityUpdateParameterIncrementCommand.CURRENT_OPTION}=1.1.1"
-            )
+                "${TeamcityUpdateParameterIncrementCommand.CURRENT_OPTION}=1.1.1",
+            ),
         )
         Assertions.assertEquals(
-            "1.0", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter)
+            "1.0",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "1.0.1", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter)
+            "1.0.1",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "1.2", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter)
+            "1.2",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "1.1.2", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter)
+            "1.1.2",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_2, parameter),
         )
         Assertions.assertEquals(
-            "1.1.2", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter)
+            "1.1.2",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_1, parameter),
         )
         Assertions.assertEquals(
-            "1.2.1", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter)
+            "1.2.1",
+            teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_2_BUILD_2, parameter),
         )
     }
 
@@ -631,13 +707,14 @@ class ApplicationTest {
 
         val metarunners = ApplicationTest::class.java.getResource("metarunners.zip")!!
         Assertions.assertEquals(
-            0, execute(
+            0,
+            execute(
                 testInfo.testMethod.get().name,
                 *getTeamcityOptions(config),
                 TeamcityUploadMetarunnersCommand.COMMAND,
                 "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=$TEST_PROJECT",
-                "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=$metarunners"
-            )
+                "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=$metarunners",
+            ),
         )
 
         validateUploadedMetarunners(config, teamcityClient)
@@ -648,12 +725,13 @@ class ApplicationTest {
     fun testGetBuildTypesAgentRequirements(config: TeamcityTestConfiguration) {
         val file = File("build").resolve("logs").resolve("${testInfo.testMethod.get().name}.csv")
         Assertions.assertEquals(
-            0, execute(
+            0,
+            execute(
                 testInfo.testMethod.get().name,
                 *getTeamcityOptions(config),
                 TeamcityGetBuildTypesAgentRequirementsCommand.COMMAND,
-                "${TeamcityGetBuildTypesAgentRequirementsCommand.FILE}=$file"
-            )
+                "${TeamcityGetBuildTypesAgentRequirementsCommand.FILE}=$file",
+            ),
         )
         Assertions.assertTrue(file.exists())
         Assertions.assertTrue(file.readText().contains("teamcity.agent.jvm.os.name;Mac OS X"))
@@ -677,27 +755,53 @@ class ApplicationTest {
                     listOf(
                         TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_URL, oldUrl),
                         TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH, "refs/heads/master"),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH_SPEC, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_BRANCH_SPEC),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AUTH_METHOD, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_AUTH_METHOD),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME_STYLE, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME_STYLE),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_SUBMODULE_CHECKOUT, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_SUBMODULE_CHECKOUT),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH_SPEC,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_BRANCH_SPEC,
+                        ),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME,
+                        ),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_AUTH_METHOD,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_AUTH_METHOD,
+                        ),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME_STYLE,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME_STYLE,
+                        ),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_SUBMODULE_CHECKOUT,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_SUBMODULE_CHECKOUT,
+                        ),
                         TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_IGNORE_KNOWN_HOSTS, TeamcityReplaceVcsRootCommand.TRUE),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_FILES_POLICY, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_FILES_POLICY),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_POLICY, TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_POLICY)
-                    )
-                )
-            )
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_FILES_POLICY,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_FILES_POLICY,
+                        ),
+                        TeamcityProperty(
+                            TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_POLICY,
+                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_POLICY,
+                        ),
+                    ),
+                ),
+            ),
         )
         teamcityClient.createBuildTypeVcsRootEntry(
             buildType = BuildTypeLocator(TEST_SUBPROJECT_1_BUILD_1),
             vcsRootEntry = TeamcityCreateVcsRootEntry(
                 id = created.id,
                 vcsRoot = TeamcityLinkVcsRoot(id = created.id),
-                checkoutRules = ""
-            )
+                checkoutRules = "",
+            ),
         )
-        teamcityClient.setParameter(ConfigurationType.BUILD_TYPE, TEST_SUBPROJECT_1_BUILD_1, TeamcityReplaceVcsRootCommand.PROPERTY_BUILD_TYPE_BRANCH, "master")
+        teamcityClient.setParameter(
+            ConfigurationType.BUILD_TYPE,
+            TEST_SUBPROJECT_1_BUILD_1,
+            TeamcityReplaceVcsRootCommand.PROPERTY_BUILD_TYPE_BRANCH,
+            "master",
+        )
 
         val exitCode = execute(
             testInfo.testMethod.get().name,
@@ -705,7 +809,7 @@ class ApplicationTest {
             TeamcityReplaceVcsRootCommand.COMMAND,
             "${TeamcityReplaceVcsRootCommand.OLD_VCS_ROOT}=$oldUrl",
             "${TeamcityReplaceVcsRootCommand.NEW_VCS_ROOT}=$newUrl",
-            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false"
+            "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false",
         )
         Assertions.assertEquals(0, exitCode)
         val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
@@ -718,83 +822,116 @@ class ApplicationTest {
 
     @ParameterizedTest
     @MethodSource("validCommands")
-    fun testValidCommands(name: String, command: Array<String>) = Assertions.assertEquals(0, execute(name, *command))
+    fun testValidCommands(
+        name: String,
+        command: Array<String>,
+    ) = Assertions.assertEquals(0, execute(name, *command))
 
     @ParameterizedTest
     @MethodSource("invalidCommands")
-    fun testInvalidCommands(name: String, command: Array<String>) = Assertions.assertEquals(1, execute(name, *command))
+    fun testInvalidCommands(
+        name: String,
+        command: Array<String>,
+    ) = Assertions.assertEquals(1, execute(name, *command))
 
     @BeforeEach
     fun init(testInfo: TestInfo) {
         this.testInfo = testInfo
     }
 
-    private fun cleanUpResources(teamcityClient: TeamcityClassicClient, config: TeamcityTestConfiguration) {
+    private fun cleanUpResources(
+        teamcityClient: TeamcityClassicClient,
+        config: TeamcityTestConfiguration,
+    ) {
         try {
             teamcityClient.deleteProject(TEST_PROJECT)
         } catch (e: Exception) {
-            //do nothing
+            // do nothing
         }
         createTestUser(config.host, TEST_USER)
         createTestUser(config.host, TEST_USER_2)
         teamcityClient.createProject(
             TeamcityCreateProject(
-                TEST_PROJECT, TEST_PROJECT, TeamcityLinkProject("RDDepartment")
-            )
+                TEST_PROJECT,
+                TEST_PROJECT,
+                TeamcityLinkProject("RDDepartment"),
+            ),
         )
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "JDK_VERSION", "1.8")
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_BUILD_1, TEST_BUILD_1, project = TeamcityLinkProject(TEST_PROJECT)
-            )
+                TEST_BUILD_1,
+                TEST_BUILD_1,
+                project = TeamcityLinkProject(TEST_PROJECT),
+            ),
         )
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_BUILD_2, TEST_BUILD_2, project = TeamcityLinkProject(TEST_PROJECT)
-            )
+                TEST_BUILD_2,
+                TEST_BUILD_2,
+                project = TeamcityLinkProject(TEST_PROJECT),
+            ),
         )
         teamcityClient.createProject(
             TeamcityCreateProject(
-                TEST_SUBPROJECT_1, TEST_SUBPROJECT_1, TeamcityLinkProject(TEST_PROJECT)
-            )
+                TEST_SUBPROJECT_1,
+                TEST_SUBPROJECT_1,
+                TeamcityLinkProject(TEST_PROJECT),
+            ),
         )
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_SUBPROJECT_1_BUILD_1, TEST_SUBPROJECT_1_BUILD_1, project = TeamcityLinkProject(TEST_SUBPROJECT_1)
-            )
+                TEST_SUBPROJECT_1_BUILD_1,
+                TEST_SUBPROJECT_1_BUILD_1,
+                project = TeamcityLinkProject(TEST_SUBPROJECT_1),
+            ),
         )
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_SUBPROJECT_1_BUILD_2, TEST_SUBPROJECT_1_BUILD_2, project = TeamcityLinkProject(TEST_SUBPROJECT_1)
-            )
+                TEST_SUBPROJECT_1_BUILD_2,
+                TEST_SUBPROJECT_1_BUILD_2,
+                project = TeamcityLinkProject(TEST_SUBPROJECT_1),
+            ),
         )
         teamcityClient.createProject(
             TeamcityCreateProject(
-                TEST_SUBPROJECT_2, TEST_SUBPROJECT_2, TeamcityLinkProject(TEST_PROJECT)
-            )
+                TEST_SUBPROJECT_2,
+                TEST_SUBPROJECT_2,
+                TeamcityLinkProject(TEST_PROJECT),
+            ),
         )
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_SUBPROJECT_2_BUILD_1, TEST_SUBPROJECT_2_BUILD_1, project = TeamcityLinkProject(TEST_SUBPROJECT_2)
-            )
+                TEST_SUBPROJECT_2_BUILD_1,
+                TEST_SUBPROJECT_2_BUILD_1,
+                project = TeamcityLinkProject(TEST_SUBPROJECT_2),
+            ),
         )
         val buildType = teamcityClient.createBuildType(
             TeamcityCreateBuildType(
-                TEST_SUBPROJECT_2_BUILD_2, TEST_SUBPROJECT_2_BUILD_2, project = TeamcityLinkProject(TEST_SUBPROJECT_2)
-            )
+                TEST_SUBPROJECT_2_BUILD_2,
+                TEST_SUBPROJECT_2_BUILD_2,
+                project = TeamcityLinkProject(TEST_SUBPROJECT_2),
+            ),
         )
         val properties = TeamcityProperties(
             listOf(
                 TeamcityProperty("property-value", "Mac OS X"),
                 TeamcityProperty("property-name", "teamcity.agent.jvm.os.name"),
-            )
+            ),
         )
 
         teamcityClient.addAgentRequirementToBuildType(
             BuildTypeLocator(buildType.id),
-            TeamcityAgentRequirement(null, "agentName", "equals", null, null, null,
-                properties
-                )
+            TeamcityAgentRequirement(
+                null,
+                "agentName",
+                "equals",
+                null,
+                null,
+                null,
+                properties,
+            ),
         )
 
         val templates = listOf(
@@ -807,10 +944,11 @@ class ApplicationTest {
         templates.forEach {
             teamcityClient.createBuildType(
                 TeamcityCreateBuildType(
-                    it, it,
+                    it,
+                    it,
                     project = TeamcityLinkProject(TEST_PROJECT),
-                    templateFlag = true
-                )
+                    templateFlag = true,
+                ),
             )
         }
 
@@ -819,10 +957,12 @@ class ApplicationTest {
             teamcityClient.createBuildStep(
                 TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
                 step = TeamcityStep(
-                    stepName, stepName, stepName,
+                    stepName,
+                    stepName,
+                    stepName,
                     disabled = false,
-                    properties = TeamcityProperties(listOf(TeamcityProperty("property", "")))
-                )
+                    properties = TeamcityProperties(listOf(TeamcityProperty("property", ""))),
+                ),
             )
         }
     }
@@ -830,97 +970,117 @@ class ApplicationTest {
     private fun validateSnapshotDependencyFailureAction(
         teamcityClient: TeamcityClassicClient,
         buildTypeId: String,
-        expectedAction: DependencyFailureAction
+        expectedAction: DependencyFailureAction,
     ) {
         val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypeId).snapshotDependencies
         Assertions.assertEquals(1, snapshotDependencies.size)
         val properties = snapshotDependencies[0].properties.properties.associate { it.name to it.value }
         Assertions.assertEquals(
-            expectedAction.value, properties["run-build-if-dependency-failed"],
-            "run-build-if-dependency-failed for $buildTypeId"
+            expectedAction.value,
+            properties["run-build-if-dependency-failed"],
+            "run-build-if-dependency-failed for $buildTypeId",
         )
         Assertions.assertEquals(
-            expectedAction.value, properties["run-build-if-dependency-failed-to-start"],
-            "run-build-if-dependency-failed-to-start for $buildTypeId"
+            expectedAction.value,
+            properties["run-build-if-dependency-failed-to-start"],
+            "run-build-if-dependency-failed-to-start for $buildTypeId",
         )
     }
 
-    private fun createTestUser(host: String, username: String) {
+    private fun createTestUser(
+        host: String,
+        username: String,
+    ) {
         val response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder()
+            HttpRequest
+                .newBuilder()
                 .uri(URI("$host/app/rest/users"))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header(
                     "Authorization",
-                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
-                )
-                .POST(HttpRequest.BodyPublishers.ofString("""{"username":"$username","password":"$username"}"""))
+                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}",
+                ).POST(HttpRequest.BodyPublishers.ofString("""{"username":"$username","password":"$username"}"""))
                 .build(),
-            HttpResponse.BodyHandlers.ofString()
+            HttpResponse.BodyHandlers.ofString(),
         )
         val status = response.statusCode()
         Assertions.assertTrue(
             status in 200..299 || status == 400,
-            "Failed to create user '$username': HTTP $status - ${response.body()}"
+            "Failed to create user '$username': HTTP $status - ${response.body()}",
         )
     }
 
-    private data class RoleEntry(val roleId: String, val scope: String)
+    private data class RoleEntry(
+        val roleId: String,
+        val scope: String,
+    )
 
-    private fun getUserRoles(host: String, username: String): List<RoleEntry> {
+    private fun getUserRoles(
+        host: String,
+        username: String,
+    ): List<RoleEntry> {
         val response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder()
+            HttpRequest
+                .newBuilder()
                 .uri(URI("$host/app/rest/users/username:$username/roles"))
                 .header("Accept", "application/json")
                 .header(
                     "Authorization",
-                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
-                )
-                .GET()
+                    "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}",
+                ).GET()
                 .build(),
-            HttpResponse.BodyHandlers.ofString()
+            HttpResponse.BodyHandlers.ofString(),
         )
         Assertions.assertEquals(200, response.statusCode(), "Failed to get roles for user '$username'")
         val tree = ObjectMapper().readTree(response.body())
         return tree["role"]?.map { node ->
             RoleEntry(
                 roleId = node["roleId"].asText(),
-                scope = node["scope"].asText()
+                scope = node["scope"].asText(),
             )
         } ?: emptyList()
     }
 
-    private fun validateBuildTypeTemplate(teamcityClient: TeamcityClassicClient, buildTypeId: String, templateId: String) {
+    private fun validateBuildTypeTemplate(
+        teamcityClient: TeamcityClassicClient,
+        buildTypeId: String,
+        templateId: String,
+    ) {
         val templateBuildType = teamcityClient.getBuildType(buildTypeId).templates?.buildTypes
         Assertions.assertEquals(1, templateBuildType?.size)
         Assertions.assertEquals(templateId, templateBuildType?.get(0)?.id)
     }
 
-    private fun validateUploadedMetarunners(config: TeamcityTestConfiguration, client: TeamcityClient) {
+    private fun validateUploadedMetarunners(
+        config: TeamcityTestConfiguration,
+        client: TeamcityClient,
+    ) {
         val expected = listOf("TestMetarunner", "TestMetarunner2", "TestMetarunner3")
         if (config.version >= 2026) {
             expected.forEach { recipeId ->
                 Assertions.assertNotNull(
                     client.getRecipeOverviewV2026(recipeId, TEST_PROJECT),
-                    "Recipe '$recipeId' not found in project $TEST_PROJECT"
+                    "Recipe '$recipeId' not found in project $TEST_PROJECT",
                 )
             }
         } else {
             val tabName = if (config.version < 2025) "metaRunner" else "recipe"
             val url = "${config.host}/admin/editProject.html?projectId=$TEST_PROJECT&tab=$tabName"
             htmlDocument(
-                HttpClient.newHttpClient().send(
-                    HttpRequest.newBuilder()
-                        .uri(URI(url))
-                        .header(
-                            "Authorization",
-                            "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}"
-                        )
-                        .GET()
-                        .build(),
-                    HttpResponse.BodyHandlers.ofString()
-                ).body()
+                HttpClient
+                    .newHttpClient()
+                    .send(
+                        HttpRequest
+                            .newBuilder()
+                            .uri(URI(url))
+                            .header(
+                                "Authorization",
+                                "Basic ${Base64.getEncoder().encodeToString("$TEAMCITY_USER:$TEAMCITY_PASSWORD".toByteArray())}",
+                            ).GET()
+                            .build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    ).body(),
             ) {
                 expected.forEach { id ->
                     tr {
@@ -957,156 +1117,158 @@ class ApplicationTest {
         private val hostComponentsRegistry = System.getProperty("test.components-registry-host")
             ?: throw Exception("System property 'test.components-registry-host' must be defined")
 
-        private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient {
-            return TeamcityClassicClient(object : ClientParametersProvider {
+        private fun createClient(config: TeamcityTestConfiguration): TeamcityClassicClient =
+            TeamcityClassicClient(object : ClientParametersProvider {
                 override fun getApiUrl() = config.host
+
                 override fun getAuth() = StandardBasicCredCredentialProvider(TEAMCITY_USER, TEAMCITY_PASSWORD)
             })
-        }
 
-        private fun getTeamcityOptions(config: TeamcityTestConfiguration) = arrayOf(
-            "${TeamcityCommand.URL_OPTION}=${config.host}",
-            "${TeamcityCommand.USER_OPTION}=$TEAMCITY_USER",
-            "${TeamcityCommand.PASSWORD_OPTION}=$TEAMCITY_PASSWORD"
-        )
+        private fun getTeamcityOptions(config: TeamcityTestConfiguration) =
+            arrayOf(
+                "${TeamcityCommand.URL_OPTION}=${config.host}",
+                "${TeamcityCommand.USER_OPTION}=$TEAMCITY_USER",
+                "${TeamcityCommand.PASSWORD_OPTION}=$TEAMCITY_PASSWORD",
+            )
 
         @JvmStatic
-        fun teamcityConfigurations(): List<TeamcityTestConfiguration> = listOf(
-            TeamcityTestConfiguration(
-                name = "v22",
-                host = "http://$hostTeamcity2022",
-                version = 2022
-            ),
-            TeamcityTestConfiguration(
-                name = "v26",
-                host = "http://$hostTeamcity2026",
-                version = 2026
+        fun teamcityConfigurations(): List<TeamcityTestConfiguration> =
+            listOf(
+                TeamcityTestConfiguration(
+                    name = "v22",
+                    host = "http://$hostTeamcity2022",
+                    version = 2022,
+                ),
+                TeamcityTestConfiguration(
+                    name = "v26",
+                    host = "http://$hostTeamcity2026",
+                    version = 2026,
+                ),
             )
-        )
 
         @JvmStatic
         fun teamcityContexts(): List<TeamcityTestConfiguration> =
             teamcityConfigurations().map { TeamcityTestConfiguration(it.name, it.host, it.version) }
 
-        //<editor-fold defaultstate="collapsed" desc="Test Data">
+        // <editor-fold defaultstate="collapsed" desc="Test Data">
         @JvmStatic
-        fun validCommands(): Stream<Arguments> {
-            return teamcityConfigurations().flatMap { config ->
-                listOf(
-                    "validCommand" to arrayOf(HELP_OPTION),
-                    "validCommand2" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "validCommand3" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                        "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=test",
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "validCommand4" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
-                        "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=",
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "validCommand5" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUploadMetarunnersCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "validCommand6" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityPostGithubStatusCommand.COMMAND,
-                        HELP_OPTION
-                    )
-                ).map { (name, args) -> Arguments.of(name, args) }
-            }.stream()
-        }
+        fun validCommands(): Stream<Arguments> =
+            teamcityConfigurations()
+                .flatMap { config ->
+                    listOf(
+                        "validCommand" to arrayOf(HELP_OPTION),
+                        "validCommand2" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "validCommand3" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                            "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=test",
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "validCommand4" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                            "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
+                            "${TeamcityUpdateParameterCommand.BUILD_TYPE_IDS_OPTION}=",
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "validCommand5" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUploadMetarunnersCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "validCommand6" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityPostGithubStatusCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                    ).map { (name, args) -> Arguments.of(name, args) }
+                }.stream()
 
         @JvmStatic
-        private fun invalidCommands(): Stream<Arguments> {
-            return teamcityConfigurations().flatMap { config ->
-                listOf(
-                    "invalidCommand" to arrayOf(TeamcityUpdateParameterCommand.COMMAND, HELP_OPTION),
-                    "invalidCommand2" to arrayOf(
-                        *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=" }),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand3" to arrayOf(
-                        *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=invalid" }),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand4" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}= , ",
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand5" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        "${TeamcityUpdateParameterCommand.NAME_OPTION}= ",
-                        "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand6" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand7" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUpdateParameterCommand.COMMAND,
-                        TeamcityUpdateParameterSetCommand.COMMAND,
-                        HELP_OPTION
-                    ),
-                    "invalidCommand8" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUploadMetarunnersCommand.COMMAND,
-                        "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}= ",
-                        "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=file:///test.zip"
-                    ),
-                    "invalidCommand9" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityUploadMetarunnersCommand.COMMAND,
-                        "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
-                        "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid"
-                    ),
-                    "invalidCommand10" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityPostGithubStatusCommand.COMMAND,
-                        "${TeamcityPostGithubStatusCommand.OWNER}=owner",
-                        "${TeamcityPostGithubStatusCommand.REPO}=repo",
-                        "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
-                        "${TeamcityPostGithubStatusCommand.TOKEN}=token",
-                        "${TeamcityPostGithubStatusCommand.STATE}=invalid"
-                    ),
-                    "invalidCommand11" to arrayOf(
-                        *getTeamcityOptions(config),
-                        TeamcityPostGithubStatusCommand.COMMAND,
-                        "${TeamcityPostGithubStatusCommand.OWNER}= ",
-                        "${TeamcityPostGithubStatusCommand.REPO}=repo",
-                        "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
-                        "${TeamcityPostGithubStatusCommand.TOKEN}=token",
-                        "${TeamcityPostGithubStatusCommand.STATE}=success"
-                    )
-                ).map { (name, args) -> Arguments.of(name, args) }
-            }.stream()
-        }
-        //</editor-fold>
+        private fun invalidCommands(): Stream<Arguments> =
+            teamcityConfigurations()
+                .flatMap { config ->
+                    listOf(
+                        "invalidCommand" to arrayOf(TeamcityUpdateParameterCommand.COMMAND, HELP_OPTION),
+                        "invalidCommand2" to arrayOf(
+                            *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=" }),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand3" to arrayOf(
+                            *(getTeamcityOptions(config).clone().also { it[2] = "${TeamcityCommand.PASSWORD_OPTION}=invalid" }),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand4" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                            "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}= , ",
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand5" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            "${TeamcityUpdateParameterCommand.NAME_OPTION}= ",
+                            "${TeamcityUpdateParameterCommand.PROJECT_IDS_OPTION}=test",
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand6" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            "${TeamcityUpdateParameterCommand.NAME_OPTION}=test",
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand7" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUpdateParameterCommand.COMMAND,
+                            TeamcityUpdateParameterSetCommand.COMMAND,
+                            HELP_OPTION,
+                        ),
+                        "invalidCommand8" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUploadMetarunnersCommand.COMMAND,
+                            "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}= ",
+                            "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=file:///test.zip",
+                        ),
+                        "invalidCommand9" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityUploadMetarunnersCommand.COMMAND,
+                            "${TeamcityUploadMetarunnersCommand.PROJECT_ID_OPTION}=test",
+                            "${TeamcityUploadMetarunnersCommand.ZIP_OPTION}=invalid",
+                        ),
+                        "invalidCommand10" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityPostGithubStatusCommand.COMMAND,
+                            "${TeamcityPostGithubStatusCommand.OWNER}=owner",
+                            "${TeamcityPostGithubStatusCommand.REPO}=repo",
+                            "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
+                            "${TeamcityPostGithubStatusCommand.TOKEN}=token",
+                            "${TeamcityPostGithubStatusCommand.STATE}=invalid",
+                        ),
+                        "invalidCommand11" to arrayOf(
+                            *getTeamcityOptions(config),
+                            TeamcityPostGithubStatusCommand.COMMAND,
+                            "${TeamcityPostGithubStatusCommand.OWNER}= ",
+                            "${TeamcityPostGithubStatusCommand.REPO}=repo",
+                            "${TeamcityPostGithubStatusCommand.COMMIT}=0000000000000000000000000000000000000000",
+                            "${TeamcityPostGithubStatusCommand.TOKEN}=token",
+                            "${TeamcityPostGithubStatusCommand.STATE}=success",
+                        ),
+                    ).map { (name, args) -> Arguments.of(name, args) }
+                }.stream()
+        // </editor-fold>
     }
 }
