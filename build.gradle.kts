@@ -265,6 +265,18 @@ tasks.named("ocDeleteTeamcityPVCs").configure {
     dependsOn("ocDeleteTeamcityServers")
 }
 
+// `finalizedBy` in a test task doesn't guarantee ordering within the finalizer
+// set. Force `ocLogs*` to complete before `ocDelete*` so the CRS / TC server
+// container logs are captured before the pods are torn down — otherwise
+// ocLogsComponentsRegistry races with ocDeleteComponentsRegistry and the pod
+// gets removed before kubectl can read its logs (observed on build 1.0.34-390).
+tasks.named("ocDeleteComponentsRegistry").configure {
+    mustRunAfter("ocLogsComponentsRegistry")
+}
+tasks.named("ocDeleteTeamcityServers").configure {
+    mustRunAfter("ocLogsTeamcityServers")
+}
+
 tasks.withType<Test> {
     when ("testPlatform".getExt()) {
         "okd" -> {

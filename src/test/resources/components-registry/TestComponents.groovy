@@ -76,6 +76,9 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/gradle-component.git"
     jira {
         projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'gradle'
+        }
     }
 }
 
@@ -88,6 +91,9 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/provided-component.git"
     jira {
         projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'provided'
+        }
     }
 }
 
@@ -100,6 +106,9 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/in-container-component.git"
     jira {
         projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'in-container'
+        }
     }
 }
 
@@ -112,6 +121,9 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/not-supported-component.git"
     jira {
         projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'not-supported'
+        }
     }
 }
 
@@ -134,6 +146,9 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/custom-jdk-component.git"
     jira {
         projectKey = 'JDKVER'
+        component {
+            versionPrefix = 'custom-jdk'
+        }
     }
     build {
         javaVersion = "11"
@@ -148,5 +163,8 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
     vcsUrl = "ssh://git@git.domain.corp/ee/nonexistent-user-component.git"
     jira {
         projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'nonexistent-user'
+        }
     }
 }

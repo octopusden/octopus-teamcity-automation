@@ -34,7 +34,7 @@ services:
       - "4567:4567"
     environment:
       - SPRING_CONFIG_ADDITIONAL_LOCATION=/
-      - SPRING_PROFILES_ACTIVE=ft
+      - SPRING_PROFILES_ACTIVE=ft,ft-db
       - SPRING_CLOUD_CONFIG_ENABLED=false
     volumes:
       - ./components-registry-service.yaml:/application-ft.yaml
