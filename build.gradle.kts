@@ -445,8 +445,8 @@ tasks.shadowDistTar.get().isEnabled = false
 
 // Regression guard on what this repository publishes to Maven Central.
 //
-// The identity is a COMPOSITE key — project path, publication name, and the coordinate — not just
-// the project path. In a single-module repository a path-based allowlist is nearly useless: the set
+// The identity is a COMPOSITE key — project path, publication name, the coordinate, and the
+// sorted artifact signatures (extension and classifier) — not just the project path. In a single-module repository a path-based allowlist is nearly useless: the set
 // of publishing project paths is `{":"}` whatever happens, so adding a SECOND publication to the
 // root leaves it unchanged and the check passes. That was found by demonstrating the guard rather
 // than by reading it.
