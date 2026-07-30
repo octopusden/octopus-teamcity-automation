@@ -459,7 +459,8 @@ tasks.shadowDistTar.get().isEnabled = false
 // allprojects, not subprojects: `subprojects` is empty in a single-module repository, so a
 // subprojects-based check would pass unconditionally and prove nothing.
 val centralPublishedPublications = setOf(
-    ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation",
+    ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
+        "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
 )
 
 fun centralPublicationPolicyProblems(): List<String> {
@@ -471,7 +472,20 @@ fun centralPublicationPolicyProblems(): List<String> {
                 .getByType(PublishingExtension::class.java)
                 .publications
                 .withType(MavenPublication::class.java)
-                .map { "${proj.path}|${it.name}|${it.groupId}:${it.artifactId}" }
+                .map { pub ->
+                    // The ARTIFACT SIGNATURES are part of the identity, not just the coordinate.
+                    // Without them the key cannot see a classifier being added to an existing
+                    // publication — and this publication already carries an extra artifact
+                    // (`artifact(metarunners)`), so that is a realistic change, not a hypothetical.
+                    // It matters here specifically because the release-time allowlist exempts
+                    // EVERY file published under the allowlisted artifactId, not only the -all.jar:
+                    // a second oversized artifact added to this publication would otherwise pass
+                    // both this guard and that one.
+                    val signatures = pub.artifacts
+                        .map { a -> listOfNotNull(a.extension, a.classifier).joinToString(":") }
+                        .sorted()
+                    "${proj.path}|${pub.name}|${pub.groupId}:${pub.artifactId}|$signatures"
+                }
         }.toSet()
     return if (actual != centralPublishedPublications) {
         listOf(
