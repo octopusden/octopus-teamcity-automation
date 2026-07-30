@@ -442,3 +442,67 @@ tasks.distZip.get().isEnabled = false
 tasks.shadowDistZip.get().isEnabled = false
 tasks.distTar.get().isEnabled = false
 tasks.shadowDistTar.get().isEnabled = false
+
+// Regression guard: the set of projects publishing to Maven Central must not drift. Here the
+// allowlist is the ROOT project — this is a single-module repository, so the one published
+// coordinate comes from ":" itself rather than from a subproject.
+//
+// The point of the guard in a repository that legitimately publishes a 24 MB shadow jar is the
+// opposite of the deployable case: it is not there to keep the fat jar out, it is there to catch
+// a SECOND coordinate appearing. Only the allowlisted artifactId is exempted from the release-time
+// guard, so a new publication would fail the release rather than quietly reach Central.
+//
+// allprojects, not subprojects: in a single-module repository `subprojects` is empty, so a
+// subprojects-based check here would pass unconditionally and prove nothing.
+val centralPublishedProjects = setOf(":")
+
+fun centralPublicationPolicyProblems(): List<String> {
+    // Reading `publishing` throws on a project without maven-publish, so check the plugin first.
+    val publishingProjects = allprojects.filter { candidate ->
+        candidate.plugins.hasPlugin("maven-publish") &&
+            candidate.extensions
+                .getByType(PublishingExtension::class.java)
+                .publications
+                .isNotEmpty()
+    }
+    val actual = publishingProjects.map { it.path }.toSet()
+    return if (actual != centralPublishedProjects) {
+        listOf(
+            "Maven Central publication set drifted.\n" +
+                "  allowlisted: ${centralPublishedProjects.sorted()}\n" +
+                "  publishing:  ${actual.sorted()}\n" +
+                "A new coordinate is not covered by fat-jar-publication-allowlist in release.yml " +
+                "and would fail the release, or reach Central unnoticed if it is small.",
+        )
+    } else {
+        emptyList()
+    }
+}
+
+// A policy violation must fail its own gate, not every Gradle invocation: throwing at
+// configuration time would break build, test, dependencies and IDE sync as well.
+val verifyCentralPublicationPolicy =
+    tasks.register("verifyCentralPublicationPolicy") {
+        group = "verification"
+        description = "Fails if the set of projects publishing to Maven Central drifts from the allowlist."
+        doLast {
+            val problems = centralPublicationPolicyProblems()
+            if (problems.isNotEmpty()) {
+                throw GradleException(problems.joinToString("\n\n"))
+            }
+        }
+    }
+
+// Hook the task TYPE, so a concrete task such as publishMavenPublicationToMavenLocal cannot
+// bypass the guard; the aggregates are matched by name as well because `publish` is per-project
+// and `publishToSonatype` only exists with -Pnexus, so neither can be forced into existence.
+gradle.projectsEvaluated {
+    allprojects {
+        tasks.withType(AbstractPublishToMaven::class.java).configureEach {
+            dependsOn(verifyCentralPublicationPolicy)
+        }
+        tasks
+            .matching { it.name in setOf("publishToSonatype", "publish", "publishToMavenLocal") }
+            .configureEach { dependsOn(verifyCentralPublicationPolicy) }
+    }
+}
