@@ -443,36 +443,43 @@ tasks.shadowDistZip.get().isEnabled = false
 tasks.distTar.get().isEnabled = false
 tasks.shadowDistTar.get().isEnabled = false
 
-// Regression guard: the set of projects publishing to Maven Central must not drift. Here the
-// allowlist is the ROOT project — this is a single-module repository, so the one published
-// coordinate comes from ":" itself rather than from a subproject.
+// Regression guard on what this repository publishes to Maven Central.
 //
-// The point of the guard in a repository that legitimately publishes a 24 MB shadow jar is the
-// opposite of the deployable case: it is not there to keep the fat jar out, it is there to catch
-// a SECOND coordinate appearing. Only the allowlisted artifactId is exempted from the release-time
-// guard, so a new publication would fail the release rather than quietly reach Central.
+// The identity is a COMPOSITE key — project path, publication name, and the coordinate — not just
+// the project path. In a single-module repository a path-based allowlist is nearly useless: the set
+// of publishing project paths is `{":"}` whatever happens, so adding a SECOND publication to the
+// root leaves it unchanged and the check passes. That was found by demonstrating the guard rather
+// than by reading it.
 //
-// allprojects, not subprojects: in a single-module repository `subprojects` is empty, so a
-// subprojects-based check here would pass unconditionally and prove nothing.
-val centralPublishedProjects = setOf(":")
+// The purpose here is the inverse of the deployable case: not to keep the fat jar out — it is
+// published on purpose and exempted in release.yml — but to catch a second coordinate appearing,
+// one the allowlist does not cover, which would either fail the release or slip onto Central
+// unnoticed if it happened to be small.
+//
+// allprojects, not subprojects: `subprojects` is empty in a single-module repository, so a
+// subprojects-based check would pass unconditionally and prove nothing.
+val centralPublishedPublications = setOf(
+    ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation",
+)
 
 fun centralPublicationPolicyProblems(): List<String> {
     // Reading `publishing` throws on a project without maven-publish, so check the plugin first.
-    val publishingProjects = allprojects.filter { candidate ->
-        candidate.plugins.hasPlugin("maven-publish") &&
-            candidate.extensions
+    val actual = allprojects
+        .filter { it.plugins.hasPlugin("maven-publish") }
+        .flatMap { proj ->
+            proj.extensions
                 .getByType(PublishingExtension::class.java)
                 .publications
-                .isNotEmpty()
-    }
-    val actual = publishingProjects.map { it.path }.toSet()
-    return if (actual != centralPublishedProjects) {
+                .withType(MavenPublication::class.java)
+                .map { "${proj.path}|${it.name}|${it.groupId}:${it.artifactId}" }
+        }.toSet()
+    return if (actual != centralPublishedPublications) {
         listOf(
             "Maven Central publication set drifted.\n" +
-                "  allowlisted: ${centralPublishedProjects.sorted()}\n" +
+                "  allowlisted: ${centralPublishedPublications.sorted()}\n" +
                 "  publishing:  ${actual.sorted()}\n" +
-                "A new coordinate is not covered by fat-jar-publication-allowlist in release.yml " +
-                "and would fail the release, or reach Central unnoticed if it is small.",
+                "A coordinate not covered by fat-jar-publication-allowlist in release.yml would " +
+                "fail the release, or reach Central unnoticed if it is small.",
         )
     } else {
         emptyList()
