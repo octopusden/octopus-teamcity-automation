@@ -517,6 +517,12 @@ val verifyCentralPublicationPolicy =
 // Hook the task TYPE, so a concrete task such as publishMavenPublicationToMavenLocal cannot
 // bypass the guard; the aggregates are matched by name as well because `publish` is per-project
 // and `publishToSonatype` only exists with -Pnexus, so neither can be forced into existence.
+// `check` — so the ordinary PR gate covers this. Wired only to the publish path, the guard was
+// never executed by any pull-request check: drift could be merged and would surface at the next
+// release instead of in review. Verified with `./gradlew check --dry-run`, which scheduled the task
+// 0 times before this line and 1 after.
+tasks.named("check") { dependsOn(verifyCentralPublicationPolicy) }
+
 gradle.projectsEvaluated {
     allprojects {
         tasks.withType(AbstractPublishToMaven::class.java).configureEach {
