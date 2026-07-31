@@ -466,4 +466,3 @@ tasks.distZip.get().isEnabled = false
 tasks.shadowDistZip.get().isEnabled = false
 tasks.distTar.get().isEnabled = false
 tasks.shadowDistTar.get().isEnabled = false
-
