@@ -19,6 +19,30 @@ plugins {
 }
 
 octopusQuality {
+    // Regression guard on what this repository publishes to Maven Central, provided by the
+    // shared policy from octopus-base v2.7.0 — this repository used to hand-roll the identical
+    // task, which is why the local copy is deleted in this same commit: two tasks of one name
+    // fail configuration.
+    //
+    // The identity is a COMPOSITE key — path, publication name, coordinate, sorted artifact
+    // signatures — not just the path. In a single-module repository a path-based allowlist is
+    // nearly useless: the set is `{":"}` whatever happens, so a SECOND publication on the root
+    // would leave it unchanged. The signatures matter here specifically: release.yml exempts
+    // EVERY file under the allowlisted artifactId, so a second oversized artifact added to this
+    // publication would otherwise pass both this guard and that one.
+    //
+    // The purpose is the inverse of the deployable case: not to keep the fat jar out — it is
+    // published on purpose and exempted in release.yml — but to catch a coordinate the allowlist
+    // does not cover, which would fail the release or slip onto Central unnoticed if it is small.
+    publication {
+        enforceCentralPublications.set(true)
+        centralPublications.set(
+            setOf(
+                ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
+                    "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
+            ),
+        )
+    }
     // Repo has no coverage tool configured — disable coverage verification.
     coverage {
         enabled.set(false)
@@ -442,94 +466,3 @@ tasks.distZip.get().isEnabled = false
 tasks.shadowDistZip.get().isEnabled = false
 tasks.distTar.get().isEnabled = false
 tasks.shadowDistTar.get().isEnabled = false
-
-// Regression guard on what this repository publishes to Maven Central.
-//
-// The identity is a COMPOSITE key — project path, publication name, the coordinate, and the
-// sorted artifact signatures (extension and classifier) — not just the project path. In a single-module repository a path-based allowlist is nearly useless: the set
-// of publishing project paths is `{":"}` whatever happens, so adding a SECOND publication to the
-// root leaves it unchanged and the check passes. That was found by demonstrating the guard rather
-// than by reading it.
-//
-// The purpose here is the inverse of the deployable case: not to keep the fat jar out — it is
-// published on purpose and exempted in release.yml — but to catch a second coordinate appearing,
-// one the allowlist does not cover, which would either fail the release or slip onto Central
-// unnoticed if it happened to be small.
-//
-// allprojects, not subprojects: `subprojects` is empty in a single-module repository, so a
-// subprojects-based check would pass unconditionally and prove nothing.
-val centralPublishedPublications = setOf(
-    ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
-        "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
-)
-
-fun centralPublicationPolicyProblems(): List<String> {
-    // Reading `publishing` throws on a project without maven-publish, so check the plugin first.
-    val actual = allprojects
-        .filter { it.plugins.hasPlugin("maven-publish") }
-        .flatMap { proj ->
-            proj.extensions
-                .getByType(PublishingExtension::class.java)
-                .publications
-                .withType(MavenPublication::class.java)
-                .map { pub ->
-                    // The ARTIFACT SIGNATURES are part of the identity, not just the coordinate.
-                    // Without them the key cannot see a classifier being added to an existing
-                    // publication — and this publication already carries an extra artifact
-                    // (`artifact(metarunners)`), so that is a realistic change, not a hypothetical.
-                    // It matters here specifically because the release-time allowlist exempts
-                    // EVERY file published under the allowlisted artifactId, not only the -all.jar:
-                    // a second oversized artifact added to this publication would otherwise pass
-                    // both this guard and that one.
-                    val signatures = pub.artifacts
-                        .map { a -> listOfNotNull(a.extension, a.classifier).joinToString(":") }
-                        .sorted()
-                    "${proj.path}|${pub.name}|${pub.groupId}:${pub.artifactId}|$signatures"
-                }
-        }.toSet()
-    return if (actual != centralPublishedPublications) {
-        listOf(
-            "Maven Central publication set drifted.\n" +
-                "  allowlisted: ${centralPublishedPublications.sorted()}\n" +
-                "  publishing:  ${actual.sorted()}\n" +
-                "A coordinate not covered by fat-jar-publication-allowlist in release.yml would " +
-                "fail the release, or reach Central unnoticed if it is small.",
-        )
-    } else {
-        emptyList()
-    }
-}
-
-// A policy violation must fail its own gate, not every Gradle invocation: throwing at
-// configuration time would break build, test, dependencies and IDE sync as well.
-val verifyCentralPublicationPolicy =
-    tasks.register("verifyCentralPublicationPolicy") {
-        group = "verification"
-        description = "Fails if the set of projects publishing to Maven Central drifts from the allowlist."
-        doLast {
-            val problems = centralPublicationPolicyProblems()
-            if (problems.isNotEmpty()) {
-                throw GradleException(problems.joinToString("\n\n"))
-            }
-        }
-    }
-
-// Hook the task TYPE, so a concrete task such as publishMavenPublicationToMavenLocal cannot
-// bypass the guard; the aggregates are matched by name as well because `publish` is per-project
-// and `publishToSonatype` only exists with -Pnexus, so neither can be forced into existence.
-// `check` — so the ordinary PR gate covers this. Wired only to the publish path, the guard was
-// never executed by any pull-request check: drift could be merged and would surface at the next
-// release instead of in review. Verified with `./gradlew check --dry-run`, which scheduled the task
-// 0 times before this line and 1 after.
-tasks.named("check") { dependsOn(verifyCentralPublicationPolicy) }
-
-gradle.projectsEvaluated {
-    allprojects {
-        tasks.withType(AbstractPublishToMaven::class.java).configureEach {
-            dependsOn(verifyCentralPublicationPolicy)
-        }
-        tasks
-            .matching { it.name in setOf("publishToSonatype", "publish", "publishToMavenLocal") }
-            .configureEach { dependsOn(verifyCentralPublicationPolicy) }
-    }
-}
