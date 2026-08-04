@@ -21,7 +21,7 @@
         <build-runners>
             <runner name="post github status" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%COMMIT_SHA% --token=%OCTOPUS_GITHUB_TOKEN% --state=%COMMIT_STATUS_STATE% --context='%COMMIT_STATUS_CONTEXT%' --description='%COMMIT_STATUS_DESCRIPTION%' --github-api-url=%GITHUB_API_URL%"/>
+                    <param name="ARGS" value='--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% post-github-status --owner=%GITHUB_OWNER% --repo=%GITHUB_REPO% --commit=%COMMIT_SHA% --token=%OCTOPUS_GITHUB_TOKEN% --state=%COMMIT_STATUS_STATE% --context="%COMMIT_STATUS_CONTEXT%" --description="%COMMIT_STATUS_DESCRIPTION%" --github-api-url=%GITHUB_API_URL%'/>
                 </parameters>
             </runner>
         </build-runners>
