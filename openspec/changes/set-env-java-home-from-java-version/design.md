@@ -164,6 +164,9 @@ Takeaways:
   resolution wrapped as `%...%` (Decision 4), the parent's existing `env.JAVA_HOME`
   (`client.getParameter(PROJECT, parentProjectId, "env.JAVA_HOME")` — the same lookup pattern
   `JDK_VERSION`'s default already uses, used as-is, not re-wrapped), or `""`.
+- `client.getParameter` throws `FeignException.NotFound` rather than returning `null` when a
+  parameter doesn't exist on a project. No project has `env.JAVA_HOME` until a team sets one, so
+  the parent-fallback lookup catches `FeignException.NotFound` and treats it as an empty value.
 - Scope: every project this tool creates ends up with the `env.JAVA_HOME` parameter present,
   ready to be filled in directly in TeamCity if nothing else supplied a value. See Risks below
   for the trade-off this implies for an already-working parent-level setup.

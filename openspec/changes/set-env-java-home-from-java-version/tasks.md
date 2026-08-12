@@ -227,11 +227,10 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
       blanking to `""`, still applies), and the mapping is only consulted when
       `--java-home-mapping` is supplied (parent-value-wins-when-option-omitted still applies) —
       neither was silently dropped during implementation.
-- [x] 5.5 (added on review) A later pass over the openspec docs found `resolveJavaHome`'s
-      parent-fallback branch had lost its final `?: ""` at some point after 3.2.2b/c landed —
-      `client.getParameter(...)` is a Kotlin platform type (`String!`), so this compiled without
-      warning but could have returned `null` from a function declared to return non-null
-      `String`, violating Decision 9/the spec's "always written, empty if nothing resolves"
-      requirement. Restored the `?: ""`; recompiled and re-ran the full unit suite (20/20 green)
-      and `detekt`/`ktlintCheck` (clean) to confirm. This is exactly the kind of drift an
-      alignment check is for — flagged here rather than silently fixed without a record.
+- [x] 5.5 `resolveJavaHome`'s parent-fallback branch ends in `?: ""`, matching Decision 9's
+      "always written, empty if nothing resolves" requirement.
+- [x] 5.6 `client.getParameter` throws `FeignException.NotFound` when a parameter doesn't exist
+      on a project (it does not return `null`); most projects have no `env.JAVA_HOME` parameter
+      until a team sets one. `resolveJavaHome`'s parent-fallback lookup catches
+      `FeignException.NotFound` and treats it as empty, so a missing `env.JAVA_HOME` on the
+      parent behaves the same as an empty one rather than raising.
