@@ -637,8 +637,8 @@ class ApplicationTest {
             return teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "env.JAVA_HOME")
         }
 
-        // no mapping, no env.JAVA_HOME on the parent -> written empty, not omitted; inherited by every
-        // build config in the project, not only compile
+        // no mapping, no env.JAVA_HOME on the parent -> written empty, not omitted;
+        // inherited by every build config in the project
         cleanUpResources(teamcityClient, config)
         Assertions.assertEquals("", createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId))
         nonCompileConfigIds.forEach { configId ->

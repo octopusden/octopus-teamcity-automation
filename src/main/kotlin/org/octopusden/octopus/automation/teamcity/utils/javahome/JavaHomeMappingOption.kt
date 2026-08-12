@@ -15,9 +15,7 @@ data class JavaHomeMappingOption(
     fun resolveOrNull(javaVersion: String?): String? = javaVersion?.let { JavaHomeMapping.resolve(it, overrides, template) }
 
     companion object {
-        /**
-         * [optionName] is the CLI flag name used only to prefix error messages.
-         */
+        /** [optionName] is the CLI flag name used only to prefix error messages. */
         fun parse(
             raw: String,
             optionName: String,

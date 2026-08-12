@@ -238,15 +238,9 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         log.info("Set parameter $name value $value for $scope with id $id")
     }
 
-    /**
-     * Explicit override for [javaVersion]'s major, else [javaHomeMapping]'s leading template,
-     * else whatever `env.JAVA_HOME` is already on [parentProjectId] (empty if that's unset too —
-     * D9 in `set-env-java-home-from-java-version/design.md`, this never returns null).
-     */
     private fun resolveJavaHome(javaVersion: String?): String =
         javaHomeMapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
             ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
-            ?: ""
 
     private fun assignProjectAdminRoleToUser(
         projectId: String,
