@@ -82,8 +82,9 @@ component has no `javaVersion`:**
 
 - `TeamcityCreateBuildChainCommand`
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt`):
-  new CLI option, new resolution/fallback logic, one new project-level `setProjectParameter`
-  call.
+  new CLI option, a new private `resolveJavaHome` member, and one new project-level
+  `setParameter` call (the pre-existing `setBuildTypeParameter`/`setProjectParameter` helpers
+  were merged into a single `setParameter` during implementation — see `design.md` Context).
 - New pure mapping/parsing logic, `JavaHomeMapping` and `JavaHomeMappingOption`, in their own
   `org.octopusden.octopus.automation.teamcity.utils.javahome` subpackage
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/utils/javahome/`). Their tests

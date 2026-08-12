@@ -222,8 +222,16 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
     (`env.JDK_{major}_0`, `env.JDK_1_8`) — no hardcoded formula or mapping table anywhere in
     the resolution logic itself.
 - [x] 5.4 Re-confirmed both accepted risks in `design.md`'s Risks section are still true of the
-      shipped code: `resolveJavaHome`/`setProjectParameter` write unconditionally on every
-      `createBuildChain` run (silent-overwrite-on-rerun, including blanking to `""`, still
-      applies), and the mapping is only consulted when `--java-home-mapping` is supplied
-      (parent-value-wins-when-option-omitted still applies) — neither was silently dropped
-      during implementation.
+      shipped code: `resolveJavaHome` (private member) feeds `setParameter(PROJECT, ...)`
+      unconditionally on every `createBuildChain` run (silent-overwrite-on-rerun, including
+      blanking to `""`, still applies), and the mapping is only consulted when
+      `--java-home-mapping` is supplied (parent-value-wins-when-option-omitted still applies) —
+      neither was silently dropped during implementation.
+- [x] 5.5 (added on review) A later pass over the openspec docs found `resolveJavaHome`'s
+      parent-fallback branch had lost its final `?: ""` at some point after 3.2.2b/c landed —
+      `client.getParameter(...)` is a Kotlin platform type (`String!`), so this compiled without
+      warning but could have returned `null` from a function declared to return non-null
+      `String`, violating Decision 9/the spec's "always written, empty if nothing resolves"
+      requirement. Restored the `?: ""`; recompiled and re-ran the full unit suite (20/20 green)
+      and `detekt`/`ktlintCheck` (clean) to confirm. This is exactly the kind of drift an
+      alignment check is for — flagged here rather than silently fixed without a record.

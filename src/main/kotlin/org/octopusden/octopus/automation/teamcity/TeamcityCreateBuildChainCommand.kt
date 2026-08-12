@@ -240,6 +240,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private fun resolveJavaHome(javaVersion: String?): String =
         javaHomeMapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
             ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
+            ?: ""
 
     private fun assignProjectAdminRoleToUser(
         projectId: String,

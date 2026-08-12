@@ -1,8 +1,8 @@
 ## Context
 
 - `TeamcityCreateBuildChainCommand.createBuildChain()`
-  (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt:107-110`)
-  already has the shape this change extends:
+  (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt`)
+  had this shape before this change:
 
   ```kotlin
   val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
@@ -17,11 +17,15 @@
 - `SPLIT_SYMBOLS = "[,;]"` (`Application.kt:5`) is the existing convention for CLI options that
   accept multiple delimited values, already used by `TeamcityUpdateParameterCommand` for
   comma/semicolon-separated ID lists.
-- `setBuildTypeParameter` and `setProjectParameter`
-  (`TeamcityCreateBuildChainCommand.kt:220-234`) are the two existing helpers for writing
-  TeamCity parameters, at build-type and project scope respectively; this change is the first
-  caller of `setProjectParameter` for something other than
-  `COMPONENT_NAME`/`PROJECT_VERSION`.
+- `setBuildTypeParameter` and `setProjectParameter` were the two pre-existing helpers for
+  writing TeamCity parameters, at build-type and project scope respectively. This change was
+  the first caller needing `setProjectParameter` for something other than
+  `COMPONENT_NAME`/`PROJECT_VERSION` — during implementation the two were merged into a single
+  `setParameter(configurationType: ConfigurationType, id: String, name: String, value: String)`
+  (they differed only in `ConfigurationType` and one word of log text), freeing a function slot
+  needed to keep `resolveJavaHome` (Decision 9) as a class member without tripping detekt's
+  `TooManyFunctions` limit. All call sites, including the pre-existing `JDK_VERSION` one, use
+  the merged helper now.
 
 ## Worked example
 
@@ -154,11 +158,12 @@ Takeaways:
 
 ### 9. `env.JAVA_HOME` is always written: mapping resolution, else the parent's value, else an empty string
 
-- `setProjectParameter(project.id, "env.JAVA_HOME", ...)` is called exactly once per
-  `createBuildChain` run, with no guard. The value is, in order: the mapping's resolution
-  (Decision 4), the parent's existing `env.JAVA_HOME`
+- `setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(...))`
+  is called exactly once per `createBuildChain` run, with no guard. `resolveJavaHome` is a
+  private member of `TeamcityCreateBuildChainCommand` returning, in order: the mapping's
+  resolution wrapped as `%...%` (Decision 4), the parent's existing `env.JAVA_HOME`
   (`client.getParameter(PROJECT, parentProjectId, "env.JAVA_HOME")` — the same lookup pattern
-  `JDK_VERSION`'s default already uses), or `""`.
+  `JDK_VERSION`'s default already uses, used as-is, not re-wrapped), or `""`.
 - Scope: every project this tool creates ends up with the `env.JAVA_HOME` parameter present,
   ready to be filled in directly in TeamCity if nothing else supplied a value. See Risks below
   for the trade-off this implies for an already-working parent-level setup.
@@ -167,9 +172,9 @@ Takeaways:
 
 - `JDK_VERSION` is only ever set on the compile build-type (`compileConfig.id`), and only when
   it differs from the project default. `env.JAVA_HOME` is instead set on the newly created
-  component project (`project.id`) via `setProjectParameter`, so it's inherited by every build
-  config under that project (compile, RC, checklist, release) — not just the compile step,
-  since release/RC builds can also need a JDK on the agent.
+  component project (`project.id`), so it's inherited by every build config under that project
+  (compile, RC, checklist, release) — not just the compile step, since release/RC builds can
+  also need a JDK on the agent.
 - Unlike `JDK_VERSION`'s conditional write, `env.JAVA_HOME` is written every time, with no
   "only if different" or "only if non-empty" guard (Decision 9).
 
@@ -201,7 +206,7 @@ Takeaways:
     component will read the *parent's* value (or fall through to `""`) and overwrite the
     child project's existing value — including blanking it out entirely if the parent has
     nothing configured either.
-  - Accepted because `setProjectParameter` always writes at project-creation time for a
+  - Accepted because this write always happens at project-creation time for a
     project this tool itself just created — there's no established prior art of a human
     hand-editing a freshly-created child project's parameters before this tool finishes, so
     the realistic risk is a *re-run* of `create-build-chain` against an existing project,
