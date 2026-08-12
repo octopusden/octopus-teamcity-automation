@@ -76,6 +76,7 @@ class ApplicationTest {
         minorVersion: String? = "1.0",
         createChecklist: Boolean = true,
         createRcForce: Boolean = false,
+        javaHomeMapping: String? = null,
     ): Int =
         execute(
             testMethodName,
@@ -87,6 +88,7 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
             "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
+            *listOfNotNull(javaHomeMapping?.let { "${TeamcityCreateBuildChainCommand.JAVA_HOME_MAPPING}=$it" }).toTypedArray(),
         )
 
     @ParameterizedTest
@@ -600,6 +602,74 @@ class ApplicationTest {
         Assertions.assertEquals(
             "11",
             teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${customJDKProjectId}_10CompileUtAuto", "JDK_VERSION"),
+        )
+    }
+
+    /**
+     * Tests CreateTeamCityBuildChain for resolving and always writing the env.JAVA_HOME project parameter,
+     * based on --java-home-mapping and the component's javaVersion, with a fallback to the parent project's
+     * own env.JAVA_HOME (empty if that's unset too) when the mapping doesn't resolve one.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForJavaHome(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+
+        val defaultJDKComponentName = "default-jdk-component"
+        val defaultJDKProjectId = "TestTeamcityAutomation_DefaultJdkComponent"
+        val customJDKComponentName = "custom-jdk-component"
+        val customJDKProjectId = "TestTeamcityAutomation_CustomJdkComponent"
+        val nonCompileConfigIds = listOf(
+            "${customJDKProjectId}_20ReleaseCandidateManual",
+            "${customJDKProjectId}_30ReleaseChecklistValidationManual",
+            "${customJDKProjectId}_40ReleaseManual",
+        )
+
+        fun createBuildChainAndGetJavaHome(
+            componentName: String,
+            projectId: String,
+            javaHomeMapping: String? = null,
+        ): String {
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, javaHomeMapping = javaHomeMapping),
+            )
+            return teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "env.JAVA_HOME")
+        }
+
+        // no mapping, no env.JAVA_HOME on the parent -> written empty, not omitted; inherited by every
+        // build config in the project, not only compile
+        cleanUpResources(teamcityClient, config)
+        Assertions.assertEquals("", createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId))
+        nonCompileConfigIds.forEach { configId ->
+            Assertions.assertEquals("", teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "env.JAVA_HOME"))
+        }
+
+        // no mapping, parent has env.JAVA_HOME -> inherited as-is, regardless of the component's javaVersion
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "env.JAVA_HOME", "%env.JDK_1_8%")
+        Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome(defaultJDKComponentName, defaultJDKProjectId))
+        Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId))
+
+        // mapping supplied, no env.JAVA_HOME on the parent: an override covering the component's major wins;
+        // default-jdk-component has no javaVersion at all, so it still falls back to the (unset) parent
+        cleanUpResources(teamcityClient, config)
+        val mappingWithOverrides = "env.JDK_{major}_0,8=env.JDK_1_8,11=env.JDK_11_0"
+        Assertions.assertEquals(
+            "",
+            createBuildChainAndGetJavaHome(defaultJDKComponentName, defaultJDKProjectId, mappingWithOverrides),
+        )
+        Assertions.assertEquals(
+            "%env.JDK_11_0%",
+            createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId, mappingWithOverrides),
+        )
+
+        // mapping supplied but no override covers the component's major -> the leading template applies
+        cleanUpResources(teamcityClient, config)
+        val mappingWithoutOverrideFor11 = "env.JDK_{major}_0,8=env.JDK_1_8"
+        Assertions.assertEquals(
+            "%env.JDK_11_0%",
+            createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId, mappingWithoutOverrideFor11),
         )
     }
 

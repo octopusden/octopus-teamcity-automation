@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import feign.FeignException
+import org.octopusden.octopus.automation.teamcity.utils.javahome.JavaHomeMappingOption
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClient
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClientUrlProvider
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
@@ -68,6 +69,12 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         .convert { it.trim().toBoolean() }
         .default(false)
 
+    private val javaHomeMapping by option(
+        JAVA_HOME_MAPPING,
+        help = "env.JAVA_HOME mapping: a leading bare template (e.g. env.JDK_{major}_0) followed by " +
+            "optional major=name overrides (e.g. 8=env.JDK_1_8), comma/semicolon separated",
+    ).convert { JavaHomeMappingOption.parse(it) }
+
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
@@ -108,6 +115,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
+        setProjectParameter(
+            project.id,
+            "env.JAVA_HOME",
+            resolveJavaHome(client, parentProjectId, javaHomeMapping, component.buildParameters?.javaVersion),
+        )
         val releaseConfig =
             if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
                 val rcConfig = createBuildConf(
@@ -295,6 +307,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val CR = "--registry-url"
         const val CREATE_CHECKLIST = "--create-checklist"
         const val CREATE_RC_FORCE = "--create-rc-force"
+        const val JAVA_HOME_MAPPING = "--java-home-mapping"
 
         const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
         const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"
@@ -303,3 +316,13 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val TEMPLATE_RELEASE = "CDRelease"
     }
 }
+
+private fun resolveJavaHome(
+    client: TeamcityClient,
+    parentProjectId: String,
+    mapping: JavaHomeMappingOption?,
+    javaVersion: String?,
+): String =
+    mapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
+        ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
+        ?: ""

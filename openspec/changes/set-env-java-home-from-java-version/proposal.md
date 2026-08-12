@@ -83,8 +83,13 @@ component has no `javaVersion`:**
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt`):
   new CLI option, new resolution/fallback logic, one new project-level `setProjectParameter`
   call.
-- A new small pure mapping helper (`JavaHomeMapping` or similar) — no existing file owns this
-  logic today.
+- New pure mapping/parsing logic, `JavaHomeMapping` and `JavaHomeMappingOption`, in their own
+  `org.octopusden.octopus.automation.teamcity.utils.javahome` subpackage
+  (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/utils/javahome/`). Their tests
+  live under `src/test/kotlin/utils/javahome/` in the shorter `utils.javahome` package (this
+  repo's existing test file, `ApplicationTest.kt`, uses no package at all, so there was no
+  established test-package convention to match) — no existing file or package owned this logic
+  before this change.
 - **Behavior change for existing consumers**: any TeamCity project under this tool's
   management that already has its *own* `env.JAVA_HOME` project parameter set will have it
   silently overwritten — with the parent-project fallback value, or with an empty string if
