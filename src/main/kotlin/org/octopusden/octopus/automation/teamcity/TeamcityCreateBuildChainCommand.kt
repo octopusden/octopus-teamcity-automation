@@ -116,7 +116,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setParameter(ConfigurationType.BUILD_TYPE, compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
-        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(component.buildParameters?.javaVersion))
         val releaseConfig =
             if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
                 val rcConfig = createBuildConf(
@@ -169,6 +168,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setParameter(ConfigurationType.PROJECT, project.id, "COMPONENT_NAME", componentName)
         setParameter(ConfigurationType.PROJECT, project.id, "PROJECT_VERSION", minorVersion)
+        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(component.buildParameters?.javaVersion))
         (
             listOfNotNull(component.componentOwner) +
                 (component.releaseManager?.split(",") ?: emptyList())
@@ -238,10 +238,19 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     }
 
     private fun resolveJavaHome(javaVersion: String?): String {
-        javaHomeMapping?.resolveOrNull(javaVersion)?.let { return "%$it%" }
+        javaHomeMapping?.let { mapping ->
+            mapping.resolveOrNull(javaVersion)?.let { return "%$it%" }
+            if (javaVersion != null) {
+                log.warn(
+                    "Cannot derive a JDK major version from javaVersion '{}', falling back to env.JAVA_HOME of project {}",
+                    javaVersion,
+                    parentProjectId,
+                )
+            }
+        }
         return try {
             client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME") ?: ""
-        } catch (e: FeignException.NotFound) {
+        } catch (_: FeignException.NotFound) {
             ""
         }
     }

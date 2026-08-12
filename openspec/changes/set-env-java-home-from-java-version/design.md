@@ -17,15 +17,13 @@
 - `SPLIT_SYMBOLS = "[,;]"` (`Application.kt:5`) is the existing convention for CLI options that
   accept multiple delimited values, already used by `TeamcityUpdateParameterCommand` for
   comma/semicolon-separated ID lists.
-- `setBuildTypeParameter` and `setProjectParameter` were the two pre-existing helpers for
-  writing TeamCity parameters, at build-type and project scope respectively. This change was
-  the first caller needing `setProjectParameter` for something other than
-  `COMPONENT_NAME`/`PROJECT_VERSION` — during implementation the two were merged into a single
-  `setParameter(configurationType: ConfigurationType, id: String, name: String, value: String)`
-  (they differed only in `ConfigurationType` and one word of log text), freeing a function slot
-  needed to keep `resolveJavaHome` (Decision 9) as a class member without tripping detekt's
-  `TooManyFunctions` limit. All call sites, including the pre-existing `JDK_VERSION` one, use
-  the merged helper now.
+- `setBuildTypeParameter` and `setProjectParameter` were two pre-existing helpers for writing
+  TeamCity parameters, at build-type and project scope respectively, differing only in
+  `ConfigurationType` and one word of log text. They are now a single
+  `setParameter(configurationType: ConfigurationType, id: String, name: String, value: String)`,
+  used by every call site including the pre-existing `JDK_VERSION` one. Merging them keeps
+  `resolveJavaHome` (Decision 9) a class member without tripping detekt's `TooManyFunctions`
+  limit.
 
 ## Worked example
 
@@ -135,18 +133,23 @@ Takeaways:
   `--java-home-mapping=env.JDK_{major}_0,...` for the first time doesn't need this design doc
   to understand what gets substituted.
 
-### 7. Major version is derived from `javaVersion`'s trailing segment
+### 7. Major version is derived per the Java version scheme, and may fail to derive
 
-- `javaVersion` values from the registry come in two shapes seen in existing fixtures:
-  dotted legacy form (`"1.8"`) and bare modern form (`"11"`, `"17"`, `"21"`, `"25"`).
-- Both shapes resolve to the same major-version integer used for override lookup and template
-  substitution: take the substring after the last `.`, or the whole string if there is no `.`,
-  then parse as an integer.
-- Examples: `"1.8"` → `8`; `"8"` → `8`; `"11"` → `11`; `"17"` → `17`.
+- Extraction: trim, drop a leading `1.`, take the segment before the next `.`, parse as a
+  positive integer. That is the Java version scheme itself — pre-9 releases put the major in
+  the second segment (`1.8`), everything since puts it first (`21.0.1`).
+- Examples: `"1.8"` → `8`; `"1.8.0_292"` → `8`; `"8"` → `8`; `"17"` → `17`; `"21.0.1"` → `21`.
 - This is why `8` needs no built-in exception (Decision 4) — `"1.8"` and an override keyed
   `8=...` already refer to the same major through this extraction rule; the *naming* exception
   (`env.JDK_1_8` instead of `env.JDK_8_0`) is what still needs an explicit caller-supplied
   override, not the version-matching itself.
+- The registry does not validate `javaVersion` — it is a free-form `String?`, and the registry's
+  own fixtures include `"   "` and `"999999999999999999999"`. So extraction returns `null`
+  rather than raising for anything that yields no positive integer, and `resolveJavaHome` treats
+  that exactly like a null `javaVersion`: fall back to the parent (Decision 9), with a warning
+  naming the offending value. Raising here would abort `createBuildChain` partway, leaving the
+  project, VCS root and compile config already created — a worse outcome than an inherited
+  `env.JAVA_HOME` for a component whose registry entry is malformed anyway.
 
 ### 8. Eager validation of every mapping entry, not lazy failure at `setParameter` time
 
@@ -187,9 +190,8 @@ Takeaways:
 - The removal condition is tracked as
   [`docs/tech-debt/TD-001-jdk-version-param-removal.md`](../../../docs/tech-debt/TD-001-jdk-version-param-removal.md)
   (this repo's first tech-debt record) rather than only here — a `TD-NNN` file survives this
-  change folder being archived, so the removal condition stays discoverable long after
-  OCTOPUS-2473 itself is history. The code points at the same file via a `TD-001:` comment on
-  the `JDK_VERSION`-setting block.
+  change folder being archived, so the removal condition stays discoverable afterwards. The
+  code points at the same file via a `TD-001:` comment on the `JDK_VERSION`-setting block.
 - No specific date — this is consumer-migration-gated, not time-gated.
 
 ## Out of Scope

@@ -1,6 +1,7 @@
 package utils.javahome
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.octopusden.octopus.automation.teamcity.utils.javahome.JavaHomeMapping
 
@@ -58,5 +59,31 @@ class JavaHomeMappingTest {
             "JDK_1_8",
             JavaHomeMapping.resolve("1.8", mapOf(8 to "JDK_1_8"), "env.JDK_{major}_0"),
         )
+    }
+
+    @Test
+    fun `a modern multi-segment version resolves to its leading segment`() {
+        assertEquals(
+            "env.JDK_21_0",
+            JavaHomeMapping.resolve("21.0.1", emptyMap(), "env.JDK_{major}_0"),
+        )
+    }
+
+    @Test
+    fun `a legacy multi-segment version resolves to its second segment`() {
+        assertEquals(
+            "env.JDK_8_0",
+            JavaHomeMapping.resolve("1.8.0_292", emptyMap(), "env.JDK_{major}_0"),
+        )
+    }
+
+    @Test
+    fun `a version with no derivable major resolves to null`() {
+        listOf("   ", "<value>", "999999999999999999999", "0", "17-ea").forEach { javaVersion ->
+            assertNull(
+                JavaHomeMapping.resolve(javaVersion, mapOf(8 to "env.JDK_1_8"), "env.JDK_{major}_0"),
+                "expected no major for '$javaVersion'",
+            )
+        }
     }
 }

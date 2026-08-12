@@ -4,14 +4,14 @@ import com.github.ajalt.clikt.core.BadParameterValue
 import org.octopusden.octopus.automation.teamcity.SPLIT_SYMBOLS
 
 /**
- * Parsed `--java-home-mapping` value: a required leading bare template  plus per-major overrides.
+ * Parsed `--java-home-mapping` value: a required leading bare template plus per-major overrides.
  * [parse] validates eagerly, before any TeamCity project is created.
  */
 data class JavaHomeMappingOption(
     val overrides: Map<Int, String>,
     val template: String,
 ) {
-    /** `null` when [javaVersion] is `null` — there is nothing to resolve without it. */
+    /** `null` when [javaVersion] is `null`, or when no JDK major version can be derived from it. */
     fun resolveOrNull(javaVersion: String?): String? = javaVersion?.let { JavaHomeMapping.resolve(it, overrides, template) }
 
     companion object {
@@ -55,6 +55,7 @@ data class JavaHomeMappingOption(
             val major = key.toIntOrNull()?.takeIf { it > 0 }
                 ?: fail("'$key' is not a valid JDK major version (from entry '$entry')")
             val value = entry.substringAfter('=').trim()
+            if (value.isBlank()) fail("override value must not be blank (from entry '$entry')")
             if (isWrapped(value)) fail("override value must not already be %-wrapped (from entry '$entry')")
             if (value.contains(JavaHomeMapping.PLACEHOLDER)) {
                 fail("override value must not contain ${JavaHomeMapping.PLACEHOLDER} (from entry '$entry')")

@@ -26,6 +26,13 @@ class JavaHomeMappingOptionTest {
     }
 
     @Test
+    fun `resolveOrNull returns null for a javaVersion with no derivable major`() {
+        val option = JavaHomeMappingOption.parse("env.JDK_{major}_0", OPTION_NAME)
+
+        assertEquals(null, option.resolveOrNull("<value>"))
+    }
+
+    @Test
     fun `valid mapping with a leading template and overrides is parsed`() {
         val option = JavaHomeMappingOption.parse("env.JDK_{major}_0,8=env.JDK_1_8,11=env.JDK_11_0", OPTION_NAME)
 
@@ -70,6 +77,14 @@ class JavaHomeMappingOptionTest {
             JavaHomeMappingOption.parse("env.JDK_{major}_0,8=%env.JDK_1_8%", OPTION_NAME)
         }
         assertTrue(ex.message!!.contains("8=%env.JDK_1_8%"))
+    }
+
+    @Test
+    fun `blank override value is rejected`() {
+        val ex = assertThrows(BadParameterValue::class.java) {
+            JavaHomeMappingOption.parse("env.JDK_{major}_0,8=", OPTION_NAME)
+        }
+        assertTrue(ex.message!!.contains("8="))
     }
 
     @Test

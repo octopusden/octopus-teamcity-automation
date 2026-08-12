@@ -45,16 +45,17 @@ logic (which is not removed — see the deprecation note below).
     verify a value corresponds to a real agent parameter regardless of prefix, so only
     structural mistakes (see above) are checked.
   - Invalid input fails the command immediately with a message naming the bad entry.
-- The component's major version is derived from `javaVersion` by taking the segment after the
-  last `.` (`"1.8"` → `8`, `"17"` → `17`), so both the legacy dotted form and the bare modern
-  form resolve consistently.
+- The component's major version is derived from `javaVersion` per the Java version scheme —
+  drop a leading `1.`, take the segment before the next `.` (`"1.8"` → `8`, `"17"` → `17`,
+  `"21.0.1"` → `21`). The registry does not constrain that field, so a value yielding no
+  positive integer derives no major and falls back to the parent project rather than raising.
 
 **Resolution, when the component has a non-null `javaVersion` and the option was supplied:**
 1. explicit override for that major, if present;
 2. otherwise the leading template with `{major}` substituted.
 
 **Fallback to the parent project, when `--java-home-mapping` is omitted entirely, or the
-component has no `javaVersion`:**
+component's `javaVersion` is absent or yields no major version:**
 - the command does **not** skip setting `env.JAVA_HOME` — it falls back to whatever
   `env.JAVA_HOME` is already configured on `parentProjectId`, read the same way the existing
   `JDK_VERSION` default is read today;
@@ -75,23 +76,20 @@ component has no `javaVersion`:**
   `JDK_VERSION` breaks;
 - the removal condition is tracked as `docs/tech-debt/TD-001-jdk-version-param-removal.md`
   (this repo's first tech-debt record, one file per item), referenced from a short `TD-001:`
-  comment on the `JDK_VERSION`-setting block — not just a decision noted in `design.md`, since
-  this change folder eventually gets archived and the tech-debt file needs to outlive it.
+  comment on the `JDK_VERSION`-setting block.
 
 ## Affected areas
 
 - `TeamcityCreateBuildChainCommand`
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt`):
   new CLI option, a new private `resolveJavaHome` member, and one new project-level
-  `setParameter` call (the pre-existing `setBuildTypeParameter`/`setProjectParameter` helpers
-  were merged into a single `setParameter` during implementation — see `design.md` Context).
+  `setParameter` call. The two pre-existing parameter-writing helpers,
+  `setBuildTypeParameter` and `setProjectParameter`, are one `setParameter(configurationType,
+  id, name, value)` — see `design.md` Context.
 - New pure mapping/parsing logic, `JavaHomeMapping` and `JavaHomeMappingOption`, in their own
   `org.octopusden.octopus.automation.teamcity.utils.javahome` subpackage
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/utils/javahome/`). Their tests
-  live under `src/test/kotlin/utils/javahome/` in the shorter `utils.javahome` package (this
-  repo's existing test file, `ApplicationTest.kt`, uses no package at all, so there was no
-  established test-package convention to match) — no existing file or package owned this logic
-  before this change.
+  live under `src/test/kotlin/utils/javahome/` in the shorter `utils.javahome` package.
 - **Behavior change for existing consumers**: any TeamCity project under this tool's
   management that already has its *own* `env.JAVA_HOME` project parameter set will have it
   silently overwritten — with the parent-project fallback value, or with an empty string if

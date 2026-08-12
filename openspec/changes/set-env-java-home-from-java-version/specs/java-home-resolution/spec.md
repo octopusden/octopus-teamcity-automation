@@ -69,6 +69,12 @@ this tool can detect with certainty are rejected:
 - **THEN** the command fails before creating any TeamCity project, with a message naming the
   invalid entry
 
+#### Scenario: blank override value is rejected
+
+- **WHEN** `--java-home-mapping=env.JDK_{major}_0,8=` is supplied
+- **THEN** the command fails before creating any TeamCity project, with a message naming the
+  invalid entry
+
 #### Scenario: override value containing a `{major}` placeholder is rejected
 
 - **WHEN** `--java-home-mapping=env.JDK_{major}_0,8=env.JDK_{major}_8` is supplied
@@ -93,22 +99,31 @@ this tool can detect with certainty are rejected:
 - **THEN** the command fails before creating any TeamCity project, with a message naming the
   invalid leading entry
 
-### Requirement: the component's major version is derived from `javaVersion`'s trailing segment
+### Requirement: the component's major version is derived per the Java version scheme
 
 The command SHALL derive a major-version integer from `component.buildParameters.javaVersion`
-by taking the substring after the last `.` (or the whole string if there is no `.`) and parsing
-it as an integer. This derived major SHALL be used for both override lookup and template
-substitution.
+by trimming it, dropping a leading `1.` (the legacy scheme, where the major is the second
+segment), taking the segment before the next `.`, and parsing that as a positive integer. This
+derived major SHALL be used for both override lookup and template substitution.
 
-#### Scenario: dotted legacy form resolves to its trailing segment
+The registry does not constrain `javaVersion`, so a value SHALL be treated as having no
+derivable major whenever this yields no positive integer — a blank value, a non-numeric one, or
+one that overflows an `Int`. This SHALL NOT raise.
 
-- **WHEN** `javaVersion` is `"1.8"`
+#### Scenario: legacy dotted form resolves to its second segment
+
+- **WHEN** `javaVersion` is `"1.8"` or `"1.8.0_292"`
 - **THEN** the derived major version is `8`
 
-#### Scenario: bare modern form resolves to itself
+#### Scenario: modern form resolves to its leading segment
 
-- **WHEN** `javaVersion` is `"17"`
-- **THEN** the derived major version is `17`
+- **WHEN** `javaVersion` is `"17"` or `"21.0.1"`
+- **THEN** the derived major version is `17` and `21` respectively
+
+#### Scenario: a value with no derivable major yields none
+
+- **WHEN** `javaVersion` is `"   "`, `"<value>"`, `"17-ea"`, or `"999999999999999999999"`
+- **THEN** no major version is derived, and no exception is raised
 
 #### Scenario: an override keyed by the derived major matches regardless of the source form
 
@@ -160,11 +175,13 @@ placeholder.
   `%env.JDK_8_0%` via the template — this tool does not special-case major 8 on its own; the
   caller must supply the override if they want it
 
-### Requirement: `--java-home-mapping` omitted, or the component has no `javaVersion`, falls back to the parent project's `env.JAVA_HOME`
+### Requirement: `--java-home-mapping` omitted, or no major derivable, falls back to the parent project's `env.JAVA_HOME`
 
-When `--java-home-mapping` is not supplied at all, or the component has no `javaVersion`, the
-command SHALL read the existing `env.JAVA_HOME` project parameter from `parentProjectId` and
-use that value as the value to write (see the next requirement for what "write" always means).
+When `--java-home-mapping` is not supplied at all, or the component's `javaVersion` is null or
+has no derivable major, the command SHALL read the existing `env.JAVA_HOME` project parameter
+from `parentProjectId` and use that value as the value to write (see the next requirement for
+what "write" always means). When a mapping was supplied and a non-null `javaVersion` failed to
+yield a major, the command SHALL log a warning naming the offending value.
 
 #### Scenario: no mapping supplied, parent has a default
 
@@ -178,6 +195,13 @@ use that value as the value to write (see the next requirement for what "write" 
 - **WHEN** `--java-home-mapping=env.JDK_{major}_0,11=env.JDK_11_0` is supplied and the
   component's `javaVersion` is null
 - **THEN** the parent-project fallback is used, exactly as when the mapping is absent
+
+#### Scenario: mapping supplied but the component's `javaVersion` has no derivable major
+
+- **WHEN** `--java-home-mapping=env.JDK_{major}_0,11=env.JDK_11_0` is supplied and the
+  component's `javaVersion` is `"<value>"`
+- **THEN** the parent-project fallback is used, a warning naming `"<value>"` is logged, and the
+  command completes without raising
 
 ### Requirement: `env.JAVA_HOME` is always written at project level, empty if nothing resolves
 
