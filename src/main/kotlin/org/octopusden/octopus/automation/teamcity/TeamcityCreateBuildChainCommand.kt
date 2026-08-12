@@ -237,10 +237,14 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         log.info("Set parameter $name value $value for $scope with id $id")
     }
 
-    private fun resolveJavaHome(javaVersion: String?): String =
-        javaHomeMapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
-            ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
-            ?: ""
+    private fun resolveJavaHome(javaVersion: String?): String {
+        javaHomeMapping?.resolveOrNull(javaVersion)?.let { return "%$it%" }
+        return try {
+            client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME") ?: ""
+        } catch (e: FeignException.NotFound) {
+            ""
+        }
+    }
 
     private fun assignProjectAdminRoleToUser(
         projectId: String,
