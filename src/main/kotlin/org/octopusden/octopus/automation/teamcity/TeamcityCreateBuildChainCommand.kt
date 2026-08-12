@@ -73,7 +73,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         JAVA_HOME_MAPPING,
         help = "env.JAVA_HOME mapping: a leading bare template (e.g. env.JDK_{major}_0) followed by " +
             "optional major=name overrides (e.g. 8=env.JDK_1_8), comma/semicolon separated",
-    ).convert { JavaHomeMappingOption.parse(it) }
+    ).convert { JavaHomeMappingOption.parse(it, JAVA_HOME_MAPPING) }
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
@@ -111,15 +111,13 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             project.id,
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
+        // Superseded by env.JAVA_HOME below; kept for teams that still consume it. Remove once
+        // every consumer has migrated to %env.JAVA_HOME% (design.md Decision 11).
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
-            setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
+            setParameter(ConfigurationType.BUILD_TYPE, compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
-        setProjectParameter(
-            project.id,
-            "env.JAVA_HOME",
-            resolveJavaHome(client, parentProjectId, javaHomeMapping, component.buildParameters?.javaVersion),
-        )
+        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(component.buildParameters?.javaVersion))
         val releaseConfig =
             if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
                 val rcConfig = createBuildConf(
@@ -137,7 +135,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     )
                     attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
-                    setBuildTypeParameter(
+                    setParameter(
+                        ConfigurationType.BUILD_TYPE,
                         checklistConfig.id,
                         "BUILD_VERSION",
                         "%dep.${compileConfig.id}.BUILD_VERSION%",
@@ -154,7 +153,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
                 addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
 
-                setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
+                setParameter(ConfigurationType.BUILD_TYPE, rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
                 releaseConfig
             } else {
                 val releaseConfig = createBuildConf(
@@ -167,10 +166,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 releaseConfig
             }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
-        setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
-        setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
-        setProjectParameter(project.id, "COMPONENT_NAME", componentName)
-        setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
+        setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
+        setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
+        setParameter(ConfigurationType.PROJECT, project.id, "COMPONENT_NAME", componentName)
+        setParameter(ConfigurationType.PROJECT, project.id, "PROJECT_VERSION", minorVersion)
         (
             listOfNotNull(component.componentOwner) +
                 (component.releaseManager?.split(",") ?: emptyList())
@@ -229,21 +228,25 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
     }
 
-    private fun setBuildTypeParameter(
-        buildTypeId: String,
+    private fun setParameter(
+        configurationType: ConfigurationType,
+        id: String,
         name: String,
         value: String,
-    ) = client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value).also {
-        log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
+    ) = client.setParameter(configurationType, id, name, value).also {
+        val scope = if (configurationType == ConfigurationType.BUILD_TYPE) "build configuration" else "project"
+        log.info("Set parameter $name value $value for $scope with id $id")
     }
 
-    private fun setProjectParameter(
-        projectId: String,
-        name: String,
-        value: String,
-    ) = client.setParameter(ConfigurationType.PROJECT, projectId, name, value).also {
-        log.info("Set parameter $name value $value for project with id $projectId")
-    }
+    /**
+     * Explicit override for [javaVersion]'s major, else [javaHomeMapping]'s leading template,
+     * else whatever `env.JAVA_HOME` is already on [parentProjectId] (empty if that's unset too —
+     * D9 in `set-env-java-home-from-java-version/design.md`, this never returns null).
+     */
+    private fun resolveJavaHome(javaVersion: String?): String =
+        javaHomeMapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
+            ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
+            ?: ""
 
     private fun assignProjectAdminRoleToUser(
         projectId: String,
@@ -316,13 +319,3 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val TEMPLATE_RELEASE = "CDRelease"
     }
 }
-
-private fun resolveJavaHome(
-    client: TeamcityClient,
-    parentProjectId: String,
-    mapping: JavaHomeMappingOption?,
-    javaVersion: String?,
-): String =
-    mapping?.resolveOrNull(javaVersion)?.let { "%$it%" }
-        ?: client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
-        ?: ""

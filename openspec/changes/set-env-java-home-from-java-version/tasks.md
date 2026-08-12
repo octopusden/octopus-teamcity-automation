@@ -139,13 +139,11 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
         (`.convert { JavaHomeMappingOption.parse(it) }`, no `.required()`/`.default()` so it's
         `null` when the flag is absent) and the `JAVA_HOME_MAPPING` companion constant
   - [x] 3.2.2 `TeamcityCreateBuildChainCommand.kt::createBuildChain` — calls
-        `setProjectParameter(project.id, "env.JAVA_HOME", resolveJavaHome(...))`
+        `setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(...))`
         unconditionally, right after the (now commented, Decision 11) `JDK_VERSION` block.
-        `resolveJavaHome` is a **top-level private function in the same file** (not a class
-        member) — `javaHomeMapping?.resolveOrNull(javaVersion)?.let { "%$it%" } ?: client.getParameter(PROJECT, parentProjectId, "env.JAVA_HOME") ?: ""`.
-        (found on review) wrapping (`"%$it%"`) is applied only to the mapping-resolved case —
-        the parent-fallback value is used as-is, since it's already whatever was previously
-        stored (possibly already wrapped, possibly not; this tool doesn't touch it)
+        Wrapping (`"%$it%"`) is applied only to the mapping-resolved case — the parent-fallback
+        value is used as-is, since it's already whatever was previously stored (possibly
+        already wrapped, possibly not; this tool doesn't touch it)
   - [x] 3.2.2a (added on review) `JavaHomeMappingOption.resolveOrNull(javaVersion: String?): String?`
         added on `JavaHomeMappingOption` itself (not a private helper on the command class) —
         `TeamcityCreateBuildChainCommand` was already at detekt's `TooManyFunctions` limit (11),
@@ -154,6 +152,23 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
         that already owns `overrides`/`template` fixed both without inflating either limit, and
         reads more naturally: "ask the parsed option to resolve this javaVersion." Two new unit
         tests added in `JavaHomeMappingOptionTest.kt`.
+  - [x] 3.2.2b (added on review, user feedback) `resolveJavaHome` moved from a top-level private
+        function back into `TeamcityCreateBuildChainCommand` as a private member (the user's
+        stated preference — a helper that's conceptually part of this command reads better as
+        a member than as a stray file-level function). Freed the function-count slot this
+        needed, without exceeding detekt's `TooManyFunctions` limit, by merging the near-identical
+        `setBuildTypeParameter`/`setProjectParameter` helpers into one
+        `setParameter(configurationType, id, name, value)` (they differed only in
+        `ConfigurationType` and one word of log text); all call sites updated.
+  - [x] 3.2.2c (added on review, user feedback) removed the duplicate `--java-home-mapping`
+        string literal. `JavaHomeMappingOption.OPTION_NAME` is gone; `parse` now takes
+        `optionName: String` as a parameter (used only to prefix its error messages), so
+        `TeamcityCreateBuildChainCommand.JAVA_HOME_MAPPING` is the **only** place this string
+        is defined — both the clikt option registration and the `.convert { JavaHomeMappingOption.parse(it, JAVA_HOME_MAPPING) }`
+        call read it from the same constant. `JavaHomeMappingOptionTest.kt` defines its own
+        private `OPTION_NAME` test constant for constructing scenarios, which is expected
+        (tests routinely need their own literals) and doesn't reintroduce a second production
+        definition.
 - [x] 3.3 Compiled clean (`./gradlew clean compileKotlin compileTestKotlin`) and
       `./gradlew detekt ktlintCheck` clean. The functional test itself was **not run locally** —
       this environment has no running Docker daemon (Colima) and starting one wasn't attempted

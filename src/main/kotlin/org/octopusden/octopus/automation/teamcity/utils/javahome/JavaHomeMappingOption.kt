@@ -15,19 +15,28 @@ data class JavaHomeMappingOption(
     fun resolveOrNull(javaVersion: String?): String? = javaVersion?.let { JavaHomeMapping.resolve(it, overrides, template) }
 
     companion object {
-        const val OPTION_NAME = "--java-home-mapping"
+        /**
+         * [optionName] is the CLI flag name used only to prefix error messages.
+         */
+        fun parse(
+            raw: String,
+            optionName: String,
+        ): JavaHomeMappingOption {
+            fun fail(message: String): Nothing = throw BadParameterValue("$optionName: $message")
 
-        fun parse(raw: String): JavaHomeMappingOption {
             val entries = raw.split(SPLIT_SYMBOLS.toRegex()).map { it.trim() }.filter { it.isNotEmpty() }
-            val template = parseTemplate(entries.firstOrNull())
+            val template = parseTemplate(entries.firstOrNull(), ::fail)
 
             val overrides = mutableMapOf<Int, String>()
-            entries.drop(1).forEach { entry -> parseOverride(entry, overrides) }
+            entries.drop(1).forEach { entry -> parseOverride(entry, overrides, ::fail) }
 
             return JavaHomeMappingOption(overrides, template)
         }
 
-        private fun parseTemplate(candidate: String?): String {
+        private fun parseTemplate(
+            candidate: String?,
+            fail: (String) -> Nothing,
+        ): String {
             val template = candidate?.takeIf { !it.contains('=') }
                 ?: fail("requires a leading template entry (no '=') as its first segment, e.g. env.JDK_{major}_0")
             if (isWrapped(template)) fail("leading template must not already be %-wrapped (got '$template')")
@@ -41,6 +50,7 @@ data class JavaHomeMappingOption(
         private fun parseOverride(
             entry: String,
             overrides: MutableMap<Int, String>,
+            fail: (String) -> Nothing,
         ) {
             if (!entry.contains('=')) fail("a bare entry ('$entry') is only valid as the first segment")
             val key = entry.substringBefore('=').trim()
@@ -56,7 +66,5 @@ data class JavaHomeMappingOption(
         }
 
         private fun isWrapped(value: String) = value.startsWith('%') && value.endsWith('%')
-
-        private fun fail(message: String): Nothing = throw BadParameterValue("$OPTION_NAME: $message")
     }
 }
