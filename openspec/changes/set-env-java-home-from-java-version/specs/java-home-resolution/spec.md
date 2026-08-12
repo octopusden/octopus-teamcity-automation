@@ -163,8 +163,8 @@ placeholder.
 ### Requirement: `--java-home-mapping` omitted, or the component has no `javaVersion`, falls back to the parent project's `env.JAVA_HOME`
 
 When `--java-home-mapping` is not supplied at all, or the component has no `javaVersion`, the
-command SHALL NOT skip setting `env.JAVA_HOME`. Instead it SHALL read the existing
-`env.JAVA_HOME` project parameter from `parentProjectId` and use that value, if present.
+command SHALL read the existing `env.JAVA_HOME` project parameter from `parentProjectId` and
+use that value as the value to write (see the next requirement for what "write" always means).
 
 #### Scenario: no mapping supplied, parent has a default
 
@@ -173,23 +173,20 @@ command SHALL NOT skip setting `env.JAVA_HOME`. Instead it SHALL read the existi
 - **THEN** the new component project's `env.JAVA_HOME` is set to `%env.JDK_1_8%`, regardless of
   the component's own `javaVersion`
 
-#### Scenario: no mapping supplied, parent has no default
-
-- **WHEN** `--java-home-mapping` is not supplied and `parentProjectId` has no `env.JAVA_HOME`
-  set
-- **THEN** no `env.JAVA_HOME` parameter is written for the new component project
-
 #### Scenario: mapping supplied but component has no `javaVersion`
 
 - **WHEN** `--java-home-mapping=env.JDK_{major}_0,11=env.JDK_11_0` is supplied and the
   component's `javaVersion` is null
 - **THEN** the parent-project fallback is used, exactly as when the mapping is absent
 
-### Requirement: resolved `env.JAVA_HOME` is written at project level
+### Requirement: `env.JAVA_HOME` is always written at project level, empty if nothing resolves
 
-The command SHALL write the resolved `env.JAVA_HOME` value as a project-level parameter on the
-newly created component project (not a build-type-level parameter), so it is inherited by every
-build configuration created under that project.
+The command SHALL write `env.JAVA_HOME` as a project-level parameter on the newly created
+component project (not a build-type-level parameter) unconditionally — every component project
+this tool creates SHALL end up with its own `env.JAVA_HOME` parameter present, so it can be
+edited directly in TeamCity. If neither the mapping nor the parent project's `env.JAVA_HOME`
+yields a value, the command SHALL write `env.JAVA_HOME` with an **empty string**, not skip the
+write.
 
 #### Scenario: value inherited by non-compile build configurations
 
@@ -198,3 +195,16 @@ build configuration created under that project.
 - **THEN** all four build configurations resolve `env.JAVA_HOME` to `%env.JDK_17_0%` through
   TeamCity's normal project-to-build-type parameter inheritance, without any build-type-level
   override being written explicitly
+
+#### Scenario: no mapping supplied, parent has no default
+
+- **WHEN** `--java-home-mapping` is not supplied and `parentProjectId` has no `env.JAVA_HOME`
+  set
+- **THEN** `env.JAVA_HOME` is still written for the new component project, with an empty value
+
+#### Scenario: mapping and parent both fail to resolve a value
+
+- **WHEN** `--java-home-mapping` is not supplied, the component's `javaVersion` is null, and
+  `parentProjectId` has no `env.JAVA_HOME` set
+- **THEN** `env.JAVA_HOME` is written for the new component project with an empty value, not
+  omitted

@@ -58,11 +58,14 @@ component has no `javaVersion`:**
 - the command does **not** skip setting `env.JAVA_HOME` — it falls back to whatever
   `env.JAVA_HOME` is already configured on `parentProjectId`, read the same way the existing
   `JDK_VERSION` default is read today;
-- if that's also unset, nothing is written.
+- if that's also unset, `env.JAVA_HOME` is still written on the new project, with an **empty
+  value** — every component project this tool creates ends up with its own `env.JAVA_HOME`
+  parameter, ready to be filled in directly in TeamCity, rather than one silently absent
+  depending on what happened to be configured on the parent at creation time.
 
 **Where it's written:**
 - as a **project-level** parameter on the newly created component project (`project.id`), not
-  only on the compile build-type;
+  only on the compile build-type — always written, even when its value is empty;
 - every build config created under that project (compile, RC, checklist, release) inherits it
   through normal TeamCity parameter inheritance, unlike `JDK_VERSION`, which today only ever
   overrides the compile step.
@@ -84,10 +87,10 @@ component has no `javaVersion`:**
   logic today.
 - **Behavior change for existing consumers**: any TeamCity project under this tool's
   management that already has its *own* `env.JAVA_HOME` project parameter set will have it
-  silently overwritten by the parent-project fallback value the next time
-  `create-build-chain` runs without `--java-home-mapping` for that component. Teams relying on
-  a manually-set `env.JAVA_HOME` should set it on the *parent* project instead, or start
-  passing `--java-home-mapping`, before this ships.
+  silently overwritten — with the parent-project fallback value, or with an empty string if
+  the parent has none — the next time `create-build-chain` runs without `--java-home-mapping`
+  for that component. Teams relying on a manually-set `env.JAVA_HOME` should set it on the
+  *parent* project instead, or start passing `--java-home-mapping`, before this ships.
 - No change to `JDK_VERSION` behavior itself — it keeps being set exactly as before.
 
 ## Out of scope
@@ -107,8 +110,9 @@ component has no `javaVersion`:**
 
 ## Rollout note
 
-`--java-home-mapping` is optional and additive: omitting it preserves current behavior for
-`JDK_VERSION` and only changes `env.JAVA_HOME` behavior if a value is already present on the
-parent project (see the behavior-change note above). Teams adopt the mapping at their own pace
-by adding the flag, with its required leading template, to their pipeline's
-`create-build-chain` invocation.
+`--java-home-mapping` is optional and additive for `JDK_VERSION`, which is completely
+unaffected by omitting it. `env.JAVA_HOME`, however, is written on every new component project
+regardless of whether the flag is used — either from the mapping, from the parent project's
+existing value, or as an empty placeholder (see the behavior-change note above). Teams adopt
+the mapping at their own pace by adding the flag, with its required leading template, to their
+pipeline's `create-build-chain` invocation.

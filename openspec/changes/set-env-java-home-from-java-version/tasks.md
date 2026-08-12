@@ -74,14 +74,14 @@
 - [ ] 2.3 Confirm tests pass: `./gradlew test --tests "*ApplicationTest*JavaHomeMapping*"` (or
       the equivalent method names once written).
 
-## 3. Resolve and set `env.JAVA_HOME` in `createBuildChain` (Decisions 4, 9-10, spec: parent-fallback and project-level-write requirements)
+## 3. Resolve and always write `env.JAVA_HOME` in `createBuildChain` (Decisions 4, 9-10, spec: parent-fallback and always-written-at-project-level requirements)
 
 - [ ] 3.1 Write failing functional tests in `ApplicationTest.kt` (extends
       `executeForCreateBuildChainCommand` with an optional `javaHomeMapping: String? = null`
       param, reusing `default-jdk-component` / `custom-jdk-component` fixtures from
       `TestComponents.groovy:130-154`):
   - [ ] 3.1.1 no mapping supplied, `TEST_PROJECT` (parent) has no `env.JAVA_HOME` → new
-        project's `env.JAVA_HOME` stays unset
+        project's `env.JAVA_HOME` is written with an **empty string**, not left unset
   - [ ] 3.1.2 no mapping supplied, `TEST_PROJECT` has `env.JAVA_HOME` pre-set → new project's
         `env.JAVA_HOME` equals the parent's value, for both the 1.8 and 11 fixtures alike
   - [ ] 3.1.3 mapping supplied with a leading template + overrides covering both fixtures'
@@ -94,14 +94,18 @@
         exclude it)
   - [ ] 3.1.5 value is inherited by the RC/checklist/release build configs, not only compile
         (asserts the project-level write, not a build-type-level one)
+  - [ ] 3.1.6 no mapping supplied, component has no `javaVersion`, and `TEST_PROJECT` has no
+        `env.JAVA_HOME` either → new project's `env.JAVA_HOME` is still written, empty (both
+        fallbacks exhausted, still not omitted)
 - [ ] 3.2 Implement, as separate units:
   - [ ] 3.2.1 `TeamcityCreateBuildChainCommand.kt::createBuildChain` — add the resolution block
         directly after the existing `JDK_VERSION` block: when the option was supplied and
         `javaVersion` is present, `JavaHomeMapping.resolve(...)`; otherwise
         `client.getParameter(PROJECT, parentProjectId, "env.JAVA_HOME")`
   - [ ] 3.2.2 `TeamcityCreateBuildChainCommand.kt::createBuildChain` — call
-        `setProjectParameter(project.id, "env.JAVA_HOME", it)` guarded on the resolved value
-        being non-null/non-empty
+        `setProjectParameter(project.id, "env.JAVA_HOME", resolved ?: "")` **unconditionally,
+        with no guard** — every `createBuildChain` run writes this parameter exactly once,
+        even when `resolved` is null/blank (Decision 9)
 - [ ] 3.3 Confirm tests pass. Functional suite needs the Docker/OKD TeamCity test instance per
       this workspace's `build-verification` skill — record here whether it was run locally or
       deferred to CI.
@@ -130,5 +134,6 @@
     fixture (there should be none; everything resolution-related comes from the parsed CLI
     option).
 - [ ] 5.4 Re-confirm both accepted risks in `design.md`'s Risks section are still true of the
-      shipped code (silent-overwrite-on-rerun, parent-value-wins-when-option-omitted) — neither
-      silently disappeared during implementation.
+      shipped code (silent-overwrite-on-rerun including blanking to `""`,
+      parent-value-wins-when-option-omitted) — neither silently disappeared during
+      implementation.
