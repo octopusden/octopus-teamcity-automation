@@ -651,12 +651,12 @@ class ApplicationTest {
         Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome(defaultJDKComponentName, defaultJDKProjectId))
         Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome(customJDKComponentName, customJDKProjectId))
 
-        // mapping supplied, no env.JAVA_HOME on the parent: an override covering the component's major wins;
-        // default-jdk-component has no javaVersion at all, so it still falls back to the (unset) parent
+        // mapping supplied, no env.JAVA_HOME on the parent: an override covering each
+        // component's major wins (default-jdk-component resolves to major 8, custom to 11)
         cleanUpResources(teamcityClient, config)
         val mappingWithOverrides = "env.JDK_{major}_0,8=env.JDK_1_8,11=env.JDK_11_0"
         Assertions.assertEquals(
-            "",
+            "%env.JDK_1_8%",
             createBuildChainAndGetJavaHome(defaultJDKComponentName, defaultJDKProjectId, mappingWithOverrides),
         )
         Assertions.assertEquals(

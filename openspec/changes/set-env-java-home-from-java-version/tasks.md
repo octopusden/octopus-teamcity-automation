@@ -123,17 +123,16 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
         `env.JAVA_HOME` equals the parent's value, for both the 1.8 and 11 fixtures alike
   - [x] 3.1.3 mapping supplied with a leading template + overrides covering both fixtures'
         majors (`env.JDK_{major}_0,8=env.JDK_1_8,11=env.JDK_11_0`) → new project's
-        `env.JAVA_HOME` is `""` for `default-jdk-component` (no `javaVersion` at all — falls
-        back to the unset parent, not the mapping) and `%env.JDK_11_0%` for
-        `custom-jdk-component`
+        `env.JAVA_HOME` is `%env.JDK_1_8%` for `default-jdk-component` (major 8) and
+        `%env.JDK_11_0%` for `custom-jdk-component` (major 11)
   - [x] 3.1.4 mapping supplied where the leading template (not an override) applies because no
         override covers the component's major → reused `custom-jdk-component` (`javaVersion
         = "11"`) against a mapping with only an `8=` override, confirming `%env.JDK_11_0%` via
         the template rather than adding a new fixture
   - [x] 3.1.5 value is inherited by the RC/checklist/release build configs, not only compile
         (asserts the project-level write, not a build-type-level one) — covered in 3.1.1's round
-  - [x] 3.1.6 (dropped as a separate case — identical setup to 3.1.1, since
-        `default-jdk-component` already has no `javaVersion`; not duplicated)
+  - [x] 3.1.6 (dropped as a separate case — 3.1.1's scenario, no mapping and no parent
+        `env.JAVA_HOME`, already covers this regardless of the component's `javaVersion`)
 - [x] 3.2 Implement, as separate units:
   - [x] 3.2.1 `TeamcityCreateBuildChainCommand.kt` — added `javaHomeMapping` option
         (`.convert { JavaHomeMappingOption.parse(it) }`, no `.required()`/`.default()` so it's
