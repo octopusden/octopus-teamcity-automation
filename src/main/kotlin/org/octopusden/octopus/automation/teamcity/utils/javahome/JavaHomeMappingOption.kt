@@ -22,7 +22,10 @@ data class JavaHomeMappingOption(
         ): JavaHomeMappingOption {
             fun fail(message: String): Nothing = throw BadParameterValue("$optionName: $message")
 
-            val entries = raw.split(SPLIT_SYMBOLS.toRegex()).map { it.trim() }.filter { it.isNotEmpty() }
+            val entries = raw.split(SPLIT_SYMBOLS.toRegex()).map { it.trim() }
+            if (entries.any { it.isEmpty() }) {
+                fail("mapping entries must not be blank (leading, trailing, or consecutive separators are not allowed)")
+            }
             val template = parseTemplate(entries.firstOrNull(), ::fail)
 
             val overrides = mutableMapOf<Int, String>()

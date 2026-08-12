@@ -1,3 +1,5 @@
+# Design
+
 ## Context
 
 - `TeamcityCreateBuildChainCommand.createBuildChain()`
@@ -10,6 +12,7 @@
       setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
   }
   ```
+
 - `component.buildParameters` is `BuildParametersDTO` from `components-registry-service-core`,
   whose only Java-related field is `javaVersion: String?` — a plain string like `"1.8"` or
   `"11"`. There is no separate "java" field; the new `env.JAVA_HOME` logic reuses this same

@@ -1,3 +1,5 @@
+# Java home resolution
+
 ## Purpose
 
 Governs how `create-build-chain` resolves and writes the `env.JAVA_HOME` TeamCity parameter for

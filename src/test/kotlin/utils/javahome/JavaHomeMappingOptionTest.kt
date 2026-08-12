@@ -126,4 +126,28 @@ class JavaHomeMappingOptionTest {
         }
         assertTrue(ex.message!!.contains("%env.JDK_{major}_0%"))
     }
+
+    @Test
+    fun `a leading separator is rejected, not silently skipped to reach the template`() {
+        val ex = assertThrows(BadParameterValue::class.java) {
+            JavaHomeMappingOption.parse(",env.JDK_{major}_0,8=env.JDK_1_8", OPTION_NAME)
+        }
+        assertTrue(ex.message!!.contains("blank"))
+    }
+
+    @Test
+    fun `a trailing separator is rejected`() {
+        val ex = assertThrows(BadParameterValue::class.java) {
+            JavaHomeMappingOption.parse("env.JDK_{major}_0,8=env.JDK_1_8,", OPTION_NAME)
+        }
+        assertTrue(ex.message!!.contains("blank"))
+    }
+
+    @Test
+    fun `consecutive separators are rejected, not silently collapsed`() {
+        val ex = assertThrows(BadParameterValue::class.java) {
+            JavaHomeMappingOption.parse("env.JDK_{major}_0,,8=env.JDK_1_8", OPTION_NAME)
+        }
+        assertTrue(ex.message!!.contains("blank"))
+    }
 }

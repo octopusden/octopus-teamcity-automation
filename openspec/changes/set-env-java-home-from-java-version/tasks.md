@@ -1,3 +1,5 @@
+# Tasks
+
 ## 1. Mapping resolution logic (Decisions 4, 7)
 
 - [x] 1.1 `JavaHomeMapping.resolve(javaVersion: String, overrides: Map<Int, String>, template: String): String`
@@ -30,13 +32,14 @@ unit-tested at its own seam rather than through process-level tests against the 
 - [x] 2.1 `JavaHomeMappingOption.kt` —
       `data class JavaHomeMappingOption(val overrides: Map<Int, String>, val template: String)`
       with `companion object { fun parse(raw: String, optionName: String): JavaHomeMappingOption }`:
-      splits on `SPLIT_SYMBOLS` preserving order; requires the first segment to be bare and
-      validates it as the template (non-`%`-wrapped, exactly one placeholder); validates every
-      remaining segment as a numeric override (non-blank value, non-`%`-wrapped, no placeholder,
-      no duplicate key), rejecting any later bare segment; fails via a private `fail(message)`
-      helper naming the offending entry. Split into `parseTemplate` / `parseOverride` /
-      `isWrapped` / `fail` to stay under detekt's `ThrowsCount` and line-length limits.
-      Validation is inline string checks, no standalone regexes.
+      splits on `SPLIT_SYMBOLS` preserving order; rejects any blank segment (leading, trailing,
+      or consecutive separators) before selecting the template or parsing overrides; requires the
+      first segment to be bare and validates it as the template (non-`%`-wrapped, exactly one
+      placeholder); validates every remaining segment as a numeric override (non-blank value,
+      non-`%`-wrapped, no placeholder, no duplicate key), rejecting any later bare segment; fails
+      via a private `fail(message)` helper naming the offending entry. Split into `parseTemplate`
+      / `parseOverride` / `isWrapped` / `fail` to stay under detekt's `ThrowsCount` and
+      line-length limits. Validation is inline string checks, no standalone regexes.
 - [x] 2.2 `optionName` is a parameter, not a constant here —
       `TeamcityCreateBuildChainCommand.JAVA_HOME_MAPPING` is the only production definition of
       the `--java-home-mapping` string, read by both the clikt option registration and the
@@ -58,6 +61,7 @@ unit-tested at its own seam rather than through process-level tests against the 
   - [x] 2.4.10 duplicate override key throws
   - [x] 2.4.11 leading template with zero, or more than one, `{major}` throws
   - [x] 2.4.12 already-`%`-wrapped leading template throws
+  - [x] 2.4.13 a leading, trailing, or consecutive separator throws, naming the blank entry
 
 ## 3. Resolve and always write `env.JAVA_HOME` in `createBuildChain` (Decisions 4, 9, 10)
 
