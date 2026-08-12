@@ -111,8 +111,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             project.id,
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
-        // Superseded by env.JAVA_HOME below; kept for teams that still consume it. Remove once
-        // every consumer has migrated to %env.JAVA_HOME% (design.md Decision 11).
+        // TD-001: superseded by env.JAVA_HOME below; see docs/tech-debt/TD-001-jdk-version-param-removal.md
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setParameter(ConfigurationType.BUILD_TYPE, compileConfig.id, "JDK_VERSION", projectJDKVersion)

@@ -176,12 +176,13 @@ Takeaways:
 ### 11. `JDK_VERSION` is deprecated but not removed in this change
 
 - Both parameters are set side by side.
-- This repo has no existing tech-debt-tracking convention of its own; the removal condition is
-  recorded here so a future change can find it:
-  - **Remove the `JDK_VERSION`-setting block once all teams currently depending on it have
-    migrated their build templates to consume `%env.JAVA_HOME%` instead of the literal
-    `%JDK_VERSION%` value.**
-  - No specific date — this is consumer-migration-gated, not time-gated.
+- The removal condition is tracked as
+  [`docs/tech-debt/TD-001-jdk-version-param-removal.md`](../../../docs/tech-debt/TD-001-jdk-version-param-removal.md)
+  (this repo's first tech-debt record) rather than only here — a `TD-NNN` file survives this
+  change folder being archived, so the removal condition stays discoverable long after
+  OCTOPUS-2473 itself is history. The code points at the same file via a `TD-001:` comment on
+  the `JDK_VERSION`-setting block.
+- No specific date — this is consumer-migration-gated, not time-gated.
 
 ## Out of Scope
 

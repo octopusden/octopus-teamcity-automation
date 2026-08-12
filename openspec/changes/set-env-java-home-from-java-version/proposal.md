@@ -73,9 +73,10 @@ component has no `javaVersion`:**
 **`JDK_VERSION` is marked deprecated, not removed:**
 - both parameters get set side by side during a migration period so nothing currently reading
   `JDK_VERSION` breaks;
-- the deprecation is recorded as a numbered decision in `design.md` (this repo has no existing
-  tech-debt tracking of its own) rather than as a scattered code comment, so there's one place
-  a future cleanup pass can find the removal condition.
+- the removal condition is tracked as `docs/tech-debt/TD-001-jdk-version-param-removal.md`
+  (this repo's first tech-debt record, one file per item), referenced from a short `TD-001:`
+  comment on the `JDK_VERSION`-setting block — not just a decision noted in `design.md`, since
+  this change folder eventually gets archived and the tech-debt file needs to outlive it.
 
 ## Affected areas
 

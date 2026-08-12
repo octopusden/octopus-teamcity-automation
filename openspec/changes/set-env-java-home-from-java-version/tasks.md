@@ -178,14 +178,20 @@ since that's where the parsed value is first consumed — task 2 delivers the pa
 
 ## 4. `JDK_VERSION` deprecation note (Decision 11)
 
-- [x] 4.1 Added a short comment directly above the `JDK_VERSION`-setting block in
-      `TeamcityCreateBuildChainCommand.kt`: "Superseded by env.JAVA_HOME below; kept for teams
-      that still consume it. Remove once every consumer has migrated to %env.JAVA_HOME%
-      (design.md Decision 11)." No standalone tech-debt file — this repo has no existing
-      tech-debt-tracking convention, and the decision log in `design.md` is the record per the
-      `openspec` skill's guidance not to duplicate it with a bespoke doc.
+- [x] 4.1 (revised on review, user feedback) A bare code comment pointing at `design.md` was
+      rejected — a comment-only record disappears once this change folder is archived, and this
+      repo has no other tech-debt tracking to fall back on. Created
+      `docs/tech-debt/TD-001-jdk-version-param-removal.md` instead, following the
+      `rms-registered-build-params` one-file-per-item convention (Status / Context / Symptoms /
+      Acceptance criteria / Related sections). The code comment on the `JDK_VERSION`-setting
+      block in `TeamcityCreateBuildChainCommand.kt` now just points at it:
+      `// TD-001: superseded by env.JAVA_HOME below; see docs/tech-debt/TD-001-jdk-version-param-removal.md`.
+      `design.md`'s Decision 11 and `proposal.md`'s deprecation note were both updated to
+      reference the TD-001 file as the authoritative removal record, rather than restating the
+      removal condition inline.
 - [x] 4.2 No behavior or test change — `JDK_VERSION` continues exactly as today (diff-checked:
-      only the comment was added above the existing block, the block's own lines are untouched).
+      only the comment text changed from a design.md pointer to a TD-001 pointer; the block's
+      own lines are untouched).
 
 ## 5. Finalization
 
