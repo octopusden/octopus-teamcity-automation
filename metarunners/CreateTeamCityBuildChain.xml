@@ -8,11 +8,12 @@
             <param name="MINOR_VERSION" value="%MINOR_VERSION%" />
             <param name="CREATE_CHECKLIST" value="%CREATE_CHECKLIST%" />
             <param name="CREATE_RC_FORCE" value="%CREATE_RC_FORCE%" />
+            <param name="JAVA_HOME_MAPPING" value="" spec="text description='Optional env.JAVA_HOME mapping: a leading template (e.g. env.JDK_{major}_0) plus optional major=name overrides, comma/semicolon separated. Leave empty to skip.' display='normal'" />
         </parameters>
         <build-runners>
             <runner name="create build chain" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% " />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% --java-home-mapping=%JAVA_HOME_MAPPING% " />
                 </parameters>
             </runner>
         </build-runners>

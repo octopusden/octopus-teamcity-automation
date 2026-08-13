@@ -69,11 +69,15 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         .convert { it.trim().toBoolean() }
         .default(false)
 
-    private val javaHomeMapping by option(
+    private val javaHomeMappingRaw by option(
         JAVA_HOME_MAPPING,
         help = "env.JAVA_HOME mapping: a leading bare template (e.g. env.JDK_{major}_0) followed by " +
-            "optional major=name overrides (e.g. 8=env.JDK_1_8), comma/semicolon separated",
-    ).convert { JavaHomeMappingOption.parse(it, JAVA_HOME_MAPPING) }
+            "optional major=name overrides (e.g. 8=env.JDK_1_8), comma/semicolon separated. " +
+            "Optional; a blank value is treated the same as omitting the option.",
+    )
+    private val javaHomeMapping: JavaHomeMappingOption? by lazy {
+        javaHomeMappingRaw?.takeIf(String::isNotBlank)?.let { JavaHomeMappingOption.parse(it, JAVA_HOME_MAPPING) }
+    }
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }

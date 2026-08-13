@@ -65,10 +65,13 @@ unit-tested at its own seam rather than through process-level tests against the 
 
 ## 3. Resolve and always write `env.JAVA_HOME` in `createBuildChain` (Decisions 4, 9, 10)
 
-- [x] 3.1 `TeamcityCreateBuildChainCommand.kt` — `javaHomeMapping` option
-      (`.convert { JavaHomeMappingOption.parse(it, JAVA_HOME_MAPPING) }`, no
-      `.required()`/`.default()`, so it is `null` when the flag is absent) and the
-      `JAVA_HOME_MAPPING` companion constant.
+- [x] 3.1 `TeamcityCreateBuildChainCommand.kt` — `javaHomeMappingRaw` option (plain `String?`, no
+      `.required()`/`.default()`) and a lazily-parsed `javaHomeMapping: JavaHomeMappingOption?`
+      that treats a blank/absent raw value the same way (`null`), plus the `JAVA_HOME_MAPPING`
+      companion constant. `metarunners/CreateTeamCityBuildChain.xml` passes
+      `--java-home-mapping=%JAVA_HOME_MAPPING%` with `JAVA_HOME_MAPPING` defaulting to `""` and
+      an "optional" description — the blank-is-absent handling is what keeps every existing
+      build config using this metarunner working unchanged.
 - [x] 3.2 `createBuildChain` calls
       `setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome(...))`
       unconditionally, alongside the other project-level writes (`COMPONENT_NAME`,
