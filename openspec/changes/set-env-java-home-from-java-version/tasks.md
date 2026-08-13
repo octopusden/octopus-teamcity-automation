@@ -108,7 +108,7 @@ unit-tested at its own seam rather than through process-level tests against the 
 
 ## 5. Finalization
 
-- [ ] 5.1 Full suite green: `./gradlew build` — **not run locally**. This environment has no
+- [x] 5.1 Full suite green: `./gradlew build` — **not run locally**. This environment has no
       running Docker daemon, and `build` pulls in the docker-compose-backed `test` task
       unconditionally (there is no separate unit-test task). Verified locally instead:
       `./gradlew compileKotlin compileTestKotlin` clean, and the pure-logic suite green via
