@@ -70,7 +70,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
 
     private val defaultJavaHome by option(DEFAULT_JAVA_HOME, help = "Bare parameter reference for env.JAVA_HOME, e.g. env.JDK_17_0")
         .convert { it.trim() }
-        .check("$DEFAULT_JAVA_HOME must not already be %-wrapped") { !(it.startsWith("%") && it.endsWith("%")) }
+        .check({ "$DEFAULT_JAVA_HOME must be a bare parameter reference without '%', got '$it'" }) { it.isBlank() || !it.contains("%") }
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
@@ -91,6 +91,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         parentProject: TeamcityProject,
         component: DetailedComponent,
     ) {
+        val javaHome = resolveJavaHome()
         val project = client.createProject(
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
         )
@@ -165,7 +166,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setParameter(ConfigurationType.PROJECT, project.id, "COMPONENT_NAME", componentName)
         setParameter(ConfigurationType.PROJECT, project.id, "PROJECT_VERSION", minorVersion)
-        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome())
+        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", javaHome)
         (
             listOfNotNull(component.componentOwner) +
                 (component.releaseManager?.split(",") ?: emptyList())

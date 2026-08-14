@@ -13,9 +13,10 @@ registry's `javaVersion` field.
 ### Requirement: `--default-java-home` accepts a bare TeamCity parameter reference name
 
 `create-build-chain` SHALL accept an optional `--default-java-home` option whose value, when
-supplied non-blank, SHALL be a bare TeamCity parameter name (not `%`-wrapped).
+supplied non-blank, SHALL be a bare TeamCity parameter name containing no `%` character.
 
-- An already-`%`-wrapped value SHALL be rejected before any TeamCity project is created.
+- A non-blank value containing `%` anywhere SHALL be rejected before any TeamCity project is
+  created — the tool does the wrapping, so `%` in the input signals a caller misunderstanding.
 - A blank or absent value SHALL be treated as "not supplied" (see the fallback requirement below).
 
 #### Scenario: bare reference name is accepted
@@ -23,9 +24,10 @@ supplied non-blank, SHALL be a bare TeamCity parameter name (not `%`-wrapped).
 - **WHEN** `--default-java-home=env.JDK_17_0` is supplied
 - **THEN** the command proceeds, and `env.JAVA_HOME` resolves to `%env.JDK_17_0%`
 
-#### Scenario: already-wrapped value is rejected
+#### Scenario: value containing `%` is rejected
 
-- **WHEN** `--default-java-home=%env.JDK_17_0%` is supplied
+- **WHEN** `--default-java-home` is supplied as `%env.JDK_17_0%`, `%env.JDK_17_0`, or
+  `env.JDK_17_0%`
 - **THEN** the command fails before creating any TeamCity project, with a message naming the
   invalid value
 

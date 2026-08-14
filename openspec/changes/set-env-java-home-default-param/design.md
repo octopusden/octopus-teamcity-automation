@@ -28,7 +28,7 @@ Given `parentProjectId = "TeamOctopus"`:
 | `--default-java-home=env.JDK_17_0` | *(irrelevant)* | `env.JAVA_HOME = "%env.JDK_17_0%"` |
 | no `--default-java-home` | `"%env.JDK_1_8%"` | `env.JAVA_HOME = "%env.JDK_1_8%"` (used as-is) |
 | no `--default-java-home` | *(unset)* | `env.JAVA_HOME = ""` |
-| `--default-java-home=%env.JDK_17_0%` (already wrapped) | *(irrelevant)* | **invalid** — command fails before creating any project |
+| `--default-java-home=%env.JDK_17_0%` (or any value containing `%`) | *(irrelevant)* | **invalid** — command fails before creating any project |
 | `--default-java-home=` (blank) | `"%env.JDK_1_8%"` | treated as omitted → `env.JAVA_HOME = "%env.JDK_1_8%"` |
 
 ## Goals / Non-Goals
@@ -64,9 +64,11 @@ Given `parentProjectId = "TeamOctopus"`:
   file — a TeamCity parameter reference is always `%name%` on the wire, but callers configuring
   metarunner parameters and CLI flags find a bare name (`env.JDK_17_0`) easier to author and
   reason about than an already-`%`-wrapped one.
-- An already-`%`-wrapped input is rejected outright (`BadParameterValue`), rather than silently
-  accepted or double-wrapped — the same defensive check the more complex approach used for its
-  template/override values.
+- Any input containing `%` is rejected outright (`BadParameterValue`, naming the value), rather
+  than silently accepted or double-wrapped — the same defensive check the more complex approach
+  used for its template/override values. The check is on `%` anywhere rather than on a fully
+  wrapped value: `%env.JDK_17_0` produces `%%env.JDK_17_0%`, which TeamCity reads as an escaped
+  literal, and the resulting chain fails opaquely at build time instead of at parse time.
 
 ### 3. Omitting the option is a first-class case, not a degraded one
 

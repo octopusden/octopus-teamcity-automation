@@ -6,12 +6,14 @@
       (`option(DEFAULT_JAVA_HOME, help = ...)`, `.convert { it.trim() }`, no `.required()`/
       `.default()`), plus the `DEFAULT_JAVA_HOME = "--default-java-home"` companion constant
       alongside `PARENT`/`COMPONENT`/`VERSION`/`CR`/`CREATE_CHECKLIST`/`CREATE_RC_FORCE`.
-- [x] 1.2 Reject an already-`%`-wrapped value at parse time (`BadParameterValue`, naming the
+- [x] 1.2 Reject any non-blank value containing `%` at parse time (`BadParameterValue`, naming the
       value) via a `.check` or `.validate` on the option. A blank/whitespace-only value is treated
       as absent (not an error) — normalize to `null` before use.
       (added on review) Validation is done via `.check` directly on the option chain (not a lazy
       property), so clikt enforces it during argument parsing — strictly before `run()` executes,
       i.e. before any TeamCity project is created.
+      (added on review) The check rejects `%` anywhere, not just a fully wrapped value — a
+      half-wrapped `%env.JDK_17_0` is just as broken and used to slip through.
 
 ## 2. Resolve and always write `env.JAVA_HOME` (Decisions 4–6)
 
@@ -23,6 +25,9 @@
 - [x] 2.2 `createBuildChain` calls `setParameter(ConfigurationType.PROJECT, project.id,
       "env.JAVA_HOME", resolveJavaHome())` unconditionally, alongside the existing `COMPONENT_NAME`
       / `PROJECT_VERSION` project-level writes. No change to the `JDK_VERSION` block.
+      (added on review) `resolveJavaHome()` is called at the top of `createBuildChain`, before the
+      project is created, and the result held in a local — a failure reading the parent's
+      parameter must not leave a half-built chain behind.
       (added on review) `setBuildTypeParameter`/`setProjectParameter` merged into one
       `setParameter(configurationType, id, name, value)` — the extra member pushed the class past
       detekt's `TooManyFunctions` threshold; see `design.md` Context.
@@ -41,7 +46,8 @@
       `testTeamCityCreateBuildChainForJavaHome`:
   - [x] 4.1.1 option supplied → `env.JAVA_HOME` written as `%<value>%` on the project, inherited by
         compile/RC/checklist/release build configs
-  - [x] 4.1.2 option supplied, already `%`-wrapped → command fails before creating any project
+  - [x] 4.1.2 option supplied containing `%` (fully wrapped, or only a leading/trailing `%`) →
+        command fails before creating any project
   - [x] 4.1.3 option omitted, parent has `env.JAVA_HOME` → parent's value used as-is (no
         re-wrapping)
   - [x] 4.1.4 option omitted, parent has no `env.JAVA_HOME` → written with an empty string

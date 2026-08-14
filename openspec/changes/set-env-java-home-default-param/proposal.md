@@ -23,8 +23,8 @@
   hierarchy (typically published by an agent), not a literal path.
 - **Optional** — omitting it entirely is a supported, unremarkable case (see fallback below).
 - If supplied non-blank, it is wrapped as `%<value>%` when written.
-- Rejected at parse time if already `%`-wrapped — the tool does the wrapping; a caller passing an
-  already-wrapped value almost certainly misunderstands the option.
+- Rejected at parse time if it contains `%` anywhere — the tool does the wrapping; a caller
+  passing `%`, wrapped or half-wrapped, almost certainly misunderstands the option.
 
 **Resolution, in order:**
 1. `--default-java-home`, if supplied (non-blank) → `%<value>%`.
