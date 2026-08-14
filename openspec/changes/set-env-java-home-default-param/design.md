@@ -43,7 +43,7 @@ Given `parentProjectId = "TeamOctopus"`:
 **Non-Goals:**
 - No per-major-version mapping, template, or derivation from the component registry — that is the
   `env-java-home` branch's approach, superseded by this one.
-- No change to `JDK_VERSION`.
+- No change to `JDK_VERSION`'s own logic (it is only marked deprecated — see Decision 7).
 - No validation that the supplied reference name resolves to a real agent parameter.
 
 ## Decisions
@@ -85,9 +85,9 @@ Given `parentProjectId = "TeamOctopus"`:
 
 ### 5. `env.JAVA_HOME` is always written: option, else parent, else empty string
 
-- `setProjectParameter(project.id, "env.JAVA_HOME", resolveJavaHome())` is called exactly once per
-  `createBuildChain` run, unconditionally — mirroring `COMPONENT_NAME` and `PROJECT_VERSION`,
-  which are also always set.
+- `setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", resolveJavaHome())` is
+  called exactly once per `createBuildChain` run, unconditionally — mirroring `COMPONENT_NAME` and
+  `PROJECT_VERSION`, which are also always set.
 - Never skipped, never left absent: an empty string is still an explicit write, so every project
   this tool creates is uniformly editable in TeamCity's UI afterward.
 
@@ -97,12 +97,27 @@ Given `parentProjectId = "TeamOctopus"`:
   RC, checklist, and release build configs all inherit it through normal TeamCity parameter
   inheritance, without a separate build-type-level write for each.
 
+### 7. `JDK_VERSION` is marked deprecated, not removed, tracked as `TD-001`
+
+- `JDK_VERSION` keeps being set exactly as before, on the compile build-type only, from
+  `component.buildParameters?.javaVersion`. Both parameters are written side by side during a
+  migration period, so nothing currently reading `JDK_VERSION` breaks.
+- The removal condition — every consumer migrated to reading `%env.JAVA_HOME%` instead of
+  `%JDK_VERSION%` — is tracked in
+  [`docs/tech-debt/TD-001-jdk-version-param-removal.md`](../../../docs/tech-debt/TD-001-jdk-version-param-removal.md)
+  rather than only here, so it stays discoverable once this change folder is archived. A
+  `TD-001:` comment on the `JDK_VERSION`-setting block in `TeamcityCreateBuildChainCommand.kt`
+  points at the same file.
+- No specific date — consumer-migration-gated, not time-gated, matching the equivalent decision on
+  the `env-java-home` branch.
+
 ## Out of Scope
 
 - Anything derived from `component.buildParameters?.javaVersion` — this change does not read that
-  field at all.
+  field at all beyond the pre-existing, untouched `JDK_VERSION` block.
 - A per-major mapping or template mechanism — see Decision 1.
-- Any change to `JDK_VERSION` or a deprecation note for it.
+- Any change to `JDK_VERSION`'s own computation or scope (Decision 7) — deferred until consumer
+  migration is confirmed via `TD-001`.
 
 ## Risks / Trade-offs
 

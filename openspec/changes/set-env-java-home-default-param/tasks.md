@@ -48,14 +48,22 @@
   - [x] 4.1.5 option supplied and blank (`""`) → treated as omitted, falls back to parent
         resolution (4.1.3/4.1.4)
 
-## 5. Finalization
+## 5. `JDK_VERSION` deprecation note (Decision 7)
 
-- [x] 5.1 `./gradlew compileKotlin compileTestKotlin` clean.
-- [x] 5.2 `./gradlew detekt ktlintCheck` clean against every file touched.
-- [ ] 5.3 Full suite (including the new functional tests) green on CI per the
+- [x] 5.1 `docs/tech-debt/TD-001-jdk-version-param-removal.md` records the removal condition
+      (Status / Context / Symptoms / Acceptance criteria / Related), following the
+      one-file-per-item convention from the `env-java-home` branch. A `TD-001:` comment on the
+      `JDK_VERSION`-setting block in `TeamcityCreateBuildChainCommand.kt` points at it.
+- [x] 5.2 No behavior or test change — `JDK_VERSION` continues exactly as today.
+
+## 6. Finalization
+
+- [x] 6.1 `./gradlew compileKotlin compileTestKotlin` clean.
+- [x] 6.2 `./gradlew detekt ktlintCheck` clean against every file touched.
+- [ ] 6.3 Full suite (including the new functional tests) green on CI per the
       `build-verification` skill — this environment has no Docker daemon for the
       compose-backed `test` task, so the new `testTeamCityCreateBuildChainForJavaHome` has not
       actually been run yet; it must run on CI before this change is considered verified.
-- [x] 5.4 Confirm every `Out of scope` item in `proposal.md` holds: no read of
+- [x] 6.4 Confirm every `Out of scope` item in `proposal.md` holds: no read of
       `component.buildParameters?.javaVersion`, no mapping/template mechanism, `JDK_VERSION`
       logic byte-for-byte unchanged.

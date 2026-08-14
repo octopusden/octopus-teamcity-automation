@@ -41,8 +41,10 @@ not read `component.buildParameters?.javaVersion` at all. Resolution depends onl
 under that project (compile, RC, checklist, release) inherits it through normal TeamCity
 parameter inheritance.
 
-**No change to `JDK_VERSION`:** its existing logic is untouched; this change does not add a
-deprecation note for it (that was specific to the other approach's rationale, not this one's).
+**`JDK_VERSION` is marked deprecated, not removed:** its own logic is untouched — both parameters
+are set side by side during a migration period. The removal condition is tracked as
+`docs/tech-debt/TD-001-jdk-version-param-removal.md` (this repo's first tech-debt record on this
+branch), referenced from a short `TD-001:` comment on the `JDK_VERSION`-setting block.
 
 ## Affected areas
 
@@ -66,7 +68,8 @@ deprecation note for it (that was specific to the other approach's rationale, no
 - Deriving anything from the component registry's `javaVersion` field.
 - Per-major-version overrides or a `{major}`-style template — this option is a single flat value
   per invocation, not a mapping.
-- Any change to `JDK_VERSION`'s own logic, or a deprecation note referencing it.
+- Any change to `JDK_VERSION`'s own logic.
+- Actually removing `JDK_VERSION` — tracked separately in `TD-001`, gated on consumer migration.
 - Validating that the supplied parameter name corresponds to a real agent-side TeamCity
   parameter — this tool has no visibility into agent configuration.
 
