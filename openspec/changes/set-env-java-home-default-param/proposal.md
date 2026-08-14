@@ -49,7 +49,9 @@ deprecation note for it (that was specific to the other approach's rationale, no
 - `TeamcityCreateBuildChainCommand`
   (`src/main/kotlin/org/octopusden/octopus/automation/teamcity/TeamcityCreateBuildChainCommand.kt`):
   one new nullable CLI option, one new small `resolveJavaHome` private member, one new
-  project-level `setProjectParameter` call.
+  project-level parameter write. The two pre-existing parameter-writing helpers,
+  `setBuildTypeParameter` and `setProjectParameter`, are merged into one
+  `setParameter(configurationType, id, name, value)` — see `design.md` Context.
 - `metarunners/CreateTeamCityBuildChain.xml`: a new `%DEFAULT_JAVA_HOME%` metarunner parameter,
   defaulting to `""`, passed through as `--default-java-home=%DEFAULT_JAVA_HOME%` so every
   existing build config using this metarunner keeps working unchanged.

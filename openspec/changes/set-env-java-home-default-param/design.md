@@ -8,10 +8,13 @@
   `component.buildParameters?.javaVersion`, falling back to nothing (just skips the write) when it
   matches the parent's `JDK_VERSION` default. `env.JAVA_HOME` does not exist anywhere in this
   command today (on `main`).
-- `setBuildTypeParameter` / `setProjectParameter` (lines 220–234) are the two existing
-  parameter-writing helpers, at build-type and project scope respectively. This change reuses
-  `setProjectParameter` as-is — no need to merge them into one, since this change adds no new
-  build-type-level call sites.
+- `setBuildTypeParameter` / `setProjectParameter` (lines 220–234) were the two existing
+  parameter-writing helpers, at build-type and project scope respectively. Adding `defaultJavaHome`
+  and `resolveJavaHome` alongside them pushed `TeamcityCreateBuildChainCommand` to 12 functions,
+  past detekt's default `TooManyFunctions` threshold of 11. They are now a single
+  `setParameter(configurationType: ConfigurationType, id: String, name: String, value: String)`,
+  used by every call site including the pre-existing `JDK_VERSION` one — the same fix the
+  `env-java-home` branch's more complex approach already applied for the same reason.
 - `client.getParameter(ConfigurationType, id, name)` throws `feign.FeignException.NotFound` (not
   `null`) when the parameter doesn't exist — already handled this way for the `JDK_VERSION`
   parent-default lookup at line 107, and reused identically here.
