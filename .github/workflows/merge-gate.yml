@@ -25,6 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: octopusden/octopus-base/.github/actions/merge-gate@v2.7.1
+      - uses: octopusden/octopus-base/.github/actions/merge-gate@v3.0.0
         with:
           needs: ${{ toJson(needs) }}
