@@ -7,6 +7,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     uses: octopusden/octopus-base/.github/workflows/common-java-gradle-build.yml@v3.0.0
