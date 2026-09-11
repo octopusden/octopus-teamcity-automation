@@ -18,4 +18,9 @@ jobs:
       # The one publication moves in whole, so nothing is left for Central.
       publish-to-nexus: false
       github-packages-publications: ":maven"
+      # With publish-to-nexus false nothing reaches Maven Central, so the artifact poll that
+      # check-and-register.yml performed could never succeed and registration would never run.
+      # Register inside the release instead: that job needs the build and the tag, so it still
+      # cannot outrun the deliverable.
+      register-release-immediately: true
     secrets: inherit
