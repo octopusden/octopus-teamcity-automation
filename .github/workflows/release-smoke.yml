@@ -29,5 +29,6 @@ jobs:
       build-version: 0.0.0-smoke-${{ github.run_number }}
       publish-to-nexus: false
       github-packages-publications: ":maven"
+      github-packages-repository: octopusden/octopus-maven-packages
       dry-run: true
     secrets: inherit
