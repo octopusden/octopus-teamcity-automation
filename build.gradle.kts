@@ -19,21 +19,9 @@ plugins {
 }
 
 octopusQuality {
-    // Regression guard on what this repository publishes to Maven Central, provided by the
-    // shared policy from octopus-base v2.7.0 — this repository used to hand-roll the identical
-    // task, which is why the local copy is deleted in this same commit: two tasks of one name
-    // fail configuration.
-    //
-    // The identity is a COMPOSITE key — path, publication name, coordinate, sorted artifact
-    // signatures — not just the path. In a single-module repository a path-based allowlist is
-    // nearly useless: the set is `{":"}` whatever happens, so a SECOND publication on the root
-    // would leave it unchanged. The signatures matter here specifically: release.yml exempts
-    // EVERY file under the allowlisted artifactId, so a second oversized artifact added to this
-    // publication would otherwise pass both this guard and that one.
-    //
-    // The purpose is the inverse of the deployable case: not to keep the fat jar out — it is
-    // published on purpose and exempted in release.yml — but to catch a coordinate the allowlist
-    // does not cover, which would fail the release or slip onto Central unnoticed if it is small.
+    // Regression guard on what this repository publishes. It compares the publications the build
+    // DECLARES, so the routed one is still listed: the release-time guard no longer sees it, and
+    // this is what watches its shape.
     publication {
         enforceCentralPublications.set(true)
         centralPublications.set(
@@ -449,6 +437,17 @@ publishing {
                         name.set("octopus")
                     }
                 }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/octopusden/octopus-teamcity-automation")
+            credentials {
+                username = System.getenv("GITHUB_PACKAGES_USERNAME")
+                password = System.getenv("GITHUB_PACKAGES_TOKEN")
             }
         }
     }
