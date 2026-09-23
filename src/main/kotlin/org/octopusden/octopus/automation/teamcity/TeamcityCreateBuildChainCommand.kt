@@ -68,6 +68,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         .convert { it.trim().toBoolean() }
         .default(false)
 
+    private val defaultJavaHome by option(DEFAULT_JAVA_HOME, help = "Bare parameter reference for env.JAVA_HOME, e.g. env.JDK_17_0")
+        .convert { it.trim() }
+        .check({ "$DEFAULT_JAVA_HOME must be a bare parameter reference without '%', got '$it'" }) { it.isBlank() || !it.contains("%") }
+
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
@@ -87,6 +91,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         parentProject: TeamcityProject,
         component: DetailedComponent,
     ) {
+        val javaHome = resolveJavaHome()
         val project = client.createProject(
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
         )
@@ -104,9 +109,10 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             project.id,
         )
         attachVcsRootToBuildType(compileConfig.id, vcsRootId)
+        // TD-001: superseded by env.JAVA_HOME below; see docs/tech-debt/TD-001-jdk-version-param-removal.md
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
-            setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
+            setParameter(ConfigurationType.BUILD_TYPE, compileConfig.id, "JDK_VERSION", projectJDKVersion)
         }
         val releaseConfig =
             if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
@@ -125,7 +131,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     )
                     attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
-                    setBuildTypeParameter(
+                    setParameter(
+                        ConfigurationType.BUILD_TYPE,
                         checklistConfig.id,
                         "BUILD_VERSION",
                         "%dep.${compileConfig.id}.BUILD_VERSION%",
@@ -142,7 +149,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
                 addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
 
-                setBuildTypeParameter(rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
+                setParameter(ConfigurationType.BUILD_TYPE, rcConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
                 releaseConfig
             } else {
                 val releaseConfig = createBuildConf(
@@ -155,10 +162,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 releaseConfig
             }
         disableBuildStep(releaseConfig.id, "IncrementTeamCityBuildConfigurationParameter")
-        setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
-        setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
-        setProjectParameter(project.id, "COMPONENT_NAME", componentName)
-        setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
+        setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
+        setParameter(ConfigurationType.BUILD_TYPE, releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
+        setParameter(ConfigurationType.PROJECT, project.id, "COMPONENT_NAME", componentName)
+        setParameter(ConfigurationType.PROJECT, project.id, "PROJECT_VERSION", minorVersion)
+        setParameter(ConfigurationType.PROJECT, project.id, "env.JAVA_HOME", javaHome)
         (
             listOfNotNull(component.componentOwner) +
                 (component.releaseManager?.split(",") ?: emptyList())
@@ -217,21 +225,23 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
     }
 
-    private fun setBuildTypeParameter(
-        buildTypeId: String,
+    private fun setParameter(
+        configurationType: ConfigurationType,
+        id: String,
         name: String,
         value: String,
-    ) = client.setParameter(ConfigurationType.BUILD_TYPE, buildTypeId, name, value).also {
-        log.info("Set parameter $name value $value for build configuration with id $buildTypeId")
+    ) = client.setParameter(configurationType, id, name, value).also {
+        val scope = if (configurationType == ConfigurationType.BUILD_TYPE) "build configuration" else "project"
+        log.info("Set parameter $name value $value for $scope with id $id")
     }
 
-    private fun setProjectParameter(
-        projectId: String,
-        name: String,
-        value: String,
-    ) = client.setParameter(ConfigurationType.PROJECT, projectId, name, value).also {
-        log.info("Set parameter $name value $value for project with id $projectId")
-    }
+    private fun resolveJavaHome(): String =
+        defaultJavaHome?.takeIf { it.isNotBlank() }?.let { "%$it%" }
+            ?: try {
+                client.getParameter(ConfigurationType.PROJECT, parentProjectId, "env.JAVA_HOME")
+            } catch (_: FeignException.NotFound) {
+                ""
+            }
 
     private fun assignProjectAdminRoleToUser(
         projectId: String,
@@ -295,6 +305,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val CR = "--registry-url"
         const val CREATE_CHECKLIST = "--create-checklist"
         const val CREATE_RC_FORCE = "--create-rc-force"
+        const val DEFAULT_JAVA_HOME = "--default-java-home"
 
         const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
         const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"

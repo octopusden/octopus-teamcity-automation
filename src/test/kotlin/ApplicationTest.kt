@@ -76,6 +76,7 @@ class ApplicationTest {
         minorVersion: String? = "1.0",
         createChecklist: Boolean = true,
         createRcForce: Boolean = false,
+        defaultJavaHome: String? = null,
     ): Int =
         execute(
             testMethodName,
@@ -87,6 +88,7 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
             "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
+            *listOfNotNull(defaultJavaHome?.let { "${TeamcityCreateBuildChainCommand.DEFAULT_JAVA_HOME}=$it" }).toTypedArray(),
         )
 
     @ParameterizedTest
@@ -601,6 +603,70 @@ class ApplicationTest {
             "11",
             teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, "${customJDKProjectId}_10CompileUtAuto", "JDK_VERSION"),
         )
+    }
+
+    /**
+     * Tests CreateTeamCityBuildChain for resolving and always writing the env.JAVA_HOME project parameter,
+     * from --default-java-home, else the parent project's own env.JAVA_HOME, else an empty value.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainForJavaHome(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+
+        val componentName = "ee-component"
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        val chainConfigIds = listOf(
+            "${projectId}_10CompileUtAuto",
+            "${projectId}_20ReleaseCandidateManual",
+            "${projectId}_30ReleaseChecklistValidationManual",
+            "${projectId}_40ReleaseManual",
+        )
+
+        fun createBuildChainAndGetJavaHome(defaultJavaHome: String? = null): String {
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, defaultJavaHome = defaultJavaHome),
+            )
+            return teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, "env.JAVA_HOME")
+        }
+
+        // no option, no env.JAVA_HOME on the parent -> written empty, not omitted
+        cleanUpResources(teamcityClient, config)
+        Assertions.assertEquals("", createBuildChainAndGetJavaHome())
+
+        // no option, parent has env.JAVA_HOME -> inherited as-is
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "env.JAVA_HOME", "%env.JDK_1_8%")
+        Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome())
+
+        // option supplied -> resolves directly, wins over the parent's own value, inherited by every build config
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "env.JAVA_HOME", "%env.JDK_1_8%")
+        Assertions.assertEquals("%env.JDK_17_0%", createBuildChainAndGetJavaHome("env.JDK_17_0"))
+        chainConfigIds.forEach { configId ->
+            Assertions.assertEquals(
+                "%env.JDK_17_0%",
+                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "env.JAVA_HOME"),
+            )
+        }
+
+        // option supplied blank -> treated as omitted, falls back to the parent's value
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "env.JAVA_HOME", "%env.JDK_1_8%")
+        Assertions.assertEquals("%env.JDK_1_8%", createBuildChainAndGetJavaHome(""))
+
+        // any value containing '%' -> command fails before creating any project
+        listOf("%env.JDK_17_0%", "%env.JDK_17_0", "env.JDK_17_0%").forEach { invalidValue ->
+            cleanUpResources(teamcityClient, config)
+            Assertions.assertEquals(
+                1,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), componentName, defaultJavaHome = invalidValue),
+            )
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
+                teamcityClient.getProject(projectId)
+            }
+        }
     }
 
     /**

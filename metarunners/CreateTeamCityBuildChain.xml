@@ -8,11 +8,12 @@
             <param name="MINOR_VERSION" value="%MINOR_VERSION%" />
             <param name="CREATE_CHECKLIST" value="%CREATE_CHECKLIST%" />
             <param name="CREATE_RC_FORCE" value="%CREATE_RC_FORCE%" />
+            <param name="DEFAULT_JAVA_HOME" value="" spec="text description='Optional bare TeamCity parameter reference for env.JAVA_HOME (e.g. env.JDK_17_0), not %-wrapped. Leave empty to fall back to the parent project env.JAVA_HOME.' display='normal'" />
         </parameters>
         <build-runners>
             <runner name="create build chain" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% " />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% --default-java-home=%DEFAULT_JAVA_HOME% " />
                 </parameters>
             </runner>
         </build-runners>
