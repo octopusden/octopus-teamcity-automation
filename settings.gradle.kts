@@ -15,6 +15,7 @@ pluginManagement {
         id("io.gitlab.arturbosch.detekt") version (extra["detekt.version"] as String)
         id("org.jlleitschuh.gradle.ktlint") version (extra["ktlint-gradle.version"] as String)
         id("org.octopusden.octopus-quality") version "3.0.0"
+        id("org.sonarqube") version "7.5.0.8588"
     }
     repositories {
         gradlePluginPortal()
