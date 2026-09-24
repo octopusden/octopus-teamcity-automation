@@ -168,3 +168,24 @@ import static org.octopusden.octopus.escrow.BuildSystem.*
         }
     }
 }
+
+"two-vcs-root-component" {
+    componentDisplayName = "Two VCS root component"
+    componentOwner = "testuser"
+    releaseManager = "testuser"
+    groupId = "corp.domain"
+    vcsSettings {
+        "repo-a" {
+            vcsUrl = "ssh://git@example.test/proj/repo-a.git"
+        }
+        "repo-b" {
+            vcsUrl = "ssh://git@example.test/proj/repo-b.git"
+        }
+    }
+    jira {
+        projectKey = 'BUILDSYS'
+        component {
+            versionPrefix = 'two-vcs-root'
+        }
+    }
+}

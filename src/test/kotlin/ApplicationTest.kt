@@ -36,12 +36,15 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityPropert
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.ProjectLocator
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
+import org.octopusden.octopus.infrastructure.teamcity.client.getVcsRoot
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -648,6 +651,118 @@ class ApplicationTest {
         )
     }
 
+    /**
+     * Baseline (ONB-001): pins today's single-VCS-root chain layout. One project-level Git VCS root
+     * named `<projectId>_VCS_ROOT` (branch `master`, branch spec `+:<default>`) attached to every
+     * created build configuration without checkout rules.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainAttachesSingleVcsRootWithoutCheckoutRules(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(0, executeForCreateBuildChainCommand(config, testInfo.methodName(), "ee-component"))
+
+        validateSingleChainVcsRoot(
+            teamcityClient,
+            projectId,
+            "https://github.com/octopusden/octopus-teamcity-automation.git",
+            listOf(
+                "${projectId}_10CompileUtAuto",
+                "${projectId}_20ReleaseCandidateManual",
+                "${projectId}_30ReleaseChecklistValidationManual",
+                "${projectId}_40ReleaseManual",
+            ),
+        )
+    }
+
+    /**
+     * Baseline (ONB-001): with several registry VCS roots only the first one becomes the chain's
+     * VCS root; the others are ignored.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainUsesOnlyFirstRegistryVcsRoot(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val projectId = "TestTeamcityAutomation_TwoVcsRootComponent"
+        Assertions.assertEquals(0, executeForCreateBuildChainCommand(config, testInfo.methodName(), "two-vcs-root-component"))
+
+        validateSingleChainVcsRoot(
+            teamcityClient,
+            projectId,
+            "ssh://git@example.test/proj/repo-a.git",
+            listOf(
+                "${projectId}_10CompileUtAuto",
+                "${projectId}_20ReleaseCandidateManual",
+                "${projectId}_30ReleaseChecklistValidationManual",
+                "${projectId}_40ReleaseManual",
+            ),
+        )
+    }
+
+    /**
+     * Baseline (ONB-001): the generator sets no WORK_DIR and no COMPONENT_CONFIG_DIR anywhere in the
+     * chain and leaves the template's *Calculate Build Version* step untouched in every created
+     * configuration.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainSetsNoWorkDirNorStepOverride(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val calculateBuildVersion = "Calculate Build Version"
+        val templateIds = listOf(
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RC,
+            TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
+        )
+        templateIds.forEach {
+            teamcityClient.createBuildStep(
+                it,
+                step = TeamcityStep(
+                    "CalculateBuildVersion",
+                    calculateBuildVersion,
+                    "CalculateBuildVersion",
+                    disabled = false,
+                    properties = TeamcityProperties(listOf(TeamcityProperty("version-format-file", "build-version-format.properties"))),
+                ),
+            )
+        }
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(0, executeForCreateBuildChainCommand(config, testInfo.methodName(), "ee-component"))
+
+        listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, parameter)
+            }, "$parameter on project")
+        }
+        val configIds = listOf(
+            "${projectId}_10CompileUtAuto",
+            "${projectId}_20ReleaseCandidateManual",
+            "${projectId}_30ReleaseChecklistValidationManual",
+            "${projectId}_40ReleaseManual",
+        )
+        configIds.zip(templateIds).forEach { (configId, templateId) ->
+            listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+                Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                    teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, parameter)
+                }, "$parameter on $configId")
+            }
+
+            fun TeamcityStep.snapshot() = listOf(name, type, disabled, properties?.properties?.associate { it.name to it.value })
+            val templateStep = teamcityClient.getBuildSteps(templateId).steps.single { it.name == calculateBuildVersion }
+            val configStep = teamcityClient.getBuildSteps(configId).steps.single { it.name == calculateBuildVersion }
+            Assertions.assertEquals(templateStep.snapshot(), configStep.snapshot(), "$calculateBuildVersion step in $configId")
+        }
+    }
+
     @ParameterizedTest
     @MethodSource("teamcityContexts")
     fun testTeamCityUpdateParameterIncrementCurrent(config: TeamcityTestConfiguration) {
@@ -1040,6 +1155,28 @@ class ApplicationTest {
                 scope = node["scope"].asText(),
             )
         } ?: emptyList()
+    }
+
+    private fun validateSingleChainVcsRoot(
+        teamcityClient: TeamcityClassicClient,
+        projectId: String,
+        expectedUrl: String,
+        buildTypeIds: List<String>,
+    ) {
+        val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+        Assertions.assertEquals(1, vcsRoots.size, "VCS roots in $projectId")
+        val vcsRoot = teamcityClient.getVcsRoot(vcsRoots.single().id)
+        Assertions.assertEquals("${projectId}_VCS_ROOT", vcsRoot.name)
+        Assertions.assertEquals("jetbrains.git", vcsRoot.vcsName)
+        val properties = requireNotNull(vcsRoot.properties).properties.associate { it.name to it.value }
+        Assertions.assertEquals(expectedUrl, properties["url"])
+        Assertions.assertEquals("master", properties["branch"])
+        Assertions.assertEquals("+:<default>", properties["teamcity:branchSpec"])
+        buildTypeIds.forEach { buildTypeId ->
+            val entry = teamcityClient.getBuildTypeVcsRootEntries(buildTypeId).entries.single()
+            Assertions.assertEquals(vcsRoot.id, entry.vcsRoot.id, "VCS root of $buildTypeId")
+            Assertions.assertTrue(entry.checkoutRules.isNullOrEmpty(), "checkout rules of $buildTypeId: '${entry.checkoutRules}'")
+        }
     }
 
     private fun validateBuildTypeTemplate(
