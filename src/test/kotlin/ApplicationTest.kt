@@ -36,6 +36,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcs
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.ProjectLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
@@ -95,7 +96,15 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
 
-    private fun logContent(testMethodName: String): String = File("").resolve("build").resolve("logs").resolve("$testMethodName.log").readText()
+    private fun logContent(testMethodName: String): String =
+        File("")
+            .resolve("build")
+            .resolve("logs")
+            .resolve("$testMethodName.log")
+            .readText()
+
+    private fun TeamcityVcsRoot.property(name: String): String? =
+        requireNotNull(properties).properties.associate { it.name to it.value }[name]
 
     /**
      * One registry VCS root for [StubComponentsRegistry]'s v2 `getDetailedComponent` body: the
@@ -157,71 +166,71 @@ class ApplicationTest {
             val buildWorkingDirectoryField = buildWorkingDirectory?.let { ",\"buildWorkingDirectory\":\"$it\"" } ?: ""
             // language=JSON
             return """
-            {
-              "id": "$componentKey",
-              "name": "$componentKey",
-              "componentOwner": "$TEST_USER",
-              "buildSystem": "MAVEN",
-              "vcsSettings": {
-                "versionControlSystemRoots": [$rootsJson],
-                "externalRegistry": null$buildWorkingDirectoryField
-              },
-              "jiraComponentVersion": {
-                "name": "$componentKey",
-                "version": "$version",
-                "component": {
-                  "projectKey": "BUILDSYS",
-                  "displayName": null,
-                  "componentVersionFormat": {
-                    "majorVersionFormat": "${'$'}major.${'$'}minor",
-                    "releaseVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
-                    "buildVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
-                    "lineVersionFormat": "${'$'}major.${'$'}minor",
-                    "hotfixVersionFormat": ""
+                {
+                  "id": "$componentKey",
+                  "name": "$componentKey",
+                  "componentOwner": "$TEST_USER",
+                  "buildSystem": "MAVEN",
+                  "vcsSettings": {
+                    "versionControlSystemRoots": [$rootsJson],
+                    "externalRegistry": null$buildWorkingDirectoryField
                   },
-                  "componentInfo": {
-                    "versionPrefix": "stub",
-                    "versionFormat": "${'$'}versionPrefix-${'$'}baseVersionFormat"
+                  "jiraComponentVersion": {
+                    "name": "$componentKey",
+                    "version": "$version",
+                    "component": {
+                      "projectKey": "BUILDSYS",
+                      "displayName": null,
+                      "componentVersionFormat": {
+                        "majorVersionFormat": "${'$'}major.${'$'}minor",
+                        "releaseVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
+                        "buildVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
+                        "lineVersionFormat": "${'$'}major.${'$'}minor",
+                        "hotfixVersionFormat": ""
+                      },
+                      "componentInfo": {
+                        "versionPrefix": "stub",
+                        "versionFormat": "${'$'}versionPrefix-${'$'}baseVersionFormat"
+                      },
+                      "technical": false
+                    }
                   },
-                  "technical": false
+                  "detailedComponentVersion": {
+                    "component": "$componentKey",
+                    "minorVersion": {"type": "MINOR", "version": "$version", "jiraVersion": "stub-$version"},
+                    "lineVersion": {"type": "LINE", "version": "$version", "jiraVersion": "stub-$version"},
+                    "buildVersion": {"type": "BUILD", "version": "$version.0", "jiraVersion": "stub-$version.0"},
+                    "rcVersion": {"type": "RC", "version": "$version.0_RC", "jiraVersion": "stub-$version.0_RC"},
+                    "releaseVersion": {"type": "RELEASE", "version": "$version.0", "jiraVersion": "stub-$version.0"}
+                  },
+                  "deprecated": false,
+                  "buildFilePath": null,
+                  "system": ["NONE"],
+                  "clientCode": null,
+                  "releasesInDefaultBranch": null,
+                  "solution": null,
+                  "parentComponent": null,
+                  "securityChampion": null,
+                  "releaseManager": null,
+                  "distribution": ${if (distribution) """{"explicit": true, "external": true}""" else "null"},
+                  "archived": false,
+                  "doc": null,
+                  "escrow": null,
+                  "copyright": null,
+                  "labels": [],
+                  "buildParameters": {
+                    "javaVersion": "1.8",
+                    "mavenVersion": "3.6.3",
+                    "gradleVersion": "LATEST",
+                    "requiredProject": false,
+                    "projectVersion": null,
+                    "systemProperties": null,
+                    "buildTasks": null,
+                    "tools": [],
+                    "buildTools": []
+                  }
                 }
-              },
-              "detailedComponentVersion": {
-                "component": "$componentKey",
-                "minorVersion": {"type": "MINOR", "version": "$version", "jiraVersion": "stub-$version"},
-                "lineVersion": {"type": "LINE", "version": "$version", "jiraVersion": "stub-$version"},
-                "buildVersion": {"type": "BUILD", "version": "$version.0", "jiraVersion": "stub-$version.0"},
-                "rcVersion": {"type": "RC", "version": "$version.0_RC", "jiraVersion": "stub-$version.0_RC"},
-                "releaseVersion": {"type": "RELEASE", "version": "$version.0", "jiraVersion": "stub-$version.0"}
-              },
-              "deprecated": false,
-              "buildFilePath": null,
-              "system": ["NONE"],
-              "clientCode": null,
-              "releasesInDefaultBranch": null,
-              "solution": null,
-              "parentComponent": null,
-              "securityChampion": null,
-              "releaseManager": null,
-              "distribution": ${if (distribution) """{"explicit": true, "external": true}""" else "null"},
-              "archived": false,
-              "doc": null,
-              "escrow": null,
-              "copyright": null,
-              "labels": [],
-              "buildParameters": {
-                "javaVersion": "1.8",
-                "mavenVersion": "3.6.3",
-                "gradleVersion": "LATEST",
-                "requiredProject": false,
-                "projectVersion": null,
-                "systemProperties": null,
-                "buildTasks": null,
-                "tools": [],
-                "buildTools": []
-              }
-            }
-            """.trimIndent()
+                """.trimIndent()
         }
     }
 
@@ -872,8 +881,8 @@ class ApplicationTest {
             Assertions.assertEquals(2, vcsRoots.size)
             val rootB = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT" }.id)
             val rootA = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
-            Assertions.assertEquals("ssh://git@example.test/proj/root-b.git", requireNotNull(rootB.properties).properties.associate { it.name to it.value }["url"])
-            Assertions.assertEquals("ssh://git@example.test/proj/root-a.git", requireNotNull(rootA.properties).properties.associate { it.name to it.value }["url"])
+            Assertions.assertEquals("ssh://git@example.test/proj/root-b.git", rootB.property("url"))
+            Assertions.assertEquals("ssh://git@example.test/proj/root-a.git", rootA.property("url"))
 
             val compileConfigId = "${projectId}_10CompileUtAuto"
             val entries = teamcityClient.getBuildTypeVcsRootEntries(compileConfigId).entries
@@ -1027,9 +1036,9 @@ class ApplicationTest {
             val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
             val rootList = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT" }.id)
             val rootNull = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
-            Assertions.assertEquals("main", requireNotNull(rootList.properties).properties.associate { it.name to it.value }["branch"])
-            Assertions.assertEquals("+:<default>", requireNotNull(rootList.properties).properties.associate { it.name to it.value }["teamcity:branchSpec"])
-            Assertions.assertEquals("release/null", requireNotNull(rootNull.properties).properties.associate { it.name to it.value }["branch"])
+            Assertions.assertEquals("main", rootList.property("branch"))
+            Assertions.assertEquals("+:<default>", rootList.property("teamcity:branchSpec"))
+            Assertions.assertEquals("release/null", rootNull.property("branch"))
 
             val log = logContent(testInfo.methodName())
             Assertions.assertTrue(log.contains("WARN"), log)
