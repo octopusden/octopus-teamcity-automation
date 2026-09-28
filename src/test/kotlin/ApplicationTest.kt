@@ -893,12 +893,12 @@ class ApplicationTest {
             Assertions.assertEquals(rootB.id, entries[1].vcsRoot.id)
             Assertions.assertEquals("+:. => feature", entries[1].checkoutRules)
 
-            listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+            listOf("WORK_DIR", "COMPONENT_CONFIG_DIR", "BUILD_VERSION_FORMAT_FILE").forEach { parameter ->
                 Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
                     teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, compileConfigId, parameter)
                 }, "$parameter on $compileConfigId")
             }
-            Assertions.assertFalse(logContent(testInfo.methodName()).contains("version-format"))
+            Assertions.assertFalse(logContent(testInfo.methodName()).contains("BUILD_VERSION_FORMAT_FILE"))
         } finally {
             stub.stop()
         }
@@ -954,14 +954,26 @@ class ApplicationTest {
      * Build Working Directory in the second registry root (spec.md "Attach order follows the Build
      * Working Directory" and "Build Working Directory parameters"): attach order still follows the
      * root holding it, WORK_DIR/COMPONENT_CONFIG_DIR land on every created configuration (the
-     * explicit/external shape, so all four: compile, RC, checklist, release), and the
-     * version-format WARNING is logged.
+     * explicit/external shape, so all four: compile, RC, checklist, release), BUILD_VERSION_FORMAT_FILE
+     * lands only on configurations that carry a 'Calculate Build Version' step (compile, matching
+     * production: only the compile template has it there), and an INFO naming the parameter is
+     * logged (owner decision on ADR-001's open question).
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
     fun testCreateBuildChainSetsWorkDirFromBuildWorkingDirectory(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient, config)
+        teamcityClient.createBuildStep(
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+            step = TeamcityStep(
+                "CalculateBuildVersion",
+                "Calculate Build Version",
+                "CalculateBuildVersion",
+                disabled = false,
+                properties = TeamcityProperties(listOf(TeamcityProperty("version-format-file", "%BUILD_VERSION_FORMAT_FILE%"))),
+            ),
+        )
         val stub = StubComponentsRegistry()
         try {
             stub.serve(
@@ -999,9 +1011,21 @@ class ApplicationTest {
                     )
                 }
             }
+            Assertions.assertEquals(
+                "core/mapper/build-version-format.properties",
+                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, compileConfigId, "BUILD_VERSION_FORMAT_FILE"),
+                "BUILD_VERSION_FORMAT_FILE on $compileConfigId",
+            )
+            listOf(rcConfigId, checklistConfigId, releaseConfigId).forEach { configId ->
+                Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                    teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "BUILD_VERSION_FORMAT_FILE")
+                }, "BUILD_VERSION_FORMAT_FILE on $configId: no 'Calculate Build Version' step there")
+            }
             val log = logContent(testInfo.methodName())
-            Assertions.assertTrue(log.contains("WARN"), log)
-            Assertions.assertTrue(log.contains("build-version-format.properties"), log)
+            Assertions.assertFalse(log.contains("WARN"), log)
+            Assertions.assertTrue(log.contains("INFO"), log)
+            Assertions.assertTrue(log.contains("BUILD_VERSION_FORMAT_FILE"), log)
+            Assertions.assertTrue(log.contains("core/mapper/build-version-format.properties"), log)
         } finally {
             stub.stop()
         }
