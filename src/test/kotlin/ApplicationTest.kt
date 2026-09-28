@@ -212,7 +212,7 @@ class ApplicationTest {
                   "parentComponent": null,
                   "securityChampion": null,
                   "releaseManager": null,
-                  "distribution": ${if (distribution) """{"explicit": true, "external": true}""" else "null"},
+                  "distribution": ${if (distribution) """{"explicit": true, "external": true, "securityGroups": {"read": []}}""" else "null"},
                   "archived": false,
                   "doc": null,
                   "escrow": null,
@@ -953,7 +953,8 @@ class ApplicationTest {
     /**
      * Build Working Directory in the second registry root (spec.md "Attach order follows the Build
      * Working Directory" and "Build Working Directory parameters"): attach order still follows the
-     * root holding it, WORK_DIR/COMPONENT_CONFIG_DIR land on every created configuration, and the
+     * root holding it, WORK_DIR/COMPONENT_CONFIG_DIR land on every created configuration (the
+     * explicit/external shape, so all four: compile, RC, checklist, release), and the
      * version-format WARNING is logged.
      */
     @ParameterizedTest
@@ -971,6 +972,7 @@ class ApplicationTest {
                     StubVcsRoot(name = "root-a", vcsPath = "ssh://git@example.test/proj/root-a.git", checkoutDirectory = "core"),
                 ),
                 buildWorkingDirectory = "core/mapper",
+                distribution = true,
             )
             val projectId = "TestTeamcityAutomation_BwdComponent"
             Assertions.assertEquals(
@@ -982,11 +984,13 @@ class ApplicationTest {
             val rootA = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
 
             val compileConfigId = "${projectId}_10CompileUtAuto"
-            val releaseConfigId = "${projectId}_20ReleaseManual"
+            val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+            val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
+            val releaseConfigId = "${projectId}_40ReleaseManual"
             val entries = teamcityClient.getBuildTypeVcsRootEntries(compileConfigId).entries
             Assertions.assertEquals(rootA.id, entries[0].vcsRoot.id, "root A (holds the Build Working Directory) attaches first")
 
-            listOf(compileConfigId, releaseConfigId).forEach { configId ->
+            listOf(compileConfigId, rcConfigId, checklistConfigId, releaseConfigId).forEach { configId ->
                 listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
                     Assertions.assertEquals(
                         "%teamcity.build.checkoutDir%/core/mapper",
@@ -1142,6 +1146,59 @@ class ApplicationTest {
             Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
                 teamcityClient.getProject(projectId)
             }
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * spec.md "Unsupported shapes fail before creation" reads
+     * RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR "as JDK_VERSION is read today": when the parent
+     * project has no such parameter, there is no reserved value to collide with, and a Checkout
+     * Directory that happens to match the constant used elsewhere in this suite is accepted.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainAllowsCheckoutDirectoryWhenReservedParameterUnset(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.deleteParameter(ConfigurationType.PROJECT, TEST_PROJECT, RESERVED_CHECKOUT_DIRECTORY_PARAMETER)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "unset-reserved-cd-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(
+                        name = "root-1",
+                        vcsPath = "ssh://git@example.test/proj/repo.git",
+                        checkoutDirectory = RESERVED_CHECKOUT_DIRECTORY_VALUE,
+                    ),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_UnsetReservedCdComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(
+                    config,
+                    testInfo.methodName(),
+                    "unset-reserved-cd-component",
+                    registryUrl = stub.url,
+                ),
+            )
+            val vcsRoot = teamcityClient.getVcsRoot(
+                teamcityClient
+                    .getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId)))
+                    .vcsRoots
+                    .single()
+                    .id,
+            )
+            val entry = teamcityClient.getBuildTypeVcsRootEntries("${projectId}_10CompileUtAuto").entries.single()
+            Assertions.assertEquals(
+                "+:. => $RESERVED_CHECKOUT_DIRECTORY_VALUE",
+                entry.checkoutRules,
+                "checkout rules for $vcsRoot",
+            )
         } finally {
             stub.stop()
         }
