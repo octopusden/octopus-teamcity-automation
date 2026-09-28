@@ -13,6 +13,7 @@ import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsR
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
+import org.octopusden.octopus.components.registry.core.dto.VersionControlSystemRootDTO
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
@@ -71,6 +72,13 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
 
+    /** One registry VCS root placed on a created TeamCity VCS root (ADR-001). */
+    private data class PlacedRoot(
+        val position: Int,
+        val vcsRoot: TeamcityVcsRoot,
+        val checkoutRule: String?,
+    )
+
     override fun run() {
         log.info("Create build chain")
         val parentProject = client.getProject(parentProjectId)
@@ -87,10 +95,30 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         parentProject: TeamcityProject,
         component: DetailedComponent,
     ) {
+        val registryRoots = component.vcsSettings.versionControlSystemRoots
+        validatePlacement(registryRoots, reservedCheckoutDirectory())
+
         val project = client.createProject(
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
         )
-        val vcsRootId = createVcsRoot(project.id, component)?.id
+        val buildWorkingDirectory = component.vcsSettings.buildWorkingDirectory?.takeIf { it.isNotBlank() }
+        val placedRoots = createVcsRoots(project.id, registryRoots)
+        val attachOrder = attachOrder(registryRoots, buildWorkingDirectory)
+        log.info(
+            "Attach order for '{}': {}",
+            componentName,
+            attachOrder.map { placedRoots.getValue(it).vcsRoot.name },
+        )
+        if (buildWorkingDirectory != null) {
+            log.warn(
+                "Component '{}': Build Working Directory is '{}'; the 'Calculate Build Version' step still reads " +
+                    "build-version-format.properties at the checkout root, not inside the Build Working Directory " +
+                    "(ADR-001 open question: version-format file outside the checkout root)",
+                componentName,
+                buildWorkingDirectory,
+            )
+        }
+
         var counter = 0
         val compileConfig = createBuildConf(
             when (component.buildSystem) {
@@ -103,7 +131,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             "[${++counter}.0] Compile & UT [AUTO]",
             project.id,
         )
-        attachVcsRootToBuildType(compileConfig.id, vcsRootId)
+        attachVcsRoots(compileConfig.id, attachOrder, placedRoots)
+        applyBuildWorkingDirectory(compileConfig.id, buildWorkingDirectory)
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
@@ -115,7 +144,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release Candidate [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(rcConfig.id, vcsRootId)
+                attachVcsRoots(rcConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(rcConfig.id, buildWorkingDirectory)
 
                 if (createChecklist) {
                     val checklistConfig = createBuildConf(
@@ -123,7 +153,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         "[${++counter}.0] Release Checklist Validation [MANUAL]",
                         project.id,
                     )
-                    attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
+                    attachVcsRoots(checklistConfig.id, attachOrder, placedRoots)
+                    applyBuildWorkingDirectory(checklistConfig.id, buildWorkingDirectory)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
                     setBuildTypeParameter(
                         checklistConfig.id,
@@ -137,7 +168,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                attachVcsRoots(releaseConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
 
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
                 addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
@@ -150,7 +182,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                attachVcsRoots(releaseConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
                 addSnapshotDependency(releaseConfig, compileConfig, DependencyFailureAction.CANCEL)
                 releaseConfig
             }
@@ -168,18 +201,179 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             .forEach { assignProjectAdminRoleToUser(project.id, it) }
     }
 
-    private fun attachVcsRootToBuildType(
+    /**
+     * Checks the shapes the generator does not support (ADR-001): more than one root at the checkout
+     * root, a repeated repository, a non-Git root and a Checkout Directory colliding with the
+     * project's helper clone directory. Runs before any TeamCity object is created.
+     */
+    private fun validatePlacement(
+        roots: List<VersionControlSystemRootDTO>,
+        reservedCheckoutDirectory: String?,
+    ) {
+        roots.forEachIndexed { index, root ->
+            if (root.type != RepositoryType.GIT) {
+                throw UnsupportedOperationException(
+                    "Component '$componentName': VCS root at position ${index + 1} ('${root.name}') has " +
+                        "unsupported type ${root.type}, only Git roots are supported",
+                )
+            }
+        }
+        val rootsAtCheckoutRoot = roots.withIndex().filter { it.value.checkoutDirectory.isNullOrBlank() }
+        if (rootsAtCheckoutRoot.size > 1) {
+            throw UnsupportedOperationException(
+                "Component '$componentName': more than one VCS root has no Checkout Directory " +
+                    "(positions ${rootsAtCheckoutRoot.joinToString { (it.index + 1).toString() }}), " +
+                    "at most one root may be checked out at the checkout root",
+            )
+        }
+        roots.withIndex()
+            .groupBy { it.value.vcsPath.trim().lowercase() }
+            .values
+            .firstOrNull { it.size > 1 }
+            ?.let { duplicates ->
+                throw UnsupportedOperationException(
+                    "Component '$componentName': VCS roots at positions " +
+                        duplicates.joinToString { (it.index + 1).toString() } +
+                        " point at the same repository '${duplicates.first().value.vcsPath}'",
+                )
+            }
+        if (reservedCheckoutDirectory != null) {
+            roots.withIndex().firstOrNull { it.value.checkoutDirectory == reservedCheckoutDirectory }?.let { (index, root) ->
+                throw UnsupportedOperationException(
+                    "Component '$componentName': Checkout Directory '$reservedCheckoutDirectory' of VCS root at " +
+                        "position ${index + 1} ('${root.name}') collides with the helper clone directory " +
+                        "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR",
+                )
+            }
+        }
+    }
+
+    /** Read as `JDK_VERSION` is read today; absent on a parent project means no reserved value to collide with. */
+    private fun reservedCheckoutDirectory(): String? =
+        try {
+            client.getParameter(ConfigurationType.PROJECT, parentProjectId, "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR")
+        } catch (e: FeignException.NotFound) {
+            null
+        }
+
+    /**
+     * The root that holds the Build Working Directory, else the root without a Checkout Directory,
+     * else registry position 1 (ADR-001 decision 6). Returns registry positions (1-based) in attach
+     * order.
+     */
+    private fun attachOrder(
+        roots: List<VersionControlSystemRootDTO>,
+        buildWorkingDirectory: String?,
+    ): List<Int> {
+        val positions = roots.indices.map { it + 1 }
+        val rootWithoutCheckoutDirectory = positions.firstOrNull { roots[it - 1].checkoutDirectory.isNullOrBlank() }
+        val firstPosition = buildWorkingDirectory
+            ?.substringBefore("/")
+            ?.let { firstSegment -> positions.firstOrNull { roots[it - 1].checkoutDirectory == firstSegment } }
+            ?: rootWithoutCheckoutDirectory
+            ?: positions.firstOrNull()
+            ?: return emptyList()
+        return listOf(firstPosition) + positions.filter { it != firstPosition }
+    }
+
+    /** No rule with neither field; `+:. => cd`; `+:sp => cd/sp`; `+:sp => sp` with only Source Path. */
+    private fun checkoutRule(
+        checkoutDirectory: String?,
+        sourcePath: String?,
+    ): String? {
+        val cd = checkoutDirectory?.takeIf { it.isNotBlank() }
+        val sp = sourcePath?.takeIf { it.isNotBlank() }
+        return when {
+            cd == null && sp == null -> null
+            cd != null && sp == null -> "+:. => $cd"
+            cd != null -> "+:$sp => $cd/$sp"
+            else -> "+:$sp => $sp"
+        }
+    }
+
+    private fun createVcsRoots(
+        projectId: String,
+        roots: List<VersionControlSystemRootDTO>,
+    ): Map<Int, PlacedRoot> =
+        roots.withIndex().associate { (index, rootData) ->
+            val position = index + 1
+            val vcsRootName = if (position == 1) "${projectId}_VCS_ROOT" else "${projectId}_VCS_ROOT_$position"
+            val rule = checkoutRule(rootData.checkoutDirectory, rootData.sourcePath)
+            val defaultBranch = rootData.branch.substringBefore("|").trim()
+            val vcsRoot = when (rootData.type) {
+                RepositoryType.GIT -> client.createVcsRoot(
+                    TeamcityCreateVcsRoot(
+                        name = vcsRootName,
+                        vcsName = TeamcityVCSType.GIT.value,
+                        projectLocator = projectId,
+                        TeamcityProperties(
+                            listOf(
+                                TeamcityProperty("url", rootData.vcsPath),
+                                TeamcityProperty("branch", defaultBranch),
+                                TeamcityProperty("teamcity:branchSpec", "+:<default>"),
+                                TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
+                                TeamcityProperty("userForTags", "tcagent"),
+                                TeamcityProperty("username", "git"),
+                                TeamcityProperty("ignoreKnownHosts", "true"),
+                            ),
+                        ),
+                    ),
+                )
+                else -> throw NotFoundException("Unsupported vcs type: ${rootData.type}")
+            }
+            log.info(
+                "Created VCS root '{}' (registry position {}) url='{}' branch='{}' checkoutDirectory='{}' " +
+                    "sourcePath='{}' -> checkout rule '{}'",
+                vcsRoot.name,
+                position,
+                rootData.vcsPath,
+                defaultBranch,
+                rootData.checkoutDirectory,
+                rootData.sourcePath,
+                rule ?: "(none)",
+            )
+            if (defaultBranch.contains("null")) {
+                log.warn(
+                    "VCS root '{}': default branch '{}' contains an unresolved placeholder",
+                    vcsRoot.name,
+                    defaultBranch,
+                )
+            }
+            position to PlacedRoot(position, vcsRoot, rule)
+        }
+
+    private fun attachVcsRoots(
         buildTypeId: String,
-        vcsRootId: String?,
-    ) = vcsRootId?.let {
-        client.createBuildTypeVcsRootEntry(
-            buildTypeId,
-            TeamcityCreateVcsRootEntry(
-                id = vcsRootId,
-                vcsRoot = TeamcityLinkVcsRoot(vcsRootId),
-            ),
-        )
-    } ?: log.info("Skip attach vcs root to {}", buildTypeId)
+        attachOrder: List<Int>,
+        placedRoots: Map<Int, PlacedRoot>,
+    ) {
+        if (attachOrder.isEmpty()) {
+            log.info("Skip attach vcs root to {}", buildTypeId)
+            return
+        }
+        attachOrder.forEach { position ->
+            val placedRoot = placedRoots.getValue(position)
+            client.createBuildTypeVcsRootEntry(
+                buildTypeId,
+                TeamcityCreateVcsRootEntry(
+                    id = placedRoot.vcsRoot.id,
+                    vcsRoot = TeamcityLinkVcsRoot(placedRoot.vcsRoot.id),
+                    checkoutRules = placedRoot.checkoutRule ?: "",
+                ),
+            )
+        }
+    }
+
+    private fun applyBuildWorkingDirectory(
+        buildTypeId: String,
+        buildWorkingDirectory: String?,
+    ) {
+        buildWorkingDirectory?.let {
+            val value = "%teamcity.build.checkoutDir%/$it"
+            setBuildTypeParameter(buildTypeId, "WORK_DIR", value)
+            setBuildTypeParameter(buildTypeId, "COMPONENT_CONFIG_DIR", value)
+        }
+    }
 
     private fun createBuildConf(
         templateId: String,
@@ -258,35 +452,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             ?: log.warn("Skip disable build step '{}' not found for build type {}", stepNameOrType, buildTypeId)
     }
 
-    private fun createVcsRoot(
-        projectId: String,
-        component: DetailedComponent,
-    ): TeamcityVcsRoot? =
-        component.vcsSettings.versionControlSystemRoots.firstOrNull()?.let { vcsRootData ->
-            val vcsRootName = "${projectId}_VCS_ROOT"
-            when (vcsRootData.type) {
-                RepositoryType.GIT -> client.createVcsRoot(
-                    TeamcityCreateVcsRoot(
-                        name = vcsRootName,
-                        vcsName = TeamcityVCSType.GIT.value,
-                        projectLocator = projectId,
-                        TeamcityProperties(
-                            listOf(
-                                TeamcityProperty("url", vcsRootData.vcsPath),
-                                TeamcityProperty("branch", "master"),
-                                TeamcityProperty("teamcity:branchSpec", "+:<default>"),
-                                TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
-                                TeamcityProperty("userForTags", "tcagent"),
-                                TeamcityProperty("username", "git"),
-                                TeamcityProperty("ignoreKnownHosts", "true"),
-                            ),
-                        ),
-                    ),
-                )
-                else -> throw NotFoundException("Unsupported vcs type: ${vcsRootData.type}")
-            }
-        }
-
     companion object {
         const val COMMAND = "create-build-chain"
         const val PARENT = "--parent-project-id"
@@ -296,8 +461,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val CREATE_CHECKLIST = "--create-checklist"
         const val CREATE_RC_FORCE = "--create-rc-force"
 
-        const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
-        const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"
+        const val TEMPLATE_GRADLE_COMPILE = "CDGradleBuild"
+        const val TEMPLATE_MAVEN_COMPILE = "CDJavaMavenBuild"
         const val TEMPLATE_RC = "CdReleaseCandidateNew"
         const val TEMPLATE_CHECKLIST = "CdReleaeChecklistValidation"
         const val TEMPLATE_RELEASE = "CDRelease"
