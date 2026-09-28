@@ -57,6 +57,9 @@ java.sourceCompatibility = JavaVersion.VERSION_21
 java.targetCompatibility = JavaVersion.VERSION_21
 
 repositories {
+    // TODO(ONB-001): drop once octopus-components-registry-service#503 (registry client with v2
+    // placement fields) is released; until then the client version below resolves only here.
+    mavenLocal()
     mavenCentral()
 }
 
@@ -349,7 +352,8 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
     implementation(
-        "org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}",
+        "org.octopusden.octopus.infrastructure:components-registry-service-client:" +
+            "${properties["octopus-components-registry-service-client.version"]}",
     )
     implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
     implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
