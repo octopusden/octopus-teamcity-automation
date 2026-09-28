@@ -96,10 +96,11 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             attachOrder.map { placedRoots.getValue(it).vcsRoot.name },
         )
         if (buildWorkingDirectory != null) {
-            log.warn(
-                "Component '{}': Build Working Directory is '{}'; the 'Calculate Build Version' step still reads " +
-                    "build-version-format.properties at the checkout root, not inside the Build Working Directory " +
-                    "(ADR-001 open question: version-format file outside the checkout root)",
+            log.info(
+                "Component '{}': BUILD_VERSION_FORMAT_FILE set to '{}/build-version-format.properties' on every " +
+                    "created configuration with a 'Calculate Build Version' step; takes effect only once templates " +
+                    "$TEMPLATE_GRADLE_COMPILE/$TEMPLATE_MAVEN_COMPILE define this parameter (ADR-001 revision, " +
+                    "owner decision) — see docs/runbooks/onb-001-template-format-file-parameter.md",
                 componentName,
                 buildWorkingDirectory,
             )
@@ -119,6 +120,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         )
         placement.attach(compileConfig.id, attachOrder, placedRoots)
         applyBuildWorkingDirectory(compileConfig.id, buildWorkingDirectory)
+        applyBuildVersionFormatFile(compileConfig.id, buildWorkingDirectory)
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
@@ -132,6 +134,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 placement.attach(rcConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(rcConfig.id, buildWorkingDirectory)
+                applyBuildVersionFormatFile(rcConfig.id, buildWorkingDirectory)
 
                 if (createChecklist) {
                     val checklistConfig = createBuildConf(
@@ -141,6 +144,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     )
                     placement.attach(checklistConfig.id, attachOrder, placedRoots)
                     applyBuildWorkingDirectory(checklistConfig.id, buildWorkingDirectory)
+                    applyBuildVersionFormatFile(checklistConfig.id, buildWorkingDirectory)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
                     setBuildTypeParameter(
                         checklistConfig.id,
@@ -156,6 +160,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 placement.attach(releaseConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
+                applyBuildVersionFormatFile(releaseConfig.id, buildWorkingDirectory)
 
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
                 addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
@@ -170,6 +175,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 )
                 placement.attach(releaseConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
+                applyBuildVersionFormatFile(releaseConfig.id, buildWorkingDirectory)
                 addSnapshotDependency(releaseConfig, compileConfig, DependencyFailureAction.CANCEL)
                 releaseConfig
             }
@@ -203,6 +209,25 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             val value = "%teamcity.build.checkoutDir%/$it"
             setBuildTypeParameter(buildTypeId, "WORK_DIR", value)
             setBuildTypeParameter(buildTypeId, "COMPONENT_CONFIG_DIR", value)
+        }
+    }
+
+    /**
+     * Owner decision on ADR-001's version-format-file open question: templates CDGradleBuild and
+     * CDJavaMavenBuild will read `BUILD_VERSION_FORMAT_FILE` in their 'Calculate Build Version'
+     * step (not yet applied there — docs/runbooks/onb-001-template-format-file-parameter.md). The
+     * generator sets it, on every created configuration that already has that step, to the
+     * version-format file inside the Build Working Directory; it sets nothing when there is no
+     * Build Working Directory, or the configuration has no such step.
+     */
+    private fun applyBuildVersionFormatFile(
+        buildTypeId: String,
+        buildWorkingDirectory: String?,
+    ) {
+        if (buildWorkingDirectory == null) return
+        val hasCalculateBuildVersionStep = client.getBuildSteps(buildTypeId).steps.any { it.type == CALCULATE_BUILD_VERSION_STEP_TYPE }
+        if (hasCalculateBuildVersionStep) {
+            setBuildTypeParameter(buildTypeId, "BUILD_VERSION_FORMAT_FILE", "$buildWorkingDirectory/build-version-format.properties")
         }
     }
 
@@ -297,5 +322,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val TEMPLATE_RC = "CdReleaseCandidateNew"
         const val TEMPLATE_CHECKLIST = "CdReleaeChecklistValidation"
         const val TEMPLATE_RELEASE = "CDRelease"
+
+        const val CALCULATE_BUILD_VERSION_STEP_TYPE = "CalculateBuildVersion"
     }
 }
