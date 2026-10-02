@@ -12,28 +12,21 @@ import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsR
 import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClientUrlProvider
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
-import org.octopusden.octopus.components.registry.core.dto.RepositoryType
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityRole
-import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityVCSType
-import org.octopusden.octopus.infrastructure.teamcity.client.createBuildTypeVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.createSnapshotDependency
 import org.octopusden.octopus.infrastructure.teamcity.client.disableBuildStep
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateProject
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkProject
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcitySnapshotDependency
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.slf4j.Logger
@@ -70,6 +63,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
 
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
     private val log by lazy { context[TeamcityCommand.LOG] as Logger }
+    private val placement by lazy { VcsRootPlacement(client, log, componentName) }
 
     override fun run() {
         log.info("Create build chain")
@@ -87,10 +81,31 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         parentProject: TeamcityProject,
         component: DetailedComponent,
     ) {
+        val registryRoots = component.vcsSettings.versionControlSystemRoots
+        placement.validate(registryRoots, reservedCheckoutDirectory())
+
         val project = client.createProject(
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
         )
-        val vcsRootId = createVcsRoot(project.id, component)?.id
+        val buildWorkingDirectory = component.vcsSettings.buildWorkingDirectory?.takeIf { it.isNotBlank() }
+        val placedRoots = placement.createAll(project.id, registryRoots)
+        val attachOrder = placement.attachOrder(registryRoots, buildWorkingDirectory)
+        log.info(
+            "Attach order for '{}': {}",
+            componentName,
+            attachOrder.map { placedRoots.getValue(it).vcsRoot.name },
+        )
+        if (buildWorkingDirectory != null) {
+            log.info(
+                "Component '{}': BUILD_VERSION_FORMAT_FILE set to '{}/build-version-format.properties' on every " +
+                    "created configuration with a 'Calculate Build Version' step; takes effect only once templates " +
+                    "$TEMPLATE_GRADLE_COMPILE/$TEMPLATE_MAVEN_COMPILE define this parameter (ADR-001 revision, " +
+                    "owner decision) — see docs/runbooks/onb-001-template-format-file-parameter.md",
+                componentName,
+                buildWorkingDirectory,
+            )
+        }
+
         var counter = 0
         val compileConfig = createBuildConf(
             when (component.buildSystem) {
@@ -103,7 +118,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             "[${++counter}.0] Compile & UT [AUTO]",
             project.id,
         )
-        attachVcsRootToBuildType(compileConfig.id, vcsRootId)
+        placement.attach(compileConfig.id, attachOrder, placedRoots)
+        applyBuildWorkingDirectory(compileConfig.id, buildWorkingDirectory)
         val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
             setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
@@ -115,7 +131,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release Candidate [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(rcConfig.id, vcsRootId)
+                placement.attach(rcConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(rcConfig.id, buildWorkingDirectory)
 
                 if (createChecklist) {
                     val checklistConfig = createBuildConf(
@@ -123,7 +140,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                         "[${++counter}.0] Release Checklist Validation [MANUAL]",
                         project.id,
                     )
-                    attachVcsRootToBuildType(checklistConfig.id, vcsRootId)
+                    placement.attach(checklistConfig.id, attachOrder, placedRoots)
+                    applyBuildWorkingDirectory(checklistConfig.id, buildWorkingDirectory)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
                     setBuildTypeParameter(
                         checklistConfig.id,
@@ -137,7 +155,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                placement.attach(releaseConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
 
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
                 addSnapshotDependency(releaseConfig, rcConfig, DependencyFailureAction.CANCEL)
@@ -150,7 +169,8 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                attachVcsRootToBuildType(releaseConfig.id, vcsRootId)
+                placement.attach(releaseConfig.id, attachOrder, placedRoots)
+                applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
                 addSnapshotDependency(releaseConfig, compileConfig, DependencyFailureAction.CANCEL)
                 releaseConfig
             }
@@ -168,18 +188,38 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             .forEach { assignProjectAdminRoleToUser(project.id, it) }
     }
 
-    private fun attachVcsRootToBuildType(
+    /** Read as `JDK_VERSION` is read today; absent on a parent project means no reserved value to collide with. */
+    private fun reservedCheckoutDirectory(): String? =
+        try {
+            client.getParameter(ConfigurationType.PROJECT, parentProjectId, "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR")
+        } catch (e: FeignException.NotFound) {
+            null
+        }
+
+    /**
+     * WORK_DIR/COMPONENT_CONFIG_DIR on every created configuration when a Build Working Directory
+     * is set. Also BUILD_VERSION_FORMAT_FILE, but only on a configuration that already has a
+     * 'Calculate Build Version' step: owner decision on ADR-001's version-format-file open
+     * question — templates CDGradleBuild and CDJavaMavenBuild will read it in that step (not yet
+     * applied there — docs/runbooks/onb-001-template-format-file-parameter.md).
+     */
+    private fun applyBuildWorkingDirectory(
         buildTypeId: String,
-        vcsRootId: String?,
-    ) = vcsRootId?.let {
-        client.createBuildTypeVcsRootEntry(
-            buildTypeId,
-            TeamcityCreateVcsRootEntry(
-                id = vcsRootId,
-                vcsRoot = TeamcityLinkVcsRoot(vcsRootId),
-            ),
-        )
-    } ?: log.info("Skip attach vcs root to {}", buildTypeId)
+        buildWorkingDirectory: String?,
+    ) {
+        buildWorkingDirectory?.let {
+            val value = "%teamcity.build.checkoutDir%/$it"
+            setBuildTypeParameter(buildTypeId, "WORK_DIR", value)
+            setBuildTypeParameter(buildTypeId, "COMPONENT_CONFIG_DIR", value)
+            val hasCalculateBuildVersionStep = client.getBuildSteps(buildTypeId).steps.any { step ->
+                step.type ==
+                    CALCULATE_BUILD_VERSION_STEP_TYPE
+            }
+            if (hasCalculateBuildVersionStep) {
+                setBuildTypeParameter(buildTypeId, "BUILD_VERSION_FORMAT_FILE", "$it/build-version-format.properties")
+            }
+        }
+    }
 
     private fun createBuildConf(
         templateId: String,
@@ -258,35 +298,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             ?: log.warn("Skip disable build step '{}' not found for build type {}", stepNameOrType, buildTypeId)
     }
 
-    private fun createVcsRoot(
-        projectId: String,
-        component: DetailedComponent,
-    ): TeamcityVcsRoot? =
-        component.vcsSettings.versionControlSystemRoots.firstOrNull()?.let { vcsRootData ->
-            val vcsRootName = "${projectId}_VCS_ROOT"
-            when (vcsRootData.type) {
-                RepositoryType.GIT -> client.createVcsRoot(
-                    TeamcityCreateVcsRoot(
-                        name = vcsRootName,
-                        vcsName = TeamcityVCSType.GIT.value,
-                        projectLocator = projectId,
-                        TeamcityProperties(
-                            listOf(
-                                TeamcityProperty("url", vcsRootData.vcsPath),
-                                TeamcityProperty("branch", "master"),
-                                TeamcityProperty("teamcity:branchSpec", "+:<default>"),
-                                TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
-                                TeamcityProperty("userForTags", "tcagent"),
-                                TeamcityProperty("username", "git"),
-                                TeamcityProperty("ignoreKnownHosts", "true"),
-                            ),
-                        ),
-                    ),
-                )
-                else -> throw NotFoundException("Unsupported vcs type: ${vcsRootData.type}")
-            }
-        }
-
     companion object {
         const val COMMAND = "create-build-chain"
         const val PARENT = "--parent-project-id"
@@ -296,10 +307,12 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val CREATE_CHECKLIST = "--create-checklist"
         const val CREATE_RC_FORCE = "--create-rc-force"
 
-        const val TEMPLATE_GRADLE_COMPILE = "CDCompileUTGradle"
-        const val TEMPLATE_MAVEN_COMPILE = "CDCompileUTMaven"
+        const val TEMPLATE_GRADLE_COMPILE = "CDGradleBuild"
+        const val TEMPLATE_MAVEN_COMPILE = "CDJavaMavenBuild"
         const val TEMPLATE_RC = "CdReleaseCandidateNew"
         const val TEMPLATE_CHECKLIST = "CdReleaeChecklistValidation"
         const val TEMPLATE_RELEASE = "CDRelease"
+
+        const val CALCULATE_BUILD_VERSION_STEP_TYPE = "CalculateBuildVersion"
     }
 }

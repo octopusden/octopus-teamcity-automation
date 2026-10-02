@@ -349,7 +349,8 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
     implementation(
-        "org.octopusden.octopus.infrastructure:components-registry-service-client:${properties["octopus-components-registry-service.version"]}",
+        "org.octopusden.octopus.infrastructure:components-registry-service-client:" +
+            "${properties["octopus-components-registry-service-client.version"]}",
     )
     implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
     implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")

@@ -1,4 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.sun.net.httpserver.HttpServer
 import it.skrape.core.htmlDocument
 import it.skrape.matchers.toBe
 import it.skrape.selects.html5.tr
@@ -35,14 +36,19 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcs
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.ProjectLocator
+import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
+import org.octopusden.octopus.infrastructure.teamcity.client.getVcsRoot
 import java.io.File
+import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -76,6 +82,7 @@ class ApplicationTest {
         minorVersion: String? = "1.0",
         createChecklist: Boolean = true,
         createRcForce: Boolean = false,
+        registryUrl: String = "http://$hostComponentsRegistry",
     ): Int =
         execute(
             testMethodName,
@@ -84,10 +91,148 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
             "${TeamcityCreateBuildChainCommand.COMPONENT}=$componentName",
             "${TeamcityCreateBuildChainCommand.VERSION}=$minorVersion",
-            "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
+            "${TeamcityCreateBuildChainCommand.CR}=$registryUrl",
             "${TeamcityCreateBuildChainCommand.CREATE_CHECKLIST}=$createChecklist",
             "${TeamcityCreateBuildChainCommand.CREATE_RC_FORCE}=$createRcForce",
         )
+
+    private fun logContent(testMethodName: String): String =
+        File("")
+            .resolve("build")
+            .resolve("logs")
+            .resolve("$testMethodName.log")
+            .readText()
+
+    private fun TeamcityVcsRoot.property(name: String): String? =
+        requireNotNull(properties).properties.associate { it.name to it.value }[name]
+
+    /**
+     * One registry VCS root for [StubComponentsRegistry]'s v2 `getDetailedComponent` body: the
+     * placement fields (`checkoutDirectory`, `sourcePath`) the docker registry container's Groovy
+     * DSL cannot produce (proposal.md, Impact).
+     */
+    private data class StubVcsRoot(
+        val name: String,
+        val vcsPath: String,
+        val type: String = "GIT",
+        val branch: String = "master",
+        val checkoutDirectory: String? = null,
+        val sourcePath: String? = null,
+    )
+
+    /**
+     * A minimal v2 `getDetailedComponent` HTTP endpoint (`GET rest/api/2/components/{key}/versions/{version}`),
+     * for the placement scenarios the docker registry container cannot serve. No new test dependency:
+     * `com.sun.net.httpserver.HttpServer` ships with the JDK.
+     */
+    private class StubComponentsRegistry {
+        private val server = HttpServer.create(InetSocketAddress(0), 0).also { it.start() }
+        val url: String = "http://localhost:${server.address.port}"
+
+        fun serve(
+            componentKey: String,
+            version: String,
+            roots: List<StubVcsRoot>,
+            buildWorkingDirectory: String? = null,
+            distribution: Boolean = false,
+        ) {
+            val json = detailedComponentJson(componentKey, version, roots, buildWorkingDirectory, distribution)
+            server.createContext("/rest/api/2/components/$componentKey/versions/$version") { exchange ->
+                val body = json.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+        }
+
+        fun stop() = server.stop(0)
+
+        private fun detailedComponentJson(
+            componentKey: String,
+            version: String,
+            roots: List<StubVcsRoot>,
+            buildWorkingDirectory: String?,
+            distribution: Boolean,
+        ): String {
+            val rootsJson = roots.joinToString(",") { root ->
+                buildString {
+                    append("{\"name\":\"${root.name}\",\"vcsPath\":\"${root.vcsPath}\",\"type\":\"${root.type}\",")
+                    append("\"tag\":\"stub-tag\",\"branch\":\"${root.branch}\"")
+                    root.checkoutDirectory?.let { append(",\"checkoutDirectory\":\"$it\"") }
+                    root.sourcePath?.let { append(",\"sourcePath\":\"$it\"") }
+                    append("}")
+                }
+            }
+            val buildWorkingDirectoryField = buildWorkingDirectory?.let { ",\"buildWorkingDirectory\":\"$it\"" } ?: ""
+            // language=JSON
+            return """
+                {
+                  "id": "$componentKey",
+                  "name": "$componentKey",
+                  "componentOwner": "$TEST_USER",
+                  "buildSystem": "MAVEN",
+                  "vcsSettings": {
+                    "versionControlSystemRoots": [$rootsJson],
+                    "externalRegistry": null$buildWorkingDirectoryField
+                  },
+                  "jiraComponentVersion": {
+                    "name": "$componentKey",
+                    "version": "$version",
+                    "component": {
+                      "projectKey": "BUILDSYS",
+                      "displayName": null,
+                      "componentVersionFormat": {
+                        "majorVersionFormat": "${'$'}major.${'$'}minor",
+                        "releaseVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
+                        "buildVersionFormat": "${'$'}major.${'$'}minor.${'$'}service",
+                        "lineVersionFormat": "${'$'}major.${'$'}minor",
+                        "hotfixVersionFormat": ""
+                      },
+                      "componentInfo": {
+                        "versionPrefix": "stub",
+                        "versionFormat": "${'$'}versionPrefix-${'$'}baseVersionFormat"
+                      },
+                      "technical": false
+                    }
+                  },
+                  "detailedComponentVersion": {
+                    "component": "$componentKey",
+                    "minorVersion": {"type": "MINOR", "version": "$version", "jiraVersion": "stub-$version"},
+                    "lineVersion": {"type": "LINE", "version": "$version", "jiraVersion": "stub-$version"},
+                    "buildVersion": {"type": "BUILD", "version": "$version.0", "jiraVersion": "stub-$version.0"},
+                    "rcVersion": {"type": "RC", "version": "$version.0_RC", "jiraVersion": "stub-$version.0_RC"},
+                    "releaseVersion": {"type": "RELEASE", "version": "$version.0", "jiraVersion": "stub-$version.0"}
+                  },
+                  "deprecated": false,
+                  "buildFilePath": null,
+                  "system": ["NONE"],
+                  "clientCode": null,
+                  "releasesInDefaultBranch": null,
+                  "solution": null,
+                  "parentComponent": null,
+                  "securityChampion": null,
+                  "releaseManager": null,
+                  "distribution": ${if (distribution) """{"explicit": true, "external": true, "securityGroups": {"read": []}}""" else "null"},
+                  "archived": false,
+                  "doc": null,
+                  "escrow": null,
+                  "copyright": null,
+                  "labels": [],
+                  "buildParameters": {
+                    "javaVersion": "1.8",
+                    "mavenVersion": "3.6.3",
+                    "gradleVersion": "LATEST",
+                    "requiredProject": false,
+                    "projectVersion": null,
+                    "systemProperties": null,
+                    "buildTasks": null,
+                    "tools": [],
+                    "buildTools": []
+                  }
+                }
+                """.trimIndent()
+        }
+    }
 
     @ParameterizedTest
     @MethodSource("teamcityContexts")
@@ -648,6 +793,500 @@ class ApplicationTest {
         )
     }
 
+    /**
+     * Baseline (ONB-001): pins today's single-VCS-root chain layout. One project-level Git VCS root
+     * named `<projectId>_VCS_ROOT` (branch `master`, branch spec `+:<default>`) attached to every
+     * created build configuration without checkout rules.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainAttachesSingleVcsRootWithoutCheckoutRules(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(0, executeForCreateBuildChainCommand(config, testInfo.methodName(), "ee-component"))
+
+        validateSingleChainVcsRoot(
+            teamcityClient,
+            projectId,
+            "https://github.com/octopusden/octopus-teamcity-automation.git",
+            listOf(
+                "${projectId}_10CompileUtAuto",
+                "${projectId}_20ReleaseCandidateManual",
+                "${projectId}_30ReleaseChecklistValidationManual",
+                "${projectId}_40ReleaseManual",
+            ),
+        )
+    }
+
+    /**
+     * ONB-001 behaviour change (proposal.md, Impact): the Groovy DSL test registry carries no
+     * placement fields, so `two-vcs-root-component`'s two roots both have no Checkout Directory.
+     * Where the baseline silently built a chain from the first root, the generator now fails
+     * before creating anything ("more than one root at the checkout root", spec.md "Unsupported
+     * shapes fail before creation"). Superseded name kept ("UsesOnlyFirst...") since this is the
+     * same baseline scenario, now asserting the new outcome.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainUsesOnlyFirstRegistryVcsRoot(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val projectId = "TestTeamcityAutomation_TwoVcsRootComponent"
+        val exitCode = executeForCreateBuildChainCommand(config, testInfo.methodName(), "two-vcs-root-component")
+        Assertions.assertNotEquals(0, exitCode)
+        val log = logContent(testInfo.methodName())
+        Assertions.assertTrue(log.contains("positions 1, 2"), log)
+        Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
+            teamcityClient.getProject(projectId)
+        }
+    }
+
+    /**
+     * Two registry roots, naming by registry position (spec.md "One TeamCity VCS root per registry
+     * VCS Root"): B, Checkout Directory `feature`, listed first; A, no Checkout Directory, listed
+     * second (root-plus-subfolder). Covers the "Checkout Directory only" rule, attach order (A first
+     * although listed second), and that no WORK_DIR/COMPONENT_CONFIG_DIR/version-format WARNING
+     * appear without a Build Working Directory.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainPlacesTwoRootsRootPlusSubfolder(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "root-plus-subfolder-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(name = "root-b", vcsPath = "ssh://git@example.test/proj/root-b.git", checkoutDirectory = "feature"),
+                    StubVcsRoot(name = "root-a", vcsPath = "ssh://git@example.test/proj/root-a.git"),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_RootPlusSubfolderComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(
+                    config,
+                    testInfo.methodName(),
+                    "root-plus-subfolder-component",
+                    registryUrl = stub.url,
+                ),
+            )
+
+            val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+            Assertions.assertEquals(2, vcsRoots.size)
+            val rootB = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT" }.id)
+            val rootA = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
+            Assertions.assertEquals("ssh://git@example.test/proj/root-b.git", rootB.property("url"))
+            Assertions.assertEquals("ssh://git@example.test/proj/root-a.git", rootA.property("url"))
+
+            val compileConfigId = "${projectId}_10CompileUtAuto"
+            val entries = teamcityClient.getBuildTypeVcsRootEntries(compileConfigId).entries
+            Assertions.assertEquals(2, entries.size)
+            // A (no Checkout Directory) attaches first although it is registry position 2 (root-plus-subfolder).
+            Assertions.assertEquals(rootA.id, entries[0].vcsRoot.id)
+            Assertions.assertTrue(entries[0].checkoutRules.isNullOrEmpty(), "checkout rules of A: '${entries[0].checkoutRules}'")
+            Assertions.assertEquals(rootB.id, entries[1].vcsRoot.id)
+            Assertions.assertEquals("+:. => feature", entries[1].checkoutRules)
+
+            listOf("WORK_DIR", "COMPONENT_CONFIG_DIR", "BUILD_VERSION_FORMAT_FILE").forEach { parameter ->
+                Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                    teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, compileConfigId, parameter)
+                }, "$parameter on $compileConfigId")
+            }
+            Assertions.assertFalse(logContent(testInfo.methodName()).contains("BUILD_VERSION_FORMAT_FILE"))
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * Covers the two remaining checkout-rule shapes (spec.md "Checkout rule from placement"):
+     * Checkout Directory and Source Path together, and Source Path alone.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainChecksCheckoutDirectoryAndSourcePathRules(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "cd-sp-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(
+                        name = "root-both",
+                        vcsPath = "ssh://git@example.test/proj/root-both.git",
+                        checkoutDirectory = "feature",
+                        sourcePath = "data",
+                    ),
+                    StubVcsRoot(
+                        name = "root-sp",
+                        vcsPath = "ssh://git@example.test/proj/root-sp.git",
+                        sourcePath = "mapper",
+                    ),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_CdSpComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), "cd-sp-component", registryUrl = stub.url),
+            )
+
+            val compileConfigId = "${projectId}_10CompileUtAuto"
+            val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+            val rootBoth = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT" }.id)
+            val rootSp = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
+            val entries = teamcityClient.getBuildTypeVcsRootEntries(compileConfigId).entries.associateBy { it.vcsRoot.id }
+            Assertions.assertEquals("+:data => feature/data", entries.getValue(rootBoth.id).checkoutRules)
+            Assertions.assertEquals("+:mapper => mapper", entries.getValue(rootSp.id).checkoutRules)
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * Build Working Directory in the second registry root (spec.md "Attach order follows the Build
+     * Working Directory" and "Build Working Directory parameters"): attach order still follows the
+     * root holding it, WORK_DIR/COMPONENT_CONFIG_DIR land on every created configuration (the
+     * explicit/external shape, so all four: compile, RC, checklist, release), BUILD_VERSION_FORMAT_FILE
+     * lands only on configurations that carry a 'Calculate Build Version' step (compile, matching
+     * production: only the compile template has it there), and an INFO naming the parameter is
+     * logged (owner decision on ADR-001's open question).
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainSetsWorkDirFromBuildWorkingDirectory(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.createBuildStep(
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+            step = TeamcityStep(
+                "CalculateBuildVersion",
+                "Calculate Build Version",
+                "CalculateBuildVersion",
+                disabled = false,
+                properties = TeamcityProperties(listOf(TeamcityProperty("version-format-file", "%BUILD_VERSION_FORMAT_FILE%"))),
+            ),
+        )
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "bwd-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(name = "root-b", vcsPath = "ssh://git@example.test/proj/root-b.git", checkoutDirectory = "feature"),
+                    StubVcsRoot(name = "root-a", vcsPath = "ssh://git@example.test/proj/root-a.git", checkoutDirectory = "core"),
+                ),
+                buildWorkingDirectory = "core/mapper",
+                distribution = true,
+            )
+            val projectId = "TestTeamcityAutomation_BwdComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), "bwd-component", registryUrl = stub.url),
+            )
+
+            val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+            val rootA = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
+
+            val compileConfigId = "${projectId}_10CompileUtAuto"
+            val rcConfigId = "${projectId}_20ReleaseCandidateManual"
+            val checklistConfigId = "${projectId}_30ReleaseChecklistValidationManual"
+            val releaseConfigId = "${projectId}_40ReleaseManual"
+            val entries = teamcityClient.getBuildTypeVcsRootEntries(compileConfigId).entries
+            Assertions.assertEquals(rootA.id, entries[0].vcsRoot.id, "root A (holds the Build Working Directory) attaches first")
+
+            listOf(compileConfigId, rcConfigId, checklistConfigId, releaseConfigId).forEach { configId ->
+                listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+                    Assertions.assertEquals(
+                        "%teamcity.build.checkoutDir%/core/mapper",
+                        teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, parameter),
+                        "$parameter on $configId",
+                    )
+                }
+            }
+            Assertions.assertEquals(
+                "core/mapper/build-version-format.properties",
+                teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, compileConfigId, "BUILD_VERSION_FORMAT_FILE"),
+                "BUILD_VERSION_FORMAT_FILE on $compileConfigId",
+            )
+            listOf(rcConfigId, checklistConfigId, releaseConfigId).forEach { configId ->
+                Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                    teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, "BUILD_VERSION_FORMAT_FILE")
+                }, "BUILD_VERSION_FORMAT_FILE on $configId: no 'Calculate Build Version' step there")
+            }
+            val log = logContent(testInfo.methodName())
+            Assertions.assertFalse(log.contains("WARN"), log)
+            Assertions.assertTrue(log.contains("INFO"), log)
+            Assertions.assertTrue(log.contains("BUILD_VERSION_FORMAT_FILE"), log)
+            Assertions.assertTrue(log.contains("core/mapper/build-version-format.properties"), log)
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * Default branch from the registry (spec.md "Default branch from the registry"): the first
+     * `|`-alternative, trimmed, and a WARNING when the resolved value still contains `null`.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainSetsDefaultBranchFromRegistry(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "branch-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(name = "root-list", vcsPath = "ssh://git@example.test/proj/root-list.git", branch = "main|release/1.2"),
+                    StubVcsRoot(
+                        name = "root-null",
+                        vcsPath = "ssh://git@example.test/proj/root-null.git",
+                        branch = "release/null",
+                        checkoutDirectory = "unresolved",
+                    ),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_BranchComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(config, testInfo.methodName(), "branch-component", registryUrl = stub.url),
+            )
+
+            val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+            val rootList = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT" }.id)
+            val rootNull = teamcityClient.getVcsRoot(vcsRoots.single { it.name == "${projectId}_VCS_ROOT_2" }.id)
+            Assertions.assertEquals("main", rootList.property("branch"))
+            Assertions.assertEquals("+:<default>", rootList.property("teamcity:branchSpec"))
+            Assertions.assertEquals("release/null", rootNull.property("branch"))
+
+            val log = logContent(testInfo.methodName())
+            Assertions.assertTrue(log.contains("WARN"), log)
+            Assertions.assertTrue(log.contains(rootNull.name), log)
+            Assertions.assertTrue(log.contains("release/null"), log)
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * Unsupported shapes fail before anything is created (spec.md "Unsupported shapes fail before
+     * creation"): repeated repository (compared case-insensitively, ADR-001 decision 4), a non-Git
+     * root, and a Checkout Directory colliding with `RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR`.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainFailsForRepeatedRepository(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "repeated-repo-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(name = "root-1", vcsPath = "ssh://git@example.test/proj/repo.git", checkoutDirectory = "one"),
+                    StubVcsRoot(name = "root-2", vcsPath = "SSH://GIT@EXAMPLE.TEST/proj/repo.git", checkoutDirectory = "two"),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_RepeatedRepoComponent"
+            val exitCode = executeForCreateBuildChainCommand(
+                config,
+                testInfo.methodName(),
+                "repeated-repo-component",
+                registryUrl = stub.url,
+            )
+            Assertions.assertNotEquals(0, exitCode)
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
+                teamcityClient.getProject(projectId)
+            }
+        } finally {
+            stub.stop()
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainFailsForNonGitRoot(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "non-git-component",
+                "1.0",
+                listOf(StubVcsRoot(name = "root-1", vcsPath = "svn://example.test/proj/repo", type = "MERCURIAL")),
+            )
+            val projectId = "TestTeamcityAutomation_NonGitComponent"
+            val exitCode = executeForCreateBuildChainCommand(
+                config,
+                testInfo.methodName(),
+                "non-git-component",
+                registryUrl = stub.url,
+            )
+            Assertions.assertNotEquals(0, exitCode)
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
+                teamcityClient.getProject(projectId)
+            }
+        } finally {
+            stub.stop()
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainFailsForReservedCheckoutDirectory(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "reserved-cd-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(
+                        name = "root-1",
+                        vcsPath = "ssh://git@example.test/proj/repo.git",
+                        checkoutDirectory = RESERVED_CHECKOUT_DIRECTORY_VALUE,
+                    ),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_ReservedCdComponent"
+            val exitCode = executeForCreateBuildChainCommand(
+                config,
+                testInfo.methodName(),
+                "reserved-cd-component",
+                registryUrl = stub.url,
+            )
+            Assertions.assertNotEquals(0, exitCode)
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java) {
+                teamcityClient.getProject(projectId)
+            }
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * spec.md "Unsupported shapes fail before creation" reads
+     * RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR "as JDK_VERSION is read today": when the parent
+     * project has no such parameter, there is no reserved value to collide with, and a Checkout
+     * Directory that happens to match the constant used elsewhere in this suite is accepted.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testCreateBuildChainAllowsCheckoutDirectoryWhenReservedParameterUnset(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+        teamcityClient.deleteParameter(ConfigurationType.PROJECT, TEST_PROJECT, RESERVED_CHECKOUT_DIRECTORY_PARAMETER)
+        val stub = StubComponentsRegistry()
+        try {
+            stub.serve(
+                "unset-reserved-cd-component",
+                "1.0",
+                listOf(
+                    StubVcsRoot(
+                        name = "root-1",
+                        vcsPath = "ssh://git@example.test/proj/repo.git",
+                        checkoutDirectory = RESERVED_CHECKOUT_DIRECTORY_VALUE,
+                    ),
+                ),
+            )
+            val projectId = "TestTeamcityAutomation_UnsetReservedCdComponent"
+            Assertions.assertEquals(
+                0,
+                executeForCreateBuildChainCommand(
+                    config,
+                    testInfo.methodName(),
+                    "unset-reserved-cd-component",
+                    registryUrl = stub.url,
+                ),
+            )
+            val vcsRoot = teamcityClient.getVcsRoot(
+                teamcityClient
+                    .getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId)))
+                    .vcsRoots
+                    .single()
+                    .id,
+            )
+            val entry = teamcityClient.getBuildTypeVcsRootEntries("${projectId}_10CompileUtAuto").entries.single()
+            Assertions.assertEquals(
+                "+:. => $RESERVED_CHECKOUT_DIRECTORY_VALUE",
+                entry.checkoutRules,
+                "checkout rules for $vcsRoot",
+            )
+        } finally {
+            stub.stop()
+        }
+    }
+
+    /**
+     * Baseline (ONB-001): the generator sets no WORK_DIR and no COMPONENT_CONFIG_DIR anywhere in the
+     * chain and leaves the template's *Calculate Build Version* step untouched in every created
+     * configuration.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testBaselineCreateBuildChainSetsNoWorkDirNorStepOverride(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val calculateBuildVersion = "Calculate Build Version"
+        val templateIds = listOf(
+            TeamcityCreateBuildChainCommand.TEMPLATE_MAVEN_COMPILE,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RC,
+            TeamcityCreateBuildChainCommand.TEMPLATE_CHECKLIST,
+            TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
+        )
+        templateIds.forEach {
+            teamcityClient.createBuildStep(
+                it,
+                step = TeamcityStep(
+                    "CalculateBuildVersion",
+                    calculateBuildVersion,
+                    "CalculateBuildVersion",
+                    disabled = false,
+                    properties = TeamcityProperties(listOf(TeamcityProperty("version-format-file", "build-version-format.properties"))),
+                ),
+            )
+        }
+
+        val projectId = "TestTeamcityAutomation_EeComponent"
+        Assertions.assertEquals(0, executeForCreateBuildChainCommand(config, testInfo.methodName(), "ee-component"))
+
+        listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+            Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                teamcityClient.getParameter(ConfigurationType.PROJECT, projectId, parameter)
+            }, "$parameter on project")
+        }
+        val configIds = listOf(
+            "${projectId}_10CompileUtAuto",
+            "${projectId}_20ReleaseCandidateManual",
+            "${projectId}_30ReleaseChecklistValidationManual",
+            "${projectId}_40ReleaseManual",
+        )
+        configIds.zip(templateIds).forEach { (configId, templateId) ->
+            listOf("WORK_DIR", "COMPONENT_CONFIG_DIR").forEach { parameter ->
+                Assertions.assertThrows(feign.FeignException.NotFound::class.java, {
+                    teamcityClient.getParameter(ConfigurationType.BUILD_TYPE, configId, parameter)
+                }, "$parameter on $configId")
+            }
+
+            fun TeamcityStep.snapshot() = listOf(name, type, disabled, properties?.properties?.associate { it.name to it.value })
+            val templateStep = teamcityClient.getBuildSteps(templateId).steps.single { it.name == calculateBuildVersion }
+            val configStep = teamcityClient.getBuildSteps(configId).steps.single { it.name == calculateBuildVersion }
+            Assertions.assertEquals(templateStep.snapshot(), configStep.snapshot(), "$calculateBuildVersion step in $configId")
+        }
+    }
+
     @ParameterizedTest
     @MethodSource("teamcityContexts")
     fun testTeamCityUpdateParameterIncrementCurrent(config: TeamcityTestConfiguration) {
@@ -858,6 +1497,12 @@ class ApplicationTest {
             ),
         )
         teamcityClient.setParameter(ConfigurationType.PROJECT, TEST_PROJECT, "JDK_VERSION", "1.8")
+        teamcityClient.setParameter(
+            ConfigurationType.PROJECT,
+            TEST_PROJECT,
+            RESERVED_CHECKOUT_DIRECTORY_PARAMETER,
+            RESERVED_CHECKOUT_DIRECTORY_VALUE,
+        )
         teamcityClient.createBuildType(
             TeamcityCreateBuildType(
                 TEST_BUILD_1,
@@ -1042,6 +1687,28 @@ class ApplicationTest {
         } ?: emptyList()
     }
 
+    private fun validateSingleChainVcsRoot(
+        teamcityClient: TeamcityClassicClient,
+        projectId: String,
+        expectedUrl: String,
+        buildTypeIds: List<String>,
+    ) {
+        val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
+        Assertions.assertEquals(1, vcsRoots.size, "VCS roots in $projectId")
+        val vcsRoot = teamcityClient.getVcsRoot(vcsRoots.single().id)
+        Assertions.assertEquals("${projectId}_VCS_ROOT", vcsRoot.name)
+        Assertions.assertEquals("jetbrains.git", vcsRoot.vcsName)
+        val properties = requireNotNull(vcsRoot.properties).properties.associate { it.name to it.value }
+        Assertions.assertEquals(expectedUrl, properties["url"])
+        Assertions.assertEquals("master", properties["branch"])
+        Assertions.assertEquals("+:<default>", properties["teamcity:branchSpec"])
+        buildTypeIds.forEach { buildTypeId ->
+            val entry = teamcityClient.getBuildTypeVcsRootEntries(buildTypeId).entries.single()
+            Assertions.assertEquals(vcsRoot.id, entry.vcsRoot.id, "VCS root of $buildTypeId")
+            Assertions.assertTrue(entry.checkoutRules.isNullOrEmpty(), "checkout rules of $buildTypeId: '${entry.checkoutRules}'")
+        }
+    }
+
     private fun validateBuildTypeTemplate(
         teamcityClient: TeamcityClassicClient,
         buildTypeId: String,
@@ -1109,6 +1776,11 @@ class ApplicationTest {
         const val TEAMCITY_PASSWORD = "admin"
         const val TEST_USER = "testuser"
         const val TEST_USER_2 = "testuser2"
+
+        // Helper clone directory of the chain templates (ADR-001); a Checkout Directory equal to
+        // this value is rejected by the generator before anything is created.
+        const val RESERVED_CHECKOUT_DIRECTORY_PARAMETER = "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR"
+        const val RESERVED_CHECKOUT_DIRECTORY_VALUE = "release-notes-report-templates"
 
         private val hostTeamcity2022 = System.getProperty("test.teamcity-2022-host")
             ?: throw Exception("System property 'test.teamcity-2022-host' must be defined")
