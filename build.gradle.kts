@@ -57,9 +57,6 @@ java.sourceCompatibility = JavaVersion.VERSION_21
 java.targetCompatibility = JavaVersion.VERSION_21
 
 repositories {
-    // TODO(ONB-001): drop once octopus-components-registry-service#503 (registry client with v2
-    // placement fields) is released; until then the client version below resolves only here.
-    mavenLocal()
     mavenCentral()
 }
 
