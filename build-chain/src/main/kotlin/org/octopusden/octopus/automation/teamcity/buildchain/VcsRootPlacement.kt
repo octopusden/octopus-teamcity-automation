@@ -1,8 +1,7 @@
-package org.octopusden.octopus.automation.teamcity
+package org.octopusden.octopus.automation.teamcity.buildchain
 
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
 import org.octopusden.octopus.components.registry.core.dto.VersionControlSystemRootDTO
-import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityVCSType
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildTypeVcsRootEntry
@@ -48,7 +47,7 @@ class VcsRootPlacement(
     private fun checkAllGit(roots: List<VersionControlSystemRootDTO>) {
         roots.forEachIndexed { index, root ->
             if (root.type != RepositoryType.GIT) {
-                throw UnsupportedOperationException(
+                throw UnsupportedVcsTypeException(
                     "Component '$componentName': VCS root at position ${index + 1} ('${root.name}') has " +
                         "unsupported type ${root.type}, only Git roots are supported",
                 )
@@ -59,7 +58,7 @@ class VcsRootPlacement(
     private fun checkAtMostOneCheckoutRoot(roots: List<VersionControlSystemRootDTO>) {
         val rootsAtCheckoutRoot = roots.withIndex().filter { it.value.checkoutDirectory.isNullOrBlank() }
         if (rootsAtCheckoutRoot.size > 1) {
-            throw UnsupportedOperationException(
+            throw UnsupportedVcsRootLayoutException(
                 "Component '$componentName': more than one VCS root has no Checkout Directory " +
                     "(positions ${rootsAtCheckoutRoot.joinToString { (it.index + 1).toString() }}), " +
                     "at most one root may be checked out at the checkout root",
@@ -77,7 +76,7 @@ class VcsRootPlacement(
             }.values
             .firstOrNull { it.size > 1 }
             ?.let { duplicates ->
-                throw UnsupportedOperationException(
+                throw UnsupportedVcsRootLayoutException(
                     "Component '$componentName': VCS roots at positions " +
                         duplicates.joinToString { (it.index + 1).toString() } +
                         " point at the same repository '${duplicates.first().value.vcsPath}'",
@@ -91,7 +90,7 @@ class VcsRootPlacement(
     ) {
         if (reservedCheckoutDirectory == null) return
         roots.withIndex().firstOrNull { it.value.checkoutDirectory == reservedCheckoutDirectory }?.let { (index, root) ->
-            throw UnsupportedOperationException(
+            throw UnsupportedVcsRootLayoutException(
                 "Component '$componentName': Checkout Directory '$reservedCheckoutDirectory' of VCS root at " +
                     "position ${index + 1} ('${root.name}') collides with the helper clone directory " +
                     "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR",
@@ -164,7 +163,7 @@ class VcsRootPlacement(
                     ),
                 )
                 // Unreachable once validate() has run; kept as a safety net for direct callers.
-                else -> throw NotFoundException("Unsupported vcs type: ${rootData.type}")
+                else -> throw UnsupportedVcsTypeException("Unsupported vcs type: ${rootData.type}")
             }
             log.info(
                 "Created VCS root '{}' (registry position {}) url='{}' branch='{}' checkoutDirectory='{}' " +

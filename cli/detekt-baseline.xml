@@ -14,7 +14,6 @@
     <ID>MaxLineLength:TeamcityReplaceVcsRootCommand.kt$TeamcityReplaceVcsRootCommand$val fields = "buildType(id,name,projectId,projectName,webUrl,href,vcs-root-entries(vcs-root-entry(id,vcs-root(id,name,href),checkout-rules)))"</ID>
     <ID>MaxLineLength:TeamcityUpdateParameterIncrementCommand.kt$TeamcityUpdateParameterIncrementCommand$help = "Configures additional check, optional. If defined, incrementation is performed only if '--current' contains all components of current value of the parameter (for instance, if --current=1.2.7 and parameter value is 1.2, it will be incremented to 1.3)"</ID>
     <ID>SwallowedException:ApplicationTest.kt$ApplicationTest$e: Exception</ID>
-    <ID>SwallowedException:TeamcityCreateBuildChainCommand.kt$TeamcityCreateBuildChainCommand$e: FeignException.NotFound</ID>
     <ID>TooGenericExceptionCaught:TeamcityUpdateParameterIncrementCommand.kt$TeamcityUpdateParameterIncrementCommand$e: Exception</ID>
     <ID>TooGenericExceptionThrown:ApplicationTest.kt$ApplicationTest.Companion$throw Exception("System property 'test.components-registry-host' must be defined")</ID>
     <ID>TooGenericExceptionThrown:ApplicationTest.kt$ApplicationTest.Companion$throw Exception("System property 'test.teamcity-2022-host' must be defined")</ID>

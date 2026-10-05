@@ -1,18 +1,9 @@
-package org.octopusden.octopus.automation.teamcity
+package org.octopusden.octopus.automation.teamcity.buildchain
 
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.requireObject
-import com.github.ajalt.clikt.parameters.options.check
-import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.required
 import feign.FeignException
-import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClient
-import org.octopusden.octopus.components.registry.client.impl.ClassicComponentsRegistryServiceClientUrlProvider
+import org.octopusden.octopus.components.registry.client.ComponentsRegistryServiceClient
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.components.registry.core.dto.DetailedComponent
-import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityRole
@@ -29,60 +20,48 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityPropert
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcitySnapshotDependency
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
-import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
-    private val context by requireObject<MutableMap<String, Any>>()
+/**
+ * Creates a component's TeamCity build chain — Compile, optional Release Candidate and Release
+ * Checklist Validation, Release — under a parent project, from the component's Components Registry
+ * metadata. The caller owns both clients.
+ */
+class BuildChainCreator(
+    private val client: TeamcityClient,
+    private val componentsRegistryClient: ComponentsRegistryServiceClient,
+    private val config: BuildChainConfig = BuildChainConfig(),
+) {
+    private val log = LoggerFactory.getLogger(BuildChainCreator::class.java)
 
-    private val parentProjectId by option(PARENT, help = "Teamcity parent project Id")
-        .convert { it.trim() }
-        .required()
-        .check("$PARENT is empty") { it.isNotEmpty() }
-
-    private val componentName by option(COMPONENT, help = "Component registry name")
-        .convert { it.trim() }
-        .required()
-        .check("$COMPONENT is empty") { it.isNotEmpty() }
-
-    private val minorVersion by option(VERSION, help = "Minor version")
-        .convert { it.trim() }
-        .required()
-        .check("$VERSION is empty") { it.isNotEmpty() }
-
-    private val componentsRegistryUrl by option(CR, help = "Components Registry service Url")
-        .required()
-        .check("$CR is empty") { it.isNotEmpty() }
-
-    private val createChecklist by option(CREATE_CHECKLIST, help = "Generate check list validation")
-        .convert { it.trim().toBoolean() }
-        .default(true)
-
-    private val createRcForce by option(CREATE_RC_FORCE, help = "Force generate RC for non EE components")
-        .convert { it.trim().toBoolean() }
-        .default(false)
-
-    private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
-    private val log by lazy { context[TeamcityCommand.LOG] as Logger }
-    private val placement by lazy { VcsRootPlacement(client, log, componentName) }
-
-    override fun run() {
+    /**
+     * @throws UnsupportedBuildSystemException the component's build system has no compile template
+     * @throws UnsupportedVcsTypeException a registry VCS root is not Git
+     * @throws UnsupportedVcsRootLayoutException the registry VCS roots cannot be placed
+     */
+    fun create(request: BuildChainRequest): BuildChainResult {
         log.info("Create build chain")
-        val parentProject = client.getProject(parentProjectId)
-        val componentsRegistryClient = ClassicComponentsRegistryServiceClient(
-            object : ClassicComponentsRegistryServiceClientUrlProvider {
-                override fun getApiUrl(): String = componentsRegistryUrl
-            },
-        )
-        val detailedComponent = componentsRegistryClient.getDetailedComponent(componentName, minorVersion)
-        createBuildChain(parentProject, detailedComponent)
+        val parentProject = client.getProject(request.parentProjectId)
+        val detailedComponent = componentsRegistryClient.getDetailedComponent(request.componentName, request.minorVersion)
+        return createBuildChain(request, parentProject, detailedComponent)
     }
 
     private fun createBuildChain(
+        request: BuildChainRequest,
         parentProject: TeamcityProject,
         component: DetailedComponent,
-    ) {
+    ): BuildChainResult {
+        val componentName = request.componentName
+        val placement = VcsRootPlacement(client, log, componentName)
         val registryRoots = component.vcsSettings.versionControlSystemRoots
-        placement.validate(registryRoots, reservedCheckoutDirectory())
+        placement.validate(registryRoots, reservedCheckoutDirectory(request.parentProjectId))
+        val compileTemplate = when (component.buildSystem) {
+            BuildSystem.MAVEN -> config.mavenCompileTemplate
+            BuildSystem.GRADLE -> config.gradleCompileTemplate
+            BuildSystem.PROVIDED -> config.gradleCompileTemplate
+            BuildSystem.IN_CONTAINER -> config.gradleCompileTemplate
+            else -> throw UnsupportedBuildSystemException(component.buildSystem)
+        }
 
         val project = client.createProject(
             TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
@@ -99,7 +78,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             log.info(
                 "Component '{}': BUILD_VERSION_FORMAT_FILE set to '{}/build-version-format.properties' on every " +
                     "created configuration with a 'Calculate Build Version' step; takes effect only once templates " +
-                    "$TEMPLATE_GRADLE_COMPILE/$TEMPLATE_MAVEN_COMPILE define this parameter (ADR-001 revision, " +
+                    "${config.gradleCompileTemplate}/${config.mavenCompileTemplate} define this parameter (ADR-001 revision, " +
                     "owner decision) — see docs/runbooks/onb-001-template-format-file-parameter.md",
                 componentName,
                 buildWorkingDirectory,
@@ -108,38 +87,36 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
 
         var counter = 0
         val compileConfig = createBuildConf(
-            when (component.buildSystem) {
-                BuildSystem.MAVEN -> TEMPLATE_MAVEN_COMPILE
-                BuildSystem.GRADLE -> TEMPLATE_GRADLE_COMPILE
-                BuildSystem.PROVIDED -> TEMPLATE_GRADLE_COMPILE
-                BuildSystem.IN_CONTAINER -> TEMPLATE_GRADLE_COMPILE
-                else -> throw NotFoundException("Unsupported build system: ${component.buildSystem.name}")
-            },
+            compileTemplate,
             "[${++counter}.0] Compile & UT [AUTO]",
             project.id,
         )
         placement.attach(compileConfig.id, attachOrder, placedRoots)
         applyBuildWorkingDirectory(compileConfig.id, buildWorkingDirectory)
-        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, parentProjectId, "JDK_VERSION")
+        val defaultJDKVersion = client.getParameter(ConfigurationType.PROJECT, request.parentProjectId, config.jdkVersionParameter)
         component.buildParameters?.javaVersion?.takeIf { it != defaultJDKVersion }?.let { projectJDKVersion ->
-            setBuildTypeParameter(compileConfig.id, "JDK_VERSION", projectJDKVersion)
+            setBuildTypeParameter(compileConfig.id, config.jdkVersionParameter, projectJDKVersion)
         }
+        var rcConfigId: String? = null
+        var checklistConfigId: String? = null
         val releaseConfig =
-            if ((component.distribution?.explicit == true && component.distribution?.external == true) || createRcForce) {
+            if ((component.distribution?.explicit == true && component.distribution?.external == true) || request.createRcForce) {
                 val rcConfig = createBuildConf(
-                    TEMPLATE_RC,
+                    config.rcTemplate,
                     "[${++counter}.0] Release Candidate [Manual]",
                     project.id,
                 )
+                rcConfigId = rcConfig.id
                 placement.attach(rcConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(rcConfig.id, buildWorkingDirectory)
 
-                if (createChecklist) {
+                if (request.createChecklist) {
                     val checklistConfig = createBuildConf(
-                        TEMPLATE_CHECKLIST,
+                        config.checklistTemplate,
                         "[${++counter}.0] Release Checklist Validation [MANUAL]",
                         project.id,
                     )
+                    checklistConfigId = checklistConfig.id
                     placement.attach(checklistConfig.id, attachOrder, placedRoots)
                     applyBuildWorkingDirectory(checklistConfig.id, buildWorkingDirectory)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
@@ -151,7 +128,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 }
 
                 val releaseConfig = createBuildConf(
-                    TEMPLATE_RELEASE,
+                    config.releaseTemplate,
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
@@ -165,7 +142,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
                 releaseConfig
             } else {
                 val releaseConfig = createBuildConf(
-                    TEMPLATE_RELEASE,
+                    config.releaseTemplate,
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
@@ -178,7 +155,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         setBuildTypeParameter(releaseConfig.id, "BUILD_VERSION", "%dep.${compileConfig.id}.BUILD_VERSION%")
         setBuildTypeParameter(releaseConfig.id, "BASE_CONFIGURATION_ID", compileConfig.id)
         setProjectParameter(project.id, "COMPONENT_NAME", componentName)
-        setProjectParameter(project.id, "PROJECT_VERSION", minorVersion)
+        setProjectParameter(project.id, "PROJECT_VERSION", request.minorVersion)
         (
             listOfNotNull(component.componentOwner) +
                 (component.releaseManager?.split(",") ?: emptyList())
@@ -186,10 +163,17 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
             .filter { it.isNotBlank() }
             .distinct()
             .forEach { assignProjectAdminRoleToUser(project.id, it) }
+        return BuildChainResult(
+            projectId = project.id,
+            compileBuildTypeId = compileConfig.id,
+            rcBuildTypeId = rcConfigId,
+            checklistBuildTypeId = checklistConfigId,
+            releaseBuildTypeId = releaseConfig.id,
+        )
     }
 
     /** Read as `JDK_VERSION` is read today; absent on a parent project means no reserved value to collide with. */
-    private fun reservedCheckoutDirectory(): String? =
+    private fun reservedCheckoutDirectory(parentProjectId: String): String? =
         try {
             client.getParameter(ConfigurationType.PROJECT, parentProjectId, "RELEASE_NOTES_REPORT_TEMPLATE_CHECKOUT_DIR")
         } catch (e: FeignException.NotFound) {
@@ -299,20 +283,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
     }
 
     companion object {
-        const val COMMAND = "create-build-chain"
-        const val PARENT = "--parent-project-id"
-        const val COMPONENT = "--component"
-        const val VERSION = "--minor-version"
-        const val CR = "--registry-url"
-        const val CREATE_CHECKLIST = "--create-checklist"
-        const val CREATE_RC_FORCE = "--create-rc-force"
-
-        const val TEMPLATE_GRADLE_COMPILE = "CDGradleBuild"
-        const val TEMPLATE_MAVEN_COMPILE = "CDJavaMavenBuild"
-        const val TEMPLATE_RC = "CdReleaseCandidateNew"
-        const val TEMPLATE_CHECKLIST = "CdReleaeChecklistValidation"
-        const val TEMPLATE_RELEASE = "CDRelease"
-
         const val CALCULATE_BUILD_VERSION_STEP_TYPE = "CalculateBuildVersion"
     }
 }

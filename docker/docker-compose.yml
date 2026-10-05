@@ -38,4 +38,4 @@ services:
       - SPRING_CLOUD_CONFIG_ENABLED=false
     volumes:
       - ./components-registry-service.yaml:/application-ft.yaml
-      - ../src/test/resources/components-registry:/components-registry
+      - ../cli/src/test/resources/components-registry:/components-registry

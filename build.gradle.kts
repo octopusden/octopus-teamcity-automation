@@ -4,17 +4,14 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.time.Duration
 
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-    application
-    id("com.gradleup.shadow")
+    id("org.jetbrains.kotlin.jvm") apply false
+    id("com.gradleup.shadow") apply false
     id("com.avast.gradle.docker-compose")
-    `maven-publish`
     id("io.github.gradle-nexus.publish-plugin")
-    signing
     id("org.octopusden.octopus-release-management")
     id("org.octopusden.octopus.oc-template")
-    id("io.gitlab.arturbosch.detekt")
-    id("org.jlleitschuh.gradle.ktlint")
+    id("io.gitlab.arturbosch.detekt") apply false
+    id("org.jlleitschuh.gradle.ktlint") apply false
     id("org.octopusden.octopus-quality")
     id("org.sonarqube")
 }
@@ -27,8 +24,10 @@ octopusQuality {
         enforceCentralPublications.set(true)
         centralPublications.set(
             setOf(
-                ":|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
+                ":cli|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
                     "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
+                ":build-chain|maven|org.octopusden.octopus.automation.teamcity:build-chain|" +
+                    "[jar, jar:javadoc, jar:sources]",
             ),
         )
     }
@@ -43,21 +42,48 @@ octopusQuality {
     }
 }
 
-group = "org.octopusden.octopus.automation.teamcity"
-description = "Octopus Teamcity Automation"
+allprojects {
+    group = "org.octopusden.octopus.automation.teamcity"
+    description = "Octopus Teamcity Automation"
 
-tasks.withType<KotlinCompile>().configureEach {
-    kotlinOptions {
-        suppressWarnings = true
-        jvmTarget = "21"
+    repositories {
+        mavenCentral()
     }
 }
 
-java.sourceCompatibility = JavaVersion.VERSION_21
-java.targetCompatibility = JavaVersion.VERSION_21
+subprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "io.gitlab.arturbosch.detekt")
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+    apply(plugin = "maven-publish")
+    apply(plugin = "signing")
 
-repositories {
-    mavenCentral()
+    tasks.withType<KotlinCompile>().configureEach {
+        kotlinOptions {
+            suppressWarnings = true
+            jvmTarget = "21"
+        }
+    }
+
+    configure<JavaPluginExtension> {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+        withJavadocJar()
+        withSourcesJar()
+    }
+
+    configure<PublishingExtension> {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/octopusden/octopus-teamcity-automation")
+                credentials {
+                    username = System.getenv("GITHUB_PACKAGES_USERNAME")
+                    password = System.getenv("GITHUB_PACKAGES_TOKEN")
+                }
+            }
+        }
+    }
 }
 
 ext {
@@ -202,7 +228,7 @@ ocTemplate {
         service("comp-reg") {
             templateFile.set(rootProject.layout.projectDirectory.file("okd/components-registry.yaml"))
             val componentsRegistryWorkDir = layout.projectDirectory
-                .dir("src/test/resources/components-registry")
+                .dir("cli/src/test/resources/components-registry")
                 .asFile.absolutePath
             parameters.set(
                 commonOkdParameters + mapOf(
@@ -293,37 +319,45 @@ tasks.named("ocDeleteTeamcityServers").configure {
     mustRunAfter("ocLogsTeamcityServers")
 }
 
-tasks.withType<Test> {
-    when ("testPlatform".getExt()) {
-        "okd" -> {
-            systemProperties["test.teamcity-2022-host"] = ocTemplate.getOkdHost("teamcity22")
-            systemProperties["test.teamcity-2026-host"] = ocTemplate.getOkdHost("teamcity26")
-            systemProperties["test.components-registry-host"] = ocTemplate.getOkdHost("comp-reg")
-            useJUnitPlatform()
-            testLogging {
-                info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+// Both modules run integration tests against the same servers, so the servers come down only
+// after every test task has finished, not when the first one does.
+val integrationTestTasks = subprojects.map { "${it.path}:test" }
+
+// They also reset the same TeamCity parent project and template ids, so never run them at once.
+project(":build-chain").tasks.matching { it.name == "test" }.configureEach { mustRunAfter(":cli:test") }
+
+listOf("composeDown", "ocLogsTeamcityServers", "ocLogsComponentsRegistry", "ocDeleteTeamcityPVCs", "ocDeleteComponentsRegistry")
+    .forEach { name -> tasks.named(name).configure { mustRunAfter(integrationTestTasks) } }
+
+val testPlatform = "testPlatform".getExt()
+val rootOcTemplate = ocTemplate
+val rootDockerCompose = dockerCompose
+
+subprojects {
+    tasks.withType<Test>().configureEach {
+        when (testPlatform) {
+            "okd" -> {
+                systemProperties["test.teamcity-2022-host"] = rootOcTemplate.getOkdHost("teamcity22")
+                systemProperties["test.teamcity-2026-host"] = rootOcTemplate.getOkdHost("teamcity26")
+                systemProperties["test.components-registry-host"] = rootOcTemplate.getOkdHost("comp-reg")
+                dependsOn(":ocCreateTeamcityServers", ":ocCreateComponentsRegistry")
+                finalizedBy(
+                    ":ocLogsTeamcityServers",
+                    ":ocLogsComponentsRegistry",
+                    ":ocDeleteTeamcityPVCs",
+                    ":ocDeleteComponentsRegistry",
+                )
             }
-            val jar = tasks.shadowJar.flatMap { it.archiveFile }.also { inputs.file(it) }
-            systemProperties["jar"] = jar.get().asFile.absolutePath
-            dependsOn("ocCreateTeamcityServers", "ocCreateComponentsRegistry")
-            finalizedBy(
-                "ocLogsTeamcityServers",
-                "ocLogsComponentsRegistry",
-                "ocDeleteTeamcityPVCs",
-                "ocDeleteComponentsRegistry",
-            )
+            "docker" -> {
+                systemProperties["test.teamcity-2022-host"] = "localhost:8111"
+                systemProperties["test.teamcity-2026-host"] = "localhost:8112"
+                systemProperties["test.components-registry-host"] = "localhost:4567"
+                rootDockerCompose.isRequiredBy(this)
+            }
         }
-        "docker" -> {
-            systemProperties["test.teamcity-2022-host"] = "localhost:8111"
-            systemProperties["test.teamcity-2026-host"] = "localhost:8112"
-            systemProperties["test.components-registry-host"] = "localhost:4567"
-            useJUnitPlatform()
-            testLogging {
-                info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
-            }
-            val jar = tasks.shadowJar.flatMap { it.archiveFile }.also { inputs.file(it) }
-            systemProperties["jar"] = jar.get().asFile.absolutePath
-            dockerCompose.isRequiredBy(this)
+        useJUnitPlatform()
+        testLogging {
+            info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
         }
     }
 }
@@ -343,62 +377,6 @@ tasks.named("composeUp") {
     dependsOn(prepareTeamcity2026Data)
 }
 
-dependencies {
-    implementation("org.slf4j:slf4j-api:2.0.13")
-    implementation("ch.qos.logback:logback-classic:1.3.14")
-    implementation("com.github.ajalt.clikt:clikt:4.4.0")
-    implementation("org.octopusden.octopus.octopus-external-systems-clients:teamcity-client:${properties["teamcity-client.version"]}")
-    implementation(
-        "org.octopusden.octopus.infrastructure:components-registry-service-client:" +
-            "${properties["octopus-components-registry-service-client.version"]}",
-    )
-    implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
-    implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
-    with("5.9.2") {
-        testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
-        testImplementation("org.junit.jupiter:junit-jupiter-params:$this")
-        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$this")
-    }
-    testImplementation("it.skrape:skrapeit:1.2.2")
-}
-
-application {
-    mainClass = "$group.ApplicationKt"
-}
-
-tasks.jar {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    manifest { attributes(mapOf("Main-Class" to application.mainClass)) }
-}
-
-java {
-    withJavadocJar()
-    withSourcesJar()
-}
-
-tasks.register<Zip>("zipMetarunners") {
-    archiveFileName = "metarunners.zip"
-    from(layout.projectDirectory.dir("metarunners")) {
-        expand(properties)
-    }
-}
-
-configurations {
-    create("distributions")
-}
-
-val metarunners = artifacts.add(
-    "distributions",
-    layout.buildDirectory
-        .file("distributions/metarunners.zip")
-        .get()
-        .asFile,
-) {
-    classifier = "metarunners"
-    type = "zip"
-    builtBy("zipMetarunners")
-}
-
 nexusPublishing {
     repositories {
         sonatype {
@@ -413,57 +391,3 @@ nexusPublishing {
         delayBetween.set(Duration.ofSeconds(30))
     }
 }
-
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-            artifact(metarunners)
-            pom {
-                name.set(project.name)
-                description.set(project.description)
-                url.set("https://github.com/octopusden/${project.name}.git")
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-                scm {
-                    url.set("https://github.com/octopusden/${project.name}.git")
-                    connection.set("scm:git://github.com/octopusden/${project.name}.git")
-                }
-                developers {
-                    developer {
-                        id.set("octopus")
-                        name.set("octopus")
-                    }
-                }
-            }
-        }
-    }
-
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/octopusden/octopus-teamcity-automation")
-            credentials {
-                username = System.getenv("GITHUB_PACKAGES_USERNAME")
-                password = System.getenv("GITHUB_PACKAGES_TOKEN")
-            }
-        }
-    }
-}
-
-signing {
-    isRequired = "signingRequired".getExt().toBooleanStrict()
-    val signingKey: String? by project
-    val signingPassword: String? by project
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign(publishing.publications["maven"])
-}
-
-tasks.distZip.get().isEnabled = false
-tasks.shadowDistZip.get().isEnabled = false
-tasks.distTar.get().isEnabled = false
-tasks.shadowDistTar.get().isEnabled = false
