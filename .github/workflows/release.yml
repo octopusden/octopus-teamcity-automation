@@ -15,9 +15,9 @@ jobs:
       java-version: '21'
       commit-hash: ${{ github.event.client_payload.commit }}
       build-version: ${{ github.event.client_payload.project_version }}
-      # Both publications (the CLI and the build-chain library) move in whole, so nothing is left for Central.
+      # Both publications (the CLI and the teamcity-automation-core library) move in whole, so nothing is left for Central.
       publish-to-nexus: false
-      github-packages-publications: ":cli:maven,:build-chain:maven"
+      github-packages-publications: ":cli:maven,:core:maven"
       github-packages-repository: octopusden/octopus-maven-packages
       # With publish-to-nexus false nothing reaches Maven Central, so the artifact poll that
       # check-and-register.yml performed could never succeed and registration would never run.

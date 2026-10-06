@@ -6,15 +6,9 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.octopusden.octopus.automation.teamcity.metarunner.MetarunnerUploader
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
-import org.octopusden.octopus.infrastructure.teamcity.client.uploadMetarunner
-import org.slf4j.Logger
-import java.io.ByteArrayOutputStream
 import java.net.URI
-import java.nio.file.Paths
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import kotlin.io.path.name
 
 class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
     private val projectId by option(PROJECT_ID_OPTION, help = "TeamCity project id")
@@ -28,27 +22,8 @@ class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
     override fun run() {
-        val log = context[TeamcityCommand.LOG] as Logger
         val client = context[TeamcityCommand.CLIENT] as TeamcityClient
-        ZipInputStream(zip.openStream().buffered()).use { zipFile ->
-            var entry: ZipEntry?
-            while (zipFile.nextEntry.also { entry = it } != null) {
-                entry?.let {
-                    if (!it.isDirectory && it.name.endsWith(".xml")) {
-                        val metarunner = Paths.get(it.name).name
-                        log.info("Upload metarunner '$metarunner' for project with id $projectId")
-                        client.uploadMetarunner(
-                            projectId,
-                            metarunner,
-                            ByteArrayOutputStream()
-                                .apply {
-                                    zipFile.copyTo(this)
-                                }.toByteArray(),
-                        )
-                    }
-                }
-            }
-        }
+        zip.openStream().use { MetarunnerUploader(client).upload(projectId, it) }
     }
 
     companion object {

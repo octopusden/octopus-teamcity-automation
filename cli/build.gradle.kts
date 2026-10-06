@@ -3,7 +3,7 @@ plugins {
     id("com.gradleup.shadow")
 }
 
-// The CLI was the root project before build-chain was split out. Its jar, its Maven coordinates
+// The CLI was the root project before its logic moved to :core. Its jar, its Maven coordinates
 // and the metarunners (which download the fat jar by `${group}:${name}:${version}`) keep that
 // name, so nothing that consumes them changes.
 val publishedName = rootProject.name
@@ -13,7 +13,7 @@ base {
 }
 
 dependencies {
-    implementation(project(":build-chain"))
+    implementation(project(":core"))
     implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("ch.qos.logback:logback-classic:1.3.14")
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
@@ -22,8 +22,6 @@ dependencies {
         "org.octopusden.octopus.infrastructure:components-registry-service-client:" +
             "${properties["octopus-components-registry-service-client.version"]}",
     )
-    implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
-    implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
     with("5.9.2") {
         testImplementation("org.junit.jupiter:junit-jupiter-api:$this")
         testImplementation("org.junit.jupiter:junit-jupiter-params:$this")

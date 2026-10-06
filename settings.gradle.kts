@@ -25,7 +25,7 @@ pluginManagement {
 
 rootProject.name = "octopus-teamcity-automation"
 
-include(":build-chain", ":cli")
+include(":core", ":cli")
 
 gradle.beforeProject {
     project.version = gradle.startParameter.projectProperties["version"] ?: with(CRC32()) {

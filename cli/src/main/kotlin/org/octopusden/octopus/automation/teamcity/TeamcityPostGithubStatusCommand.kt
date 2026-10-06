@@ -7,16 +7,13 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import okhttp3.OkHttpClient
-import org.kohsuke.github.GHCommitState
-import org.kohsuke.github.GitHubBuilder
-import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector
+import org.octopusden.octopus.automation.teamcity.github.CommitState
+import org.octopusden.octopus.automation.teamcity.github.CommitStatus
+import org.octopusden.octopus.automation.teamcity.github.GitHubCommitStatusPublisher
 import org.slf4j.Logger
-import java.util.concurrent.TimeUnit
 
 /**
- * Posts a commit status to GitHub (`POST /repos/{owner}/{repo}/statuses/{sha}`) so TeamCity
- * builds can gate GitHub branch protection rules.
+ * Posts a commit status to GitHub so TeamCity builds can gate GitHub branch protection rules.
  *
  * The GitHub organization and repository are passed as arguments (typically wired to TeamCity
  * parameters in the metarunner), so no VCS root lookup is required and multiple VCS roots are
@@ -64,31 +61,9 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
-        postStatus()
-    }
-
-    private fun postStatus() {
-        log.info("Posting GitHub commit status '$state' (context '$statusContext') to $owner/$repo@$commit")
-        val github = GitHubBuilder()
-            .withEndpoint(githubApiUrl)
-            .withOAuthToken(token)
-            .withConnector(
-                OkHttpGitHubConnector(
-                    OkHttpClient
-                        .Builder()
-                        .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
-                        .readTimeout(READ_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
-                        .build(),
-                ),
-            ).build()
-        github.getRepository("$owner/$repo").createCommitStatus(
-            commit,
-            GHCommitState.valueOf(state.uppercase()),
-            null,
-            description.ifEmpty { null },
-            statusContext,
+        GitHubCommitStatusPublisher(token, githubApiUrl).post(
+            CommitStatus(owner, repo, commit, CommitState.valueOf(state.uppercase()), statusContext, description),
         )
-        log.info("GitHub commit status posted")
     }
 
     companion object {
@@ -102,10 +77,8 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val DESCRIPTION = "--description"
         const val GITHUB_API_URL = "--github-api-url"
 
-        const val CONNECT_TIMEOUT_MS = 10_000
-        const val READ_TIMEOUT_MS = 10_000
-        const val DEFAULT_CONTEXT = "TeamCity / build"
-        const val DEFAULT_GITHUB_API_URL = "https://api.github.com"
-        val ALLOWED_STATES = setOf("pending", "success", "failure", "error")
+        const val DEFAULT_CONTEXT = CommitStatus.DEFAULT_CONTEXT
+        const val DEFAULT_GITHUB_API_URL = GitHubCommitStatusPublisher.DEFAULT_API_URL
+        val ALLOWED_STATES = CommitState.entries.map { it.name.lowercase() }.toSet()
     }
 }

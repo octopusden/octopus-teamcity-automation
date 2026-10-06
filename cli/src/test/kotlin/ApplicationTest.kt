@@ -1387,40 +1387,40 @@ class ApplicationTest {
         val created = teamcityClient.createVcsRoot(
             TeamcityCreateVcsRoot(
                 name = "Old_Repository_For_Test",
-                vcsName = TeamcityReplaceVcsRootCommand.VCS_JETBRAINS_GIT,
+                vcsName = "jetbrains.git",
                 projectLocator = "id:$TEST_PROJECT",
                 properties = TeamcityProperties(
                     listOf(
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_URL, oldUrl),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH, "refs/heads/master"),
+                        TeamcityProperty("url", oldUrl),
+                        TeamcityProperty("branch", "refs/heads/master"),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_BRANCH_SPEC,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_BRANCH_SPEC,
+                            "teamcity:branchSpec",
+                            "+:refs/heads/*",
                         ),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME,
+                            "username",
+                            "git",
                         ),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_AUTH_METHOD,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_AUTH_METHOD,
+                            "authMethod",
+                            "PRIVATE_KEY_DEFAULT",
                         ),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_USERNAME_STYLE,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_USERNAME_STYLE,
+                            "usernameStyle",
+                            "USERID",
                         ),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_SUBMODULE_CHECKOUT,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_SUBMODULE_CHECKOUT,
+                            "submoduleCheckout",
+                            "IGNORE",
                         ),
-                        TeamcityProperty(TeamcityReplaceVcsRootCommand.PROPERTY_IGNORE_KNOWN_HOSTS, TeamcityReplaceVcsRootCommand.TRUE),
+                        TeamcityProperty("ignoreKnownHosts", "true"),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_FILES_POLICY,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_FILES_POLICY,
+                            "agentCleanFilesPolicy",
+                            "ALL_UNTRACKED",
                         ),
                         TeamcityProperty(
-                            TeamcityReplaceVcsRootCommand.PROPERTY_AGENT_CLEAN_POLICY,
-                            TeamcityReplaceVcsRootCommand.PROPERTY_VALUE_CLEAN_POLICY,
+                            "agentCleanPolicy",
+                            "ON_BRANCH_CHANGE",
                         ),
                     ),
                 ),
@@ -1437,7 +1437,7 @@ class ApplicationTest {
         teamcityClient.setParameter(
             ConfigurationType.BUILD_TYPE,
             TEST_SUBPROJECT_1_BUILD_1,
-            TeamcityReplaceVcsRootCommand.PROPERTY_BUILD_TYPE_BRANCH,
+            "VCS_BRANCH",
             "master",
         )
 
@@ -1450,7 +1450,7 @@ class ApplicationTest {
             "${TeamcityReplaceVcsRootCommand.DRY_RUN}=false",
         )
         Assertions.assertEquals(0, exitCode)
-        val actualUrl = teamcityClient.getVcsRootProperty(created.id, TeamcityReplaceVcsRootCommand.PROPERTY_URL)
+        val actualUrl = teamcityClient.getVcsRootProperty(created.id, "url")
         Assertions.assertEquals(newUrl, actualUrl, "VCS Root url property was not updated")
 
         val entries = teamcityClient.getBuildTypeVcsRootEntries(TEST_SUBPROJECT_1_BUILD_1).entries

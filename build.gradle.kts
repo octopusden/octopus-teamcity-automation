@@ -26,7 +26,7 @@ octopusQuality {
             setOf(
                 ":cli|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
                     "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
-                ":build-chain|maven|org.octopusden.octopus.automation.teamcity:build-chain|" +
+                ":core|maven|org.octopusden.octopus.automation.teamcity:teamcity-automation-core|" +
                     "[jar, jar:javadoc, jar:sources]",
             ),
         )
@@ -324,7 +324,7 @@ tasks.named("ocDeleteTeamcityServers").configure {
 val integrationTestTasks = subprojects.map { "${it.path}:test" }
 
 // They also reset the same TeamCity parent project and template ids, so never run them at once.
-project(":build-chain").tasks.matching { it.name == "test" }.configureEach { mustRunAfter(":cli:test") }
+project(":core").tasks.matching { it.name == "test" }.configureEach { mustRunAfter(":cli:test") }
 
 listOf("composeDown", "ocLogsTeamcityServers", "ocLogsComponentsRegistry", "ocDeleteTeamcityPVCs", "ocDeleteComponentsRegistry")
     .forEach { name -> tasks.named(name).configure { mustRunAfter(integrationTestTasks) } }

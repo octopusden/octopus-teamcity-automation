@@ -28,7 +28,7 @@ jobs:
       commit-hash: ${{ github.sha }}
       build-version: 0.0.0-smoke-${{ github.run_number }}
       publish-to-nexus: false
-      github-packages-publications: ":cli:maven,:build-chain:maven"
+      github-packages-publications: ":cli:maven,:core:maven"
       github-packages-repository: octopusden/octopus-maven-packages
       dry-run: true
     secrets: inherit
