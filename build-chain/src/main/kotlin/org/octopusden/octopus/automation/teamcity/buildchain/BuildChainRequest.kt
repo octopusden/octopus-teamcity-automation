@@ -10,8 +10,17 @@ data class BuildChainRequest(
     val createRcForce: Boolean = false,
 ) {
     init {
-        require(parentProjectId.isNotBlank()) { "parentProjectId is blank" }
-        require(componentName.isNotBlank()) { "componentName is blank" }
-        require(minorVersion.isNotBlank()) { "minorVersion is blank" }
+        requireTrimmed("parentProjectId", parentProjectId)
+        requireTrimmed("componentName", componentName)
+        requireTrimmed("minorVersion", minorVersion)
+    }
+
+    // The component name becomes the TeamCity project name, so surrounding whitespace would end up in it.
+    private fun requireTrimmed(
+        name: String,
+        value: String,
+    ) {
+        require(value.isNotBlank()) { "$name is blank" }
+        require(value == value.trim()) { "$name has leading or trailing whitespace: '$value'" }
     }
 }

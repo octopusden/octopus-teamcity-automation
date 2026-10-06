@@ -15,9 +15,9 @@ import org.slf4j.Logger
 
 /**
  * Turns a Component's registry VCS Roots and Build Working Directory into TeamCity VCS roots,
- * checkout rules and attach order (ADR-001, spec.md "build-chain-generation").
+ * checkout rules and attach order.
  */
-class VcsRootPlacement(
+internal class VcsRootPlacement(
     private val client: TeamcityClient,
     private val log: Logger,
     private val componentName: String,
@@ -100,8 +100,7 @@ class VcsRootPlacement(
 
     /**
      * The root that holds the Build Working Directory, else the root without a Checkout Directory,
-     * else registry position 1 (ADR-001 decision 6). Returns registry positions (1-based) in attach
-     * order.
+     * else registry position 1. Returns registry positions (1-based) in attach order.
      */
     fun attachOrder(
         roots: List<VersionControlSystemRootDTO>,

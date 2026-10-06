@@ -78,8 +78,7 @@ class BuildChainCreator(
             log.info(
                 "Component '{}': BUILD_VERSION_FORMAT_FILE set to '{}/build-version-format.properties' on every " +
                     "created configuration with a 'Calculate Build Version' step; takes effect only once templates " +
-                    "${config.gradleCompileTemplate}/${config.mavenCompileTemplate} define this parameter (ADR-001 revision, " +
-                    "owner decision) — see docs/runbooks/onb-001-template-format-file-parameter.md",
+                    "${config.gradleCompileTemplate}/${config.mavenCompileTemplate} read this parameter in that step",
                 componentName,
                 buildWorkingDirectory,
             )
@@ -183,9 +182,8 @@ class BuildChainCreator(
     /**
      * WORK_DIR/COMPONENT_CONFIG_DIR on every created configuration when a Build Working Directory
      * is set. Also BUILD_VERSION_FORMAT_FILE, but only on a configuration that already has a
-     * 'Calculate Build Version' step: owner decision on ADR-001's version-format-file open
-     * question — templates CDGradleBuild and CDJavaMavenBuild will read it in that step (not yet
-     * applied there — docs/runbooks/onb-001-template-format-file-parameter.md).
+     * 'Calculate Build Version' step, which is where the compile templates are expected to read it.
+     * The templates do not read it yet, so until they do the parameter is set but has no effect.
      */
     private fun applyBuildWorkingDirectory(
         buildTypeId: String,
@@ -282,7 +280,7 @@ class BuildChainCreator(
             ?: log.warn("Skip disable build step '{}' not found for build type {}", stepNameOrType, buildTypeId)
     }
 
-    companion object {
+    private companion object {
         const val CALCULATE_BUILD_VERSION_STEP_TYPE = "CalculateBuildVersion"
     }
 }
