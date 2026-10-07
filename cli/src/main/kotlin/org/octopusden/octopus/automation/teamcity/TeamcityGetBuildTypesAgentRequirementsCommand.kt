@@ -6,7 +6,7 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import org.octopusden.octopus.automation.teamcity.agentrequirement.AgentRequirementsReport
+import org.octopusden.octopus.automation.teamcity.agent.AgentRequirementsReport
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import java.io.BufferedWriter
 import java.io.FileWriter

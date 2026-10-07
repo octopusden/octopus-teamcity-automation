@@ -15,7 +15,7 @@ jobs:
       java-version: '21'
       commit-hash: ${{ github.event.client_payload.commit }}
       build-version: ${{ github.event.client_payload.project_version }}
-      # Both publications (the CLI and the teamcity-automation-core library) move in whole, so nothing is left for Central.
+      # Both publications (the CLI and the octopus-teamcity-automation-core library) move in whole, so nothing is left for Central.
       publish-to-nexus: false
       github-packages-publications: ":cli:maven,:core:maven"
       github-packages-repository: octopusden/octopus-maven-packages

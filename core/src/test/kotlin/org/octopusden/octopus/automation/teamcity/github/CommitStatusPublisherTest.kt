@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 import java.net.InetSocketAddress
 
 /** Against a local stand-in for the GitHub REST API; nothing reaches github.com. */
-class GitHubCommitStatusPublisherTest {
+class CommitStatusPublisherTest {
     private data class Request(
         val method: String,
         val path: String,
@@ -44,7 +44,7 @@ class GitHubCommitStatusPublisherTest {
 
     @Test
     fun postsStatusForTheCommitWithToken() {
-        GitHubCommitStatusPublisher("secret-token", apiUrl).post(
+        CommitStatusPublisher("secret-token", apiUrl).post(
             CommitStatus("octopusden", "demo", "abc123", CommitState.SUCCESS, context = "ci", description = "Build passed"),
         )
 
@@ -59,7 +59,7 @@ class GitHubCommitStatusPublisherTest {
 
     @Test
     fun omitsEmptyDescription() {
-        GitHubCommitStatusPublisher("secret-token", "$apiUrl/")
+        CommitStatusPublisher("secret-token", "$apiUrl/")
             .post(CommitStatus("octopusden", "demo", "abc123", CommitState.PENDING, description = ""))
 
         val body = ObjectMapper().readTree(requests.single { it.method == "POST" }.body)
@@ -71,6 +71,6 @@ class GitHubCommitStatusPublisherTest {
     @Test
     fun rejectsBlankCoordinatesAndToken() {
         Assertions.assertThrows(IllegalArgumentException::class.java) { CommitStatus(" ", "demo", "abc", CommitState.ERROR) }
-        Assertions.assertThrows(IllegalArgumentException::class.java) { GitHubCommitStatusPublisher("") }
+        Assertions.assertThrows(IllegalArgumentException::class.java) { CommitStatusPublisher("") }
     }
 }

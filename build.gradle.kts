@@ -26,7 +26,7 @@ octopusQuality {
             setOf(
                 ":cli|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation|" +
                     "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
-                ":core|maven|org.octopusden.octopus.automation.teamcity:teamcity-automation-core|" +
+                ":core|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation-core|" +
                     "[jar, jar:javadoc, jar:sources]",
             ),
         )

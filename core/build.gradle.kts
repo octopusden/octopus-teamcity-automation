@@ -5,7 +5,7 @@ plugins {
 description = "TeamCity automation: build chains, VCS root replacement, parameters, metarunners, agent requirements, GitHub commit statuses"
 
 // The project path stays short (`:core`); the published name says what it is.
-val publishedName = "teamcity-automation-core"
+val publishedName = "octopus-teamcity-automation-core"
 
 base {
     archivesName.set(publishedName)
@@ -19,7 +19,7 @@ dependencies {
             "${properties["octopus-components-registry-service-client.version"]}",
     )
     implementation("org.slf4j:slf4j-api:2.0.13")
-    // GitHubCommitStatusPublisher exposes only its own types, so these stay off the callers' compile classpath.
+    // CommitStatusPublisher exposes only its own types, so these stay off the callers' compile classpath.
     implementation("org.kohsuke:github-api:${properties["github-api.version"]}")
     implementation("com.squareup.okhttp3:okhttp:${properties["okhttp.version"]}")
     with("5.9.2") {

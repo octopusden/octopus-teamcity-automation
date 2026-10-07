@@ -11,13 +11,13 @@ import java.time.Duration
  * Posts commit statuses to GitHub (`POST /repos/{owner}/{repo}/statuses/{sha}`), so TeamCity builds
  * can gate GitHub branch protection rules.
  */
-class GitHubCommitStatusPublisher(
+class CommitStatusPublisher(
     private val token: String,
     private val apiUrl: String = DEFAULT_API_URL,
     private val connectTimeout: Duration = DEFAULT_TIMEOUT,
     private val readTimeout: Duration = DEFAULT_TIMEOUT,
 ) {
-    private val log = LoggerFactory.getLogger(GitHubCommitStatusPublisher::class.java)
+    private val log = LoggerFactory.getLogger(CommitStatusPublisher::class.java)
 
     init {
         require(token.isNotBlank()) { "token is blank" }

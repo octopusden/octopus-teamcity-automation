@@ -1,4 +1,4 @@
-package org.octopusden.octopus.automation.teamcity.agentrequirement
+package org.octopusden.octopus.automation.teamcity.agent
 
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.getAgentRequirements

@@ -1,4 +1,4 @@
-# teamcity-automation-core
+# octopus-teamcity-automation-core
 
 The logic behind every `octopus-teamcity-automation` CLI command, without the CLI. Each command parses
 its options and calls one class here:
@@ -9,12 +9,12 @@ its options and calls one class here:
 | `replace-vcs-root` | `VcsRootReplacer` | `vcsroot` |
 | `update-parameter set` / `increment` | `ParameterUpdater` | `parameter` |
 | `upload-metarunners` | `MetarunnerUploader` | `metarunner` |
-| `get-build-agent-req` | `AgentRequirementsReport` | `agentrequirement` |
-| `post-github-status` | `GitHubCommitStatusPublisher` | `github` |
+| `get-build-agent-req` | `AgentRequirementsReport` | `agent` |
+| `post-github-status` | `CommitStatusPublisher` | `github` |
 
 Packages are under `org.octopusden.octopus.automation.teamcity`. The coordinates are
-`org.octopusden.octopus.automation.teamcity:teamcity-automation-core`; how to resolve them from GitHub
-Packages is in the [repository README](../README.md#using-the-teamcity-automation-core-library).
+`org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation-core`; how to resolve them from GitHub
+Packages is in the [repository README](../README.md#using-the-octopus-teamcity-automation-core-library).
 
 ## API
 
@@ -28,8 +28,8 @@ SLF4J; the caller provides the binding.
 | `vcsroot` | `VcsRootReplacer` |
 | `parameter` | `ParameterUpdater`, `ParameterTargets` |
 | `metarunner` | `MetarunnerUploader` |
-| `agentrequirement` | `AgentRequirementsReport` |
-| `github` | `GitHubCommitStatusPublisher`, `CommitStatus`, `CommitState` |
+| `agent` | `AgentRequirementsReport` |
+| `github` | `CommitStatusPublisher`, `CommitStatus`, `CommitState` |
 
 ## Build chain
 
@@ -142,7 +142,7 @@ writer.
 
 ## GitHub commit statuses
 
-`GitHubCommitStatusPublisher(token, apiUrl, connectTimeout, readTimeout).post(status)` posts a
+`CommitStatusPublisher(token, apiUrl, connectTimeout, readTimeout).post(status)` posts a
 `CommitStatus(owner, repo, commit, state, context, description)` to
 `POST /repos/{owner}/{repo}/statuses/{sha}`. `context` defaults to `TeamCity / build` and must match the
 check a branch protection rule requires; an empty description is omitted. The API URL defaults to

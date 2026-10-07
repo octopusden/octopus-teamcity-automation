@@ -9,7 +9,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.automation.teamcity.github.CommitState
 import org.octopusden.octopus.automation.teamcity.github.CommitStatus
-import org.octopusden.octopus.automation.teamcity.github.GitHubCommitStatusPublisher
+import org.octopusden.octopus.automation.teamcity.github.CommitStatusPublisher
 import org.slf4j.Logger
 
 /**
@@ -61,7 +61,7 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
-        GitHubCommitStatusPublisher(token, githubApiUrl).post(
+        CommitStatusPublisher(token, githubApiUrl).post(
             CommitStatus(owner, repo, commit, CommitState.valueOf(state.uppercase()), statusContext, description),
         )
     }
@@ -78,7 +78,7 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
         const val GITHUB_API_URL = "--github-api-url"
 
         const val DEFAULT_CONTEXT = CommitStatus.DEFAULT_CONTEXT
-        const val DEFAULT_GITHUB_API_URL = GitHubCommitStatusPublisher.DEFAULT_API_URL
+        const val DEFAULT_GITHUB_API_URL = CommitStatusPublisher.DEFAULT_API_URL
         val ALLOWED_STATES = CommitState.entries.map { it.name.lowercase() }.toSet()
     }
 }
