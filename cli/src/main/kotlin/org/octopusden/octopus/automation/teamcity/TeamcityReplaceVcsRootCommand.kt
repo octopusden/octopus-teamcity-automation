@@ -6,6 +6,8 @@ import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.octopusden.octopus.automation.teamcity.vcsroot.ReplaceEvent
+import org.octopusden.octopus.automation.teamcity.vcsroot.VcsRootReplaceRequest
 import org.octopusden.octopus.automation.teamcity.vcsroot.VcsRootReplacer
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.slf4j.Logger
@@ -33,8 +35,32 @@ class TeamcityReplaceVcsRootCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
-        VcsRootReplacer(client).replace(oldVcsRoot, newVcsRoot, dryRun)
+        VcsRootReplacer(client).replace(VcsRootReplaceRequest(oldVcsRoot, newVcsRoot, dryRun)) { log.info(it.logLine()) }
     }
+
+    private fun ReplaceEvent.logLine(): String =
+        when (this) {
+            is ReplaceEvent.NothingToReplace -> "No build configurations referencing $url found"
+            is ReplaceEvent.ReplaceStarted -> "Git VCS Root replace report"
+            is ReplaceEvent.RootReused ->
+                "Found existing VCS Root: projectId=$projectId, vcsRootId=${root.id}, vcsRootName=${root.name}, branch=$branch"
+            is ReplaceEvent.RootCreated ->
+                "Created new VCS Root${if (dryRun) " (dryRun)" else ""}: projectId=$projectId, vcsRootId=${root.id}, " +
+                    "vcsRootName=${root.name}, branch=$branch"
+            is ReplaceEvent.RootAttached ->
+                "Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, " +
+                    "vcsRootId=${root.id}, vcsRootName=${root.name}, checkoutRules='$checkoutRules'"
+            is ReplaceEvent.LabelingMoved ->
+                "Updated VCS labeling: buildTypeId=$buildTypeId, featureId=$featureId, from=$fromRootId, to=$toRootId"
+            is ReplaceEvent.RootDetached ->
+                "Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, " +
+                    "vcsRootId=${root.id}, vcsRootName=${root.name}"
+            is ReplaceEvent.BuildTypeSwitched ->
+                "Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${root.id}-${root.name}, " +
+                    "checkoutRules='$checkoutRules' (dryRun = $dryRun)"
+            is ReplaceEvent.UpdateStarted -> "Git VCS Root update report"
+            is ReplaceEvent.RootUrlUpdated -> "Updated Git VCS Root: id=${root.id}, name=${root.name}"
+        }
 
     companion object {
         const val COMMAND = "replace-vcs-root"

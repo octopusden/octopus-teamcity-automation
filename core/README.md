@@ -25,7 +25,7 @@ SLF4J; the caller provides the binding.
 | Package | Public types |
 |---|---|
 | `buildchain` | `BuildChainCreator`, `BuildChainRequest`, `BuildChainResult`, `BuildChainConfig`, `BuildChainException` (sealed): `UnsupportedBuildSystemException`, `UnsupportedVcsTypeException`, `UnsupportedVcsRootLayoutException` |
-| `vcsroot` | `VcsRootReplacer` |
+| `vcsroot` | `VcsRootReplacer`, `VcsRootReplaceRequest`, `ReplaceReport`, `ReplaceEvent`, `VcsRootRef`, `BuildTypeRef` |
 | `parameter` | `ParameterUpdater`, `ParameterTargets`, `ParameterTarget`, `IncrementResult` |
 | `metarunner` | `MetarunnerUploader` |
 | `agent` | `AgentRequirementsReport`, `AgentRequirementRow` |
@@ -83,8 +83,7 @@ Compile, Checklist on RC, and Release on RC (on Compile when there is no RC).
 
 **VCS roots.** One Git VCS root per registry root, named `<project id>_VCS_ROOT` and
 `<project id>_VCS_ROOT_<position>`, with checkout rules from the registry's Checkout Directory and Source
-Path. Authentication is fixed policy, not configurable: `authMethod=PRIVATE_KEY_DEFAULT`,
-`username=git`, `userForTags=tcagent`, `ignoreKnownHosts=true`, branch spec `+:<default>`.
+Path. Their settings are fixed policy, not configurable; see [Git VCS roots](#git-vcs-roots).
 
 **Access.** The component owner and release managers get `PROJECT_ADMIN` on the created project. A user
 missing from TeamCity is logged as a warning and skipped.
@@ -106,17 +105,35 @@ the parent. Before retrying, find the project by name under the parent and delet
 
 ## VCS root replacement
 
-`VcsRootReplacer(client).replace(oldVcsRoot, newVcsRoot, dryRun)` moves every build configuration that
-uses the old Git repository onto the new one:
+`VcsRootReplacer(client).replace(VcsRootReplaceRequest(oldUrl, newUrl, dryRun))` moves every build
+configuration that uses the old Git repository onto the new one:
 - attaches a Git VCS root for the new URL, reusing one in the same project with the same URL and branch
-  (the build configuration's `VCS_BRANCH`, default `refs/heads/master`), and keeps the checkout rules
+  (the build configuration's `VCS_BRANCH` as a full ref, `refs/heads/master` when unset), and keeps the
+  checkout rules
 - moves VCS labeling features bound to the old roots, then detaches the old roots
 - rewrites the URL (and the push URL, where set) of Git VCS roots that still point at the old repository
 
-Both URLs must pass `VcsRootReplacer.isValidGitUrl`: lowercase `ssh://user@host/path.git`,
-`user@host:path.git` or `https://host/path.git`. With `dryRun` nothing changes in TeamCity and the same
-report is logged. A new VCS root uses fixed settings (private key authentication, user `git`, branch
-spec `+:refs/heads/*`, submodules ignored, untracked files cleaned on branch change).
+Both URLs must be lowercase `ssh://user@host/path.git`, `user@host:path.git` or `https://host/path.git`
+(`VcsRootReplacer.isValidGitUrl`). It returns a `ReplaceReport`: every step as a `ReplaceEvent`, in
+order, with the roots created, attached, detached and updated and the labeling features moved. With
+`dryRun` nothing changes in TeamCity and the report describes what would happen. An optional callback
+receives each event as it happens; the CLI prints its log lines from it.
+
+### Git VCS roots
+
+The module creates Git VCS roots in two places, and they deliberately differ. Both use the repository
+URL and default branch, private-key authentication as `git`, and no known-hosts check.
+
+| | Build chain | Replacement |
+|---|---|---|
+| Branches watched (`teamcity:branchSpec`) | the default branch only, `+:<default>` (#50) | every branch, `+:refs/heads/*` |
+| Tags attributed to (`userForTags`) | `tcagent` | not set |
+| `usernameStyle`, `submoduleCheckout` | not set | `USERID`, `IGNORE` |
+| Agent clean policy / files | not set | on branch change / all untracked |
+
+A build chain is a new release pipeline for the registry's default branch. A replacement moves existing
+build configurations, which may build any branch, so it keeps the settings `replace-vcs-root` has always
+created. Making them the same would change what one of the commands creates.
 
 ## Parameters
 

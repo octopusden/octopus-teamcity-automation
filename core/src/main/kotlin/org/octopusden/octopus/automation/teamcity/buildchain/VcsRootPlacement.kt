@@ -1,15 +1,14 @@
 package org.octopusden.octopus.automation.teamcity.buildchain
 
+import org.octopusden.octopus.automation.teamcity.vcsroot.GitVcsProperty
+import org.octopusden.octopus.automation.teamcity.vcsroot.GitVcsRootSpec
 import org.octopusden.octopus.components.registry.core.dto.RepositoryType
 import org.octopusden.octopus.components.registry.core.dto.VersionControlSystemRootDTO
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
-import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityVCSType
 import org.octopusden.octopus.infrastructure.teamcity.client.createBuildTypeVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityVcsRoot
 import org.slf4j.Logger
 
@@ -146,19 +145,9 @@ internal class VcsRootPlacement(
                 RepositoryType.GIT -> client.createVcsRoot(
                     TeamcityCreateVcsRoot(
                         name = vcsRootName,
-                        vcsName = TeamcityVCSType.GIT.value,
+                        vcsName = GitVcsProperty.VCS_NAME,
                         projectLocator = projectId,
-                        TeamcityProperties(
-                            listOf(
-                                TeamcityProperty("url", rootData.vcsPath),
-                                TeamcityProperty("branch", defaultBranch),
-                                TeamcityProperty("teamcity:branchSpec", "+:<default>"),
-                                TeamcityProperty("authMethod", "PRIVATE_KEY_DEFAULT"),
-                                TeamcityProperty("userForTags", "tcagent"),
-                                TeamcityProperty("username", "git"),
-                                TeamcityProperty("ignoreKnownHosts", "true"),
-                            ),
-                        ),
+                        GitVcsRootSpec.BUILD_CHAIN.properties(rootData.vcsPath, defaultBranch),
                     ),
                 )
                 // Unreachable once validate() has run; kept as a safety net for direct callers.

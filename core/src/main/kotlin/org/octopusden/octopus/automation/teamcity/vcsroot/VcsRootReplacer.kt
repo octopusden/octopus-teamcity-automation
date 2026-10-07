@@ -6,17 +6,12 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateV
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityCreateVcsRootEntry
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityLinkVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProject
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperties
-import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProperty
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityVcsRoot
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.BuildTypeLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.ProjectLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.PropertyLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootInstanceLocator
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.VcsRootLocator
-import org.slf4j.LoggerFactory
-import java.net.URI
-import java.util.UUID
 
 /**
  * Moves every build configuration that uses a Git repository onto another repository URL: attaches
@@ -27,76 +22,71 @@ import java.util.UUID
 class VcsRootReplacer(
     private val client: TeamcityClient,
 ) {
-    private val log = LoggerFactory.getLogger(VcsRootReplacer::class.java)
-
-    /** With [dryRun] nothing is changed in TeamCity; the same report is logged. */
+    /**
+     * [onEvent] receives each step as it happens, so a caller can report progress that survives a later
+     * failure; the same steps are returned in the report.
+     */
     fun replace(
-        oldVcsRoot: String,
-        newVcsRoot: String,
-        dryRun: Boolean,
-    ) {
-        require(isValidGitUrl(oldVcsRoot)) { "oldVcsRoot must be a valid lowercase Git URL: '$oldVcsRoot'" }
-        require(isValidGitUrl(newVcsRoot)) { "newVcsRoot must be a valid lowercase Git URL: '$newVcsRoot'" }
-        Replacement(oldVcsRoot, newVcsRoot, dryRun).run()
+        request: VcsRootReplaceRequest,
+        onEvent: (ReplaceEvent) -> Unit = {},
+    ): ReplaceReport {
+        val events = mutableListOf<ReplaceEvent>()
+        Replacement(request) { event ->
+            events += event
+            onEvent(event)
+        }.run()
+        return ReplaceReport(request.dryRun, events)
     }
 
     private inner class Replacement(
-        private val oldVcsRoot: String,
-        private val newVcsRoot: String,
-        private val dryRun: Boolean,
+        request: VcsRootReplaceRequest,
+        private val emit: (ReplaceEvent) -> Unit,
     ) {
+        private val oldUrl = request.oldUrl
+        private val newUrl = request.newUrl
+        private val dryRun = request.dryRun
+
         fun run() {
-            replaceGenericVcsRoots(oldVcsRoot, newVcsRoot)
-            updateExplicitGitVcsRoot(oldVcsRoot, newVcsRoot)
+            replaceGenericVcsRoots()
+            updateExplicitGitVcsRoots()
         }
 
-        private fun updateExplicitGitVcsRoot(
-            oldVcsRoot: String,
-            newVcsRoot: String,
-        ) {
-            val locator = VcsRootLocator(
-                property = listOf(
-                    PropertyLocator(
-                        name = PROPERTY_URL,
-                        value = oldVcsRoot,
-                        matchType = PropertyLocator.MatchType.EQUALS,
-                        ignoreCase = true,
-                    ),
-                ),
-            )
-            val roots = client.getVcsRoots(locator).vcsRoots
+        private fun urlEquals(url: String) =
+            PropertyLocator(name = GitVcsProperty.URL, value = url, matchType = PropertyLocator.MatchType.EQUALS, ignoreCase = true)
+
+        private fun updateExplicitGitVcsRoots() {
+            val roots = client.getVcsRoots(VcsRootLocator(property = listOf(urlEquals(oldUrl)))).vcsRoots
             if (roots.isNotEmpty()) {
-                log.info("Git VCS Root update report")
+                emit(ReplaceEvent.UpdateStarted(roots.size))
             }
             roots.forEach { root ->
                 if (!dryRun) {
-                    client.updateVcsRootProperty(root.id, PROPERTY_URL, newVcsRoot)
-                    runCatching { client.getVcsRootProperty(root.id, PROPERTY_PUSH_URL) }
-                        .onSuccess { client.updateVcsRootProperty(root.id, PROPERTY_PUSH_URL, newVcsRoot) }
+                    client.updateVcsRootProperty(root.id, GitVcsProperty.URL, newUrl)
+                    runCatching { client.getVcsRootProperty(root.id, GitVcsProperty.PUSH_URL) }
+                        .onSuccess { client.updateVcsRootProperty(root.id, GitVcsProperty.PUSH_URL, newUrl) }
                 }
-                log.info("Updated Git VCS Root: id=${root.id}, name=${root.name}")
+                emit(ReplaceEvent.RootUrlUpdated(VcsRootRef(root.id, root.name)))
             }
         }
 
-        private fun replaceGenericVcsRoots(
-            oldVcsRoot: String,
-            newVcsRoot: String,
-        ) {
-            val index = findVcsRootInstancesRootIdsByUrl(oldVcsRoot)
+        private fun replaceGenericVcsRoots() {
+            val index = findVcsRootInstancesRootIdsByUrl(oldUrl)
             if (index.rootIds.isEmpty() || index.byBuildType.isEmpty()) {
-                log.info("No build configurations referencing $oldVcsRoot found")
+                emit(ReplaceEvent.NothingToReplace(oldUrl))
                 return
             }
-            log.info("Git VCS Root replace report")
+            emit(ReplaceEvent.ReplaceStarted(index.byBuildType.size))
 
             index.byBuildType.forEach { (buildTypeLocator, entriesToDetach) ->
                 val buildType = client.getBuildType(buildTypeLocator)
+                val buildTypeRef = BuildTypeRef(buildType.id, buildType.name)
                 val projectId = requireNotNull(buildType.projectId) {
                     "Build type ${buildType.id} ('${buildType.name}') has no projectId; cannot replace VCS roots"
                 }
 
                 val branch = extractBranchFromBuildType(buildType)
-                val newVcs = findOrCreateGitVcsRootInProject(projectId, newVcsRoot, branch)
+                val newVcs = findOrCreateGitVcsRootInProject(projectId, branch)
+                val newRootRef = VcsRootRef(newVcs.id, newVcs.name)
 
                 val toDetach = client
                     .getBuildTypeVcsRootEntries(buildTypeLocator)
@@ -111,31 +101,20 @@ class VcsRootReplacer(
                 if (!dryRun) {
                     client.createBuildTypeVcsRootEntry(buildTypeLocator, createEntry)
                 }
-                log.info(
-                    "Attached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, " +
-                        "vcsRootId=${newVcs.id}, vcsRootName=${newVcs.name}, checkoutRules='$checkoutRules'",
-                )
+                emit(ReplaceEvent.RootAttached(buildTypeRef, newRootRef, checkoutRules))
                 migrateVcsLabeling(buildType.id, toDetach.map { it.vcsRoot.id }.toSet(), newVcs.id)
                 toDetach.forEach { oldEntry ->
                     if (!dryRun) {
                         client.deleteBuildTypeVcsRootEntry(buildTypeLocator, oldEntry.id)
                     }
-                    log.info(
-                        "Detached VCS Root: buildTypeId=${buildType.id}, buildTypeName=${buildType.name}, " +
-                            "vcsRootId=${oldEntry.vcsRoot.id}, vcsRootName=${oldEntry.vcsRoot.name}",
-                    )
+                    emit(ReplaceEvent.RootDetached(buildTypeRef, VcsRootRef(oldEntry.vcsRoot.id, oldEntry.vcsRoot.name)))
                 }
-                log.info(
-                    "Switched VCS: buildType=${buildType.id}-${buildType.name} -> root=${newVcs.id}-${newVcs.name}, " +
-                        "checkoutRules='$checkoutRules' (dryRun = $dryRun)",
-                )
+                emit(ReplaceEvent.BuildTypeSwitched(buildTypeRef, newRootRef, checkoutRules, dryRun))
             }
         }
 
         private fun findVcsRootInstancesRootIdsByUrl(url: String): InstancesIndex {
-            val propertyLocator =
-                PropertyLocator(name = PROPERTY_URL, value = url, matchType = PropertyLocator.MatchType.EQUALS, ignoreCase = true)
-            val allInstances = client.getVcsRootInstances(VcsRootInstanceLocator(property = listOf(propertyLocator))).vcsRootInstances
+            val allInstances = client.getVcsRootInstances(VcsRootInstanceLocator(property = listOf(urlEquals(url)))).vcsRootInstances
             val rootIds = allInstances.map { it.vcsRootId }.toSet()
             if (rootIds.isEmpty()) {
                 return InstancesIndex(emptySet(), emptyMap())
@@ -145,7 +124,7 @@ class VcsRootReplacer(
                     "vcs-root-entries(vcs-root-entry(id,vcs-root(id,name,href),checkout-rules)))"
             val buildTypes = client
                 .getBuildTypesWithVcsRootInstanceLocatorAndFields(
-                    VcsRootInstanceLocator(property = listOf(propertyLocator)),
+                    VcsRootInstanceLocator(property = listOf(urlEquals(url))),
                     fields,
                 ).buildTypes
                 .distinctBy { it.id }
@@ -162,21 +141,16 @@ class VcsRootReplacer(
             return InstancesIndex(rootIds, byBuild)
         }
 
-        private fun extractBranchFromBuildType(bt: TeamcityBuildType): String {
-            val raw = bt.parameters
-                ?.properties
-                ?.firstOrNull { it.name == PROPERTY_BUILD_TYPE_BRANCH }
-                ?.value
-                ?.trim()
-            if (raw.isNullOrEmpty()) {
-                return "refs/heads/master"
-            }
-            return if (raw.startsWith("refs/")) raw else "refs/heads/$raw"
-        }
+        private fun extractBranchFromBuildType(bt: TeamcityBuildType): String =
+            branchRef(
+                bt.parameters
+                    ?.properties
+                    ?.firstOrNull { it.name == BUILD_TYPE_BRANCH_PARAMETER }
+                    ?.value,
+            )
 
         private fun findOrCreateGitVcsRootInProject(
             projectId: String,
-            newVcsUrl: String,
             branch: String,
         ): TeamcityVcsRoot {
             val candidates = client
@@ -184,14 +158,9 @@ class VcsRootReplacer(
                     VcsRootLocator(
                         project = ProjectLocator(id = projectId),
                         property = listOf(
+                            urlEquals(newUrl),
                             PropertyLocator(
-                                name = PROPERTY_URL,
-                                value = newVcsUrl,
-                                matchType = PropertyLocator.MatchType.EQUALS,
-                                ignoreCase = true,
-                            ),
-                            PropertyLocator(
-                                name = PROPERTY_BRANCH,
+                                name = GitVcsProperty.BRANCH,
                                 value = branch,
                                 matchType = PropertyLocator.MatchType.EQUALS,
                                 ignoreCase = true,
@@ -201,50 +170,30 @@ class VcsRootReplacer(
                 ).vcsRoots
             if (candidates.isNotEmpty()) {
                 val existing = client.getVcsRoot(VcsRootLocator(id = candidates.first().id))
-                log.info(
-                    "Found existing VCS Root: projectId=$projectId, vcsRootId=${existing.id}, vcsRootName=${existing.name}, branch=$branch",
-                )
+                emit(ReplaceEvent.RootReused(projectId, VcsRootRef(existing.id, existing.name), branch))
                 return existing
             }
-            val name = generateVcsRootName(newVcsUrl)
-            val props = TeamcityProperties(
-                properties = mutableListOf(
-                    TeamcityProperty(PROPERTY_URL, newVcsUrl),
-                    TeamcityProperty(PROPERTY_BRANCH, branch),
-                    TeamcityProperty(PROPERTY_BRANCH_SPEC, PROPERTY_VALUE_BRANCH_SPEC),
-                    TeamcityProperty(PROPERTY_USERNAME, PROPERTY_VALUE_USERNAME),
-                    TeamcityProperty(PROPERTY_AUTH_METHOD, PROPERTY_VALUE_AUTH_METHOD),
-                    TeamcityProperty(PROPERTY_USERNAME_STYLE, PROPERTY_VALUE_USERNAME_STYLE),
-                    TeamcityProperty(PROPERTY_SUBMODULE_CHECKOUT, PROPERTY_VALUE_SUBMODULE_CHECKOUT),
-                    TeamcityProperty(PROPERTY_IGNORE_KNOWN_HOSTS, TRUE),
-                    TeamcityProperty(PROPERTY_AGENT_CLEAN_FILES_POLICY, PROPERTY_VALUE_CLEAN_FILES_POLICY),
-                    TeamcityProperty(PROPERTY_AGENT_CLEAN_POLICY, PROPERTY_VALUE_CLEAN_POLICY),
-                ),
-            )
-            if (dryRun) {
-                val fake = TeamcityVcsRoot(
+            val name = VcsRootNaming.nameFor(newUrl)
+            val root = if (dryRun) {
+                TeamcityVcsRoot(
                     id = "dryRun",
                     name = "${name}_dryRun",
-                    vcsName = VCS_JETBRAINS_GIT,
+                    vcsName = GitVcsProperty.VCS_NAME,
                     href = "",
                     project = TeamcityProject(id = projectId, name = "Project Name dryRun", href = "", webUrl = ""),
                 )
-                log.info(
-                    "Created new VCS Root (dryRun): projectId=$projectId, vcsRootId=${fake.id}, vcsRootName=${fake.name}, branch=$branch",
-                )
-                return fake
             } else {
-                val created = client.createVcsRoot(
+                client.createVcsRoot(
                     TeamcityCreateVcsRoot(
                         name = name,
-                        vcsName = VCS_JETBRAINS_GIT,
+                        vcsName = GitVcsProperty.VCS_NAME,
                         projectLocator = "id:$projectId",
-                        properties = props,
+                        properties = GitVcsRootSpec.REPLACEMENT.properties(newUrl, branch),
                     ),
                 )
-                log.info("Created new VCS Root: projectId=$projectId, vcsRootId=${created.id}, vcsRootName=${created.name}, branch=$branch")
-                return created
             }
+            emit(ReplaceEvent.RootCreated(projectId, VcsRootRef(root.id, root.name), branch, dryRun))
+            return root
         }
 
         private fun migrateVcsLabeling(
@@ -257,42 +206,21 @@ class VcsRootReplacer(
                 .filter { it.type == FEATURE_VCS_LABELING }
                 .forEach { feature ->
                     val bound = feature.properties.properties
-                        .firstOrNull { it.name == PROPERTY_VCS_ROOT_ID }
+                        .firstOrNull { it.name == LABELING_VCS_ROOT_ID }
                         ?.value
                     if (bound != null && oldRootIds.contains(bound)) {
                         if (!dryRun) {
                             client.updateBuildTypeFeatureParameter(
                                 BuildTypeLocator(buildTypeId),
                                 feature.id,
-                                PROPERTY_VCS_ROOT_ID,
+                                LABELING_VCS_ROOT_ID,
                                 newRootId,
                             )
                         }
-                        log.info("Updated VCS labeling: buildTypeId=$buildTypeId, featureId=${feature.id}, from=$bound, to=$newRootId")
+                        emit(ReplaceEvent.LabelingMoved(buildTypeId, feature.id, bound, newRootId))
                     }
                 }
         }
-
-        private fun generateVcsRootName(vcsUrl: String): String {
-            val path = extractPathFromGitUrl(vcsUrl)
-                .removeSuffix(".git")
-                .replace("/", "_")
-                .replace("-", "_")
-                .split("_")
-                .filter { it.isNotBlank() }
-                .joinToString("_") { it.replaceFirstChar { c -> c.titlecase() } }
-            return "${path}_${UUID.randomUUID()}"
-        }
-
-        private fun extractPathFromGitUrl(vcsUrl: String): String =
-            when {
-                vcsUrl.startsWith("ssh://", ignoreCase = true) || vcsUrl.startsWith("https://", ignoreCase = true) -> {
-                    URI(vcsUrl).path.removePrefix("/")
-                }
-                else -> {
-                    vcsUrl.substring(vcsUrl.indexOf(':') + 1)
-                }
-            }
     }
 
     private data class InstancesIndex(
@@ -301,44 +229,11 @@ class VcsRootReplacer(
     )
 
     companion object {
-        // Teamcity properties
-        internal const val PROPERTY_URL = "url"
-        internal const val PROPERTY_PUSH_URL = "push_url"
-        internal const val PROPERTY_BRANCH = "branch"
-        internal const val PROPERTY_BRANCH_SPEC = "teamcity:branchSpec"
-        internal const val PROPERTY_USERNAME = "username"
-        internal const val PROPERTY_AUTH_METHOD = "authMethod"
-        internal const val PROPERTY_USERNAME_STYLE = "usernameStyle"
-        internal const val PROPERTY_SUBMODULE_CHECKOUT = "submoduleCheckout"
-        internal const val PROPERTY_IGNORE_KNOWN_HOSTS = "ignoreKnownHosts"
-        internal const val PROPERTY_AGENT_CLEAN_FILES_POLICY = "agentCleanFilesPolicy"
-        internal const val PROPERTY_AGENT_CLEAN_POLICY = "agentCleanPolicy"
-        internal const val PROPERTY_VCS_ROOT_ID = "vcsRootId"
-        internal const val PROPERTY_BUILD_TYPE_BRANCH = "VCS_BRANCH"
-
-        // Teamcity default values
-        internal const val VCS_JETBRAINS_GIT = "jetbrains.git"
-        internal const val PROPERTY_VALUE_BRANCH_SPEC = "+:refs/heads/*"
-        internal const val PROPERTY_VALUE_USERNAME = "git"
-        internal const val PROPERTY_VALUE_AUTH_METHOD = "PRIVATE_KEY_DEFAULT"
-        internal const val PROPERTY_VALUE_USERNAME_STYLE = "USERID"
-        internal const val PROPERTY_VALUE_SUBMODULE_CHECKOUT = "IGNORE"
-        internal const val PROPERTY_VALUE_CLEAN_FILES_POLICY = "ALL_UNTRACKED"
-        internal const val PROPERTY_VALUE_CLEAN_POLICY = "ON_BRANCH_CHANGE"
-        internal const val TRUE = "true"
-
-        internal const val FEATURE_VCS_LABELING = "VcsLabeling"
+        private const val BUILD_TYPE_BRANCH_PARAMETER = "VCS_BRANCH"
+        private const val FEATURE_VCS_LABELING = "VcsLabeling"
+        private const val LABELING_VCS_ROOT_ID = "vcsRootId"
 
         /** A lowercase `ssh://user@host/path.git`, `user@host:path.git` or `https://host/path.git` URL. */
-        fun isValidGitUrl(url: String): Boolean {
-            if (url != url.lowercase()) return false
-            val baseSshScheme = Regex("""^ssh://[\w.-]+@[\w.-]+/[\w./~\-+%]+(\.git)$""")
-            val githubSshScheme = Regex("""^[\w.-]+@[\w.-]+:[\w./~\-+%]+(\.git)$""")
-            val httpsScheme = Regex("""^https://[\w.-]+/[\w./~\-+%]+(\.git)$""")
-
-            return baseSshScheme.matches(url) ||
-                githubSshScheme.matches(url) ||
-                httpsScheme.matches(url)
-        }
+        fun isValidGitUrl(url: String) = GitUrl.isValid(url)
     }
 }
