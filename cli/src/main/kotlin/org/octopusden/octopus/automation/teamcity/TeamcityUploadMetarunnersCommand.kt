@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import org.octopusden.octopus.automation.teamcity.metarunner.MetarunnerUploader
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
+import org.slf4j.Logger
 import java.net.URI
 
 class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
@@ -22,8 +23,13 @@ class TeamcityUploadMetarunnersCommand : CliktCommand(name = COMMAND) {
     private val context by requireObject<MutableMap<String, Any>>()
 
     override fun run() {
+        val log = context[TeamcityCommand.LOG] as Logger
         val client = context[TeamcityCommand.CLIENT] as TeamcityClient
-        zip.openStream().use { MetarunnerUploader(client).upload(projectId, it) }
+        zip.openStream().use {
+            MetarunnerUploader(client).upload(projectId, it) { metarunner ->
+                log.info("Upload metarunner '$metarunner' for project with id $projectId")
+            }
+        }
     }
 
     companion object {

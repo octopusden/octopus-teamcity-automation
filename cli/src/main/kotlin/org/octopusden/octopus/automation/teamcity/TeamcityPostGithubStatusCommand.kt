@@ -61,9 +61,11 @@ class TeamcityPostGithubStatusCommand : CliktCommand(name = COMMAND) {
 
     override fun run() {
         log.info("Executing $COMMAND")
+        log.info("Posting GitHub commit status '$state' (context '$statusContext') to $owner/$repo@$commit")
         CommitStatusPublisher(token, githubApiUrl).post(
             CommitStatus(owner, repo, commit, CommitState.valueOf(state.uppercase()), statusContext, description),
         )
+        log.info("GitHub commit status posted")
     }
 
     companion object {

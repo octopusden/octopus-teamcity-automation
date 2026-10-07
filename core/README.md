@@ -152,8 +152,10 @@ caller can report progress that survives a later failure. The CLI prints its log
 
 ## Metarunners
 
-`MetarunnerUploader(client).upload(projectId, zip)` uploads every `.xml` entry of the zip stream as a
-metarunner of the project, named after its file name. The caller opens and closes the stream.
+`MetarunnerUploader(client).upload(projectId, zip)` uploads every `.xml` file entry of the zip stream as a
+metarunner of the project, named after its file name without directories, and returns the uploaded
+names in zip order. The caller opens and closes the stream. An optional callback receives each name
+before its upload.
 
 ## Agent requirements
 
@@ -169,5 +171,5 @@ caller's: the CLI writes these rows as `;`-separated CSV.
 `CommitStatus(owner, repo, commit, state, context, description)` to
 `POST /repos/{owner}/{repo}/statuses/{sha}`. `context` defaults to `TeamCity / build` and must match the
 check a branch protection rule requires; an empty description is omitted. The API URL defaults to
-`https://api.github.com`, and both timeouts to 10 seconds. This is the one part of the library that
-talks to GitHub instead of TeamCity; it is here because the TeamCity metarunners use it.
+`https://api.github.com`, and both timeouts to 10 seconds. It logs nothing; the CLI prints the progress lines. This is the one part of the library that talks to
+GitHub instead of TeamCity; it is here because the TeamCity metarunners use it.

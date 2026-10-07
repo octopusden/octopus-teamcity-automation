@@ -4,7 +4,6 @@ import okhttp3.OkHttpClient
 import org.kohsuke.github.GHCommitState
 import org.kohsuke.github.GitHubBuilder
 import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector
-import org.slf4j.LoggerFactory
 import java.time.Duration
 
 /**
@@ -17,17 +16,11 @@ class CommitStatusPublisher(
     private val connectTimeout: Duration = DEFAULT_TIMEOUT,
     private val readTimeout: Duration = DEFAULT_TIMEOUT,
 ) {
-    private val log = LoggerFactory.getLogger(CommitStatusPublisher::class.java)
-
     init {
         require(token.isNotBlank()) { "token is blank" }
     }
 
     fun post(status: CommitStatus) {
-        log.info(
-            "Posting GitHub commit status '${status.state.name.lowercase()}' (context '${status.context}') " +
-                "to ${status.owner}/${status.repo}@${status.commit}",
-        )
         val github = GitHubBuilder()
             .withEndpoint(apiUrl.trimEnd('/'))
             .withOAuthToken(token)
@@ -47,7 +40,6 @@ class CommitStatusPublisher(
             status.description?.ifEmpty { null },
             status.context,
         )
-        log.info("GitHub commit status posted")
     }
 
     companion object {
