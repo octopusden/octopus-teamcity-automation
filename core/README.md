@@ -173,3 +173,9 @@ caller's: the CLI writes these rows as `;`-separated CSV.
 check a branch protection rule requires; an empty description is omitted. The API URL defaults to
 `https://api.github.com`, and both timeouts to 10 seconds. It logs nothing; the CLI prints the progress lines. This is the one part of the library that talks to
 GitHub instead of TeamCity; it is here because the TeamCity metarunners use it.
+
+## Tests
+
+`./gradlew :core:unitTest` runs the tests that need no servers. `./gradlew test` also runs the ones
+tagged `integration`, against TeamCity 2022 and 2026 and a Components Registry started by Docker Compose
+(or OKD), as CI does.

@@ -5,6 +5,7 @@ import it.skrape.matchers.toBe
 import it.skrape.selects.html5.tr
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -55,6 +56,7 @@ import java.net.http.HttpResponse
 import java.util.Base64
 import java.util.stream.Stream
 
+@Tag("integration")
 class ApplicationTest {
     private val jar = System.getProperty("jar") ?: throw IllegalStateException("System property 'jar' must be provided")
     private val javaBin = "${System.getProperty("java.home")}/bin/java"

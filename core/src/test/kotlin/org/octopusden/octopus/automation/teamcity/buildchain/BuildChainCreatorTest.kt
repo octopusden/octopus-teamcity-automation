@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.sun.net.httpserver.HttpServer
 import feign.FeignException
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.octopusden.octopus.components.registry.client.ComponentsRegistryServiceClient
@@ -38,6 +39,7 @@ import java.util.Base64
  * Components Registry the CLI tests use. Runs after them: both reset the same parent project and
  * TeamCity template ids are global.
  */
+@Tag("integration")
 class BuildChainCreatorTest {
     data class Server(
         val name: String,

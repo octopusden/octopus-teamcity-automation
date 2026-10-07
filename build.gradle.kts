@@ -334,7 +334,18 @@ val rootOcTemplate = ocTemplate
 val rootDockerCompose = dockerCompose
 
 subprojects {
-    tasks.withType<Test>().configureEach {
+    // Tests tagged "integration" need the TeamCity servers and the Components Registry; `unitTest` runs the
+    // rest without starting them. `test` runs everything, as CI does.
+    tasks.register<Test>("unitTest") {
+        description = "Runs the tests that need no TeamCity or Components Registry."
+        group = "verification"
+        val sourceSets = project.extensions.getByType<SourceSetContainer>()
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        useJUnitPlatform { excludeTags("integration") }
+    }
+
+    tasks.withType<Test>().matching { it.name == "test" }.configureEach {
         when (testPlatform) {
             "okd" -> {
                 systemProperties["test.teamcity-2022-host"] = rootOcTemplate.getOkdHost("teamcity22")
