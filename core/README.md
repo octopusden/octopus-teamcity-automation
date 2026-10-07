@@ -26,7 +26,7 @@ SLF4J; the caller provides the binding.
 |---|---|
 | `buildchain` | `BuildChainCreator`, `BuildChainRequest`, `BuildChainResult`, `BuildChainConfig`, `BuildChainException` (sealed): `UnsupportedBuildSystemException`, `UnsupportedVcsTypeException`, `UnsupportedVcsRootLayoutException` |
 | `vcsroot` | `VcsRootReplacer` |
-| `parameter` | `ParameterUpdater`, `ParameterTargets` |
+| `parameter` | `ParameterUpdater`, `ParameterTargets`, `ParameterTarget`, `IncrementResult` |
 | `metarunner` | `MetarunnerUploader` |
 | `agent` | `AgentRequirementsReport`, `AgentRequirementRow` |
 | `github` | `CommitStatusPublisher`, `CommitStatus`, `CommitState` |
@@ -121,12 +121,17 @@ spec `+:refs/heads/*`, submodules ignored, untracked files cleaned on branch cha
 ## Parameters
 
 `ParameterUpdater(client)` works on a `ParameterTargets(name, projectIds, buildTypeIds)`; at least one
-project or build configuration is required.
-- `set(targets, value)` sets the value everywhere.
+project or build configuration is required. Projects are processed before build configurations.
+- `set(targets, value)` sets the value everywhere and returns the `ParameterTarget`s it wrote.
 - `increment(targets, current = "")` increments the last numeric component of each value (`1.2` →
   `1.3`, `1.2-7` → `1.2-8`). With `current`, only values whose components `current` starts with are
-  incremented (`current = 1.2.7` increments `1.2`, not `1.3`). A value that cannot be read or incremented
-  is skipped with a warning; the call does not fail.
+  incremented (`current = 1.2.7` increments `1.2`, not `1.3`). It returns an `IncrementResult` per
+  target: `Incremented(from, to)`, or `Skipped(reason, cause)` when the value cannot be read, does not
+  match `current`, or ends in something that is not a number. A skipped target does not fail the call;
+  a failing write does.
+
+Both take an optional callback that receives each target (or result) before its value is written, so a
+caller can report progress that survives a later failure. The CLI prints its log lines from it.
 
 ## Metarunners
 

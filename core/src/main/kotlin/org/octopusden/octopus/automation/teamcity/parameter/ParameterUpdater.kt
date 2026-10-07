@@ -2,79 +2,56 @@ package org.octopusden.octopus.automation.teamcity.parameter
 
 import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
-import org.slf4j.LoggerFactory
 
 /** Sets or increments a TeamCity parameter on projects and build configurations. */
 class ParameterUpdater(
     private val client: TeamcityClient,
 ) {
-    private val log = LoggerFactory.getLogger(ParameterUpdater::class.java)
-
+    /**
+     * Sets [value] on every target, projects first. [beforeWrite] is called for each target before its
+     * value is written, so a caller can report progress even if a later write fails.
+     */
     fun set(
         targets: ParameterTargets,
         value: String,
-    ) {
-        targets.projectIds.forEach {
-            log.info("Set parameter ${targets.name} value $value for project with id $it")
-            client.setParameter(ConfigurationType.PROJECT, it, targets.name, value)
+        beforeWrite: (ParameterTarget) -> Unit = {},
+    ): List<ParameterTarget> =
+        targets.all().onEach { target ->
+            beforeWrite(target)
+            client.setParameter(target.type, target.id, targets.name, value)
         }
-        targets.buildTypeIds.forEach {
-            log.info("Set parameter ${targets.name} value $value for build configuration with id $it")
-            client.setParameter(ConfigurationType.BUILD_TYPE, it, targets.name, value)
-        }
-    }
 
     /**
-     * Increments the last numeric component of the parameter's value (`1.2` -> `1.3`, `1.2-7` -> `1.2-8`).
-     * With a non-empty [current], increments only where [current] starts with all components of the
-     * value (`current = 1.2.7` increments `1.2`, not `1.3`). A target whose value cannot be read or
-     * incremented is skipped with a warning.
+     * Increments the last numeric component of each target's value (`1.2` -> `1.3`, `1.2-7` -> `1.2-8`).
+     * With a non-empty [current], only where [current] starts with all components of the value
+     * (`current = 1.2.7` increments `1.2`, not `1.3`). A target that cannot be read or incremented is
+     * skipped, not failed. [onResult] is called for each target as soon as it is decided, before an
+     * incremented value is written. A failing write is not caught.
      */
+    @Suppress("TooGenericExceptionCaught")
     fun increment(
         targets: ParameterTargets,
         current: String = "",
-    ) {
-        targets.projectIds.forEach {
-            increment(ConfigurationType.PROJECT, it, targets.name, current)
+        onResult: (IncrementResult) -> Unit = {},
+    ): List<IncrementResult> =
+        targets.all().map { target ->
+            val value = try {
+                client.getParameter(target.type, target.id, targets.name)
+            } catch (e: Exception) {
+                return@map IncrementResult.Skipped(target, "Unable to retrieve value", e).also(onResult)
+            }
+            when (val outcome = VersionIncrement.next(value, current)) {
+                is VersionIncrement.Outcome.Skipped ->
+                    IncrementResult.Skipped(target, outcome.reason, outcome.cause).also(onResult)
+                is VersionIncrement.Outcome.Incremented ->
+                    IncrementResult.Incremented(target, value, outcome.value).also { result ->
+                        onResult(result)
+                        client.setParameter(target.type, target.id, targets.name, outcome.value)
+                    }
+            }
         }
-        targets.buildTypeIds.forEach {
-            increment(ConfigurationType.BUILD_TYPE, it, targets.name, current)
-        }
-    }
 
-    @Suppress("TooGenericExceptionCaught")
-    private fun increment(
-        type: ConfigurationType,
-        id: String,
-        name: String,
-        current: String,
-    ) {
-        val componentDelimiters = "[.-]".toRegex()
-        val typeName = when (type) {
-            ConfigurationType.PROJECT -> "project"
-            ConfigurationType.BUILD_TYPE -> "build configuration"
-        }
-        val warn = "Skip incrementation of parameter $name for $typeName with id $id"
-        val value = try {
-            client.getParameter(type, id, name)
-        } catch (e: Exception) {
-            log.warn("$warn. Unable to retrieve value", e)
-            return
-        }
-        val valueComponents = value.split(componentDelimiters)
-        if (current.isNotEmpty() && valueComponents != current.split(componentDelimiters).take(valueComponents.size)) {
-            log.warn("$warn. $current does not contain components of $value")
-            return
-        }
-        val lastComponent = valueComponents.last()
-        val incrementedLastComponent = try {
-            lastComponent.toLong().inc().toString()
-        } catch (e: Exception) {
-            log.warn("$warn. Unable to increment last component $lastComponent of $value", e)
-            return
-        }
-        val incrementedValue = value.removeSuffix(lastComponent) + incrementedLastComponent
-        log.info("Increment value $value of parameter $name to $incrementedValue for $typeName with id $id")
-        client.setParameter(type, id, name, incrementedValue)
-    }
+    private fun ParameterTargets.all() =
+        projectIds.map { ParameterTarget(ConfigurationType.PROJECT, it) } +
+            buildTypeIds.map { ParameterTarget(ConfigurationType.BUILD_TYPE, it) }
 }

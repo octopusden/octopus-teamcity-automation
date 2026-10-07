@@ -7,7 +7,9 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import org.octopusden.octopus.automation.teamcity.parameter.ParameterTarget
 import org.octopusden.octopus.automation.teamcity.parameter.ParameterTargets
+import org.octopusden.octopus.infrastructure.teamcity.client.ConfigurationType
 
 class TeamcityUpdateParameterCommand : CliktCommand(name = COMMAND) {
     private val name by option(NAME_OPTION, help = "TeamCity parameter name")
@@ -58,5 +60,11 @@ class TeamcityUpdateParameterCommand : CliktCommand(name = COMMAND) {
         ) {
             fun targets() = ParameterTargets(name, projectIds, buildTypeIds)
         }
+
+        fun ParameterTarget.typeName() =
+            when (type) {
+                ConfigurationType.PROJECT -> "project"
+                ConfigurationType.BUILD_TYPE -> "build configuration"
+            }
     }
 }
