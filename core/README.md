@@ -28,7 +28,7 @@ SLF4J; the caller provides the binding.
 | `vcsroot` | `VcsRootReplacer` |
 | `parameter` | `ParameterUpdater`, `ParameterTargets` |
 | `metarunner` | `MetarunnerUploader` |
-| `agent` | `AgentRequirementsReport` |
+| `agent` | `AgentRequirementsReport`, `AgentRequirementRow` |
 | `github` | `CommitStatusPublisher`, `CommitStatus`, `CommitState` |
 
 ## Build chain
@@ -135,10 +135,11 @@ metarunner of the project, named after its file name. The caller opens and close
 
 ## Agent requirements
 
-`AgentRequirementsReport(client).write(writer, includeArchived = false)` writes every build
-configuration's agent requirements as `;`-separated rows under a header: project, build configuration,
-requirement type, name and value, and whether it is disabled, paused or archived. The caller closes the
-writer.
+`AgentRequirementsReport(client).collect(includeArchived = false)` returns one `AgentRequirementRow` per
+agent requirement of every build configuration: project, build configuration, requirement type, the
+requirement's `property-name` and `property-value`, and whether it is disabled, paused or archived.
+Build configurations of archived projects are left out unless `includeArchived`. Rendering is the
+caller's: the CLI writes these rows as `;`-separated CSV.
 
 ## GitHub commit statuses
 
