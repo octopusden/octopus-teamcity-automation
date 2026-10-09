@@ -25,6 +25,8 @@ pluginManagement {
 
 rootProject.name = "octopus-teamcity-automation"
 
+include(":core", ":cli")
+
 gradle.beforeProject {
     project.version = gradle.startParameter.projectProperties["version"] ?: with(CRC32()) {
         update(InetAddress.getLocalHost().hostName.toByteArray())
