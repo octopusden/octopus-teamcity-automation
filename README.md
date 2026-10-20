@@ -135,7 +135,9 @@ Swagger UI at the root.
 ### Functional tests
 
 `ft` runs the service image against TeamCity 2022 and 2026 and the Components Registry, on Docker
-(the default) or in an OKD namespace:
+(the default) or in an OKD namespace. `test` runs it too, after the `:core` and `:cli` integration
+tests have taken their own servers down, so `./gradlew build test` covers everything and
+`-x test` leaves it out:
 
 ```bash
 ./gradlew :ft:ft

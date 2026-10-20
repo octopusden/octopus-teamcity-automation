@@ -275,6 +275,18 @@ if ("testPlatform".getExt() == "docker") {
     }
 }
 
+// `test` runs the functional tests too, so a build configuration that runs `build test` (the
+// TeamCity [2.0] FT one) covers the service as well; `-x test` (Compile & UT, GitHub) leaves them out.
+tasks.named("test") { dependsOn(ft) }
+
+// The :core and :cli integration tests bring up their own TeamCity servers and Components Registry
+// on the same Docker ports and in the same OKD namespace, so this environment comes up only after
+// theirs is gone.
+tasks.named("composeUp") { mustRunAfter(":composeDown") }
+tasks.matching { it.name.startsWith("ocCreate") }.configureEach {
+    mustRunAfter(":ocDeleteTeamcityPVCs", ":ocDeleteTeamcityServers", ":ocDeleteComponentsRegistry")
+}
+
 val ftInfrastructureTasks = setOf(
     "ft",
     "prepareTeamcity2022Data",
