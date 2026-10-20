@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-release.yml@v3.2.0
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-release.yml@v3.3.0
     permissions:
       contents: write
       packages: write
@@ -15,13 +15,15 @@ jobs:
       java-version: '21'
       commit-hash: ${{ github.event.client_payload.commit }}
       build-version: ${{ github.event.client_payload.project_version }}
-      # Both publications (the CLI and the octopus-teamcity-automation-core library) move in whole, so nothing is left for Central.
-      publish-to-nexus: false
+      # The CLI and the octopus-teamcity-automation-core library go to GitHub Packages; the
+      # service's :common and :client libraries go to Maven Central, and its image to ghcr.io.
       github-packages-publications: ":cli:maven,:core:maven"
       github-packages-repository: octopusden/octopus-maven-packages
-      # With publish-to-nexus false nothing reaches Maven Central, so the artifact poll that
-      # check-and-register.yml performed could never succeed and registration would never run.
-      # Register inside the release instead: that job needs the build and the tag, so it still
-      # cannot outrun the deliverable.
+      resume-deployment-id: ${{ github.event.client_payload.resume_deployment_id }}
+      docker-image: teamcity-automation-service
+      # ft needs TeamCity, the Components Registry and the service running in Docker or OKD.
+      skip-extra-tasks: ft
+      # Registered inside the release: that job needs the build and the tag, so it cannot outrun
+      # the deliverables.
       register-release-immediately: true
     secrets: inherit

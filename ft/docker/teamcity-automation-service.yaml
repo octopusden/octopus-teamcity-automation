@@ -1,0 +1,17 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        # logfile: the ft reads the log back over HTTP, so the check works on Docker and OKD alike.
+        include: health, info, loggers, logfile
+
+logging:
+  # Read back by the ft through /actuator/logfile to prove no credential reaches the log.
+  file:
+    name: /tmp/teamcity-automation-service.log
+  level:
+    org.octopusden.octopus.teamcityautomationservice: debug
+    # Deliberately DEBUG: the clients log full exchanges, headers included, at this level. The
+    # service's wire-log filter must keep them out regardless; the ft checks it does.
+    org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient: debug
+    org.octopusden.octopus.components.registry.client.ComponentsRegistryServiceClient: debug

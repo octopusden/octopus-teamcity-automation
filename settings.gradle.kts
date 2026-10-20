@@ -7,6 +7,12 @@ pluginManagement {
 
     plugins {
         id("org.jetbrains.kotlin.jvm") version ("1.9.20")
+        id("org.jetbrains.kotlin.plugin.spring") version ("1.9.20")
+        id("org.springframework.boot") version (extra["spring-boot-plugin.version"] as String)
+        id("io.spring.dependency-management") version ("1.1.7")
+        id("com.bmuschko.docker-spring-boot-application") version (extra["bmuschko-docker-plugin.version"] as String)
+        id("org.jetbrains.kotlinx.kover") version (extra["kover.version"] as String)
+        id("org.owasp.dependencycheck") version (extra["owasp-dependency-check.version"] as String)
         id("com.gradleup.shadow") version ("8.3.6")
         id("com.avast.gradle.docker-compose") version ("0.16.9")
         id("io.github.gradle-nexus.publish-plugin") version ("1.1.0")
@@ -26,6 +32,13 @@ pluginManagement {
 rootProject.name = "octopus-teamcity-automation"
 
 include(":core", ":cli")
+
+// The REST service over :core, laid out like the other octopus services.
+include(":common")
+include(":client")
+include(":server")
+findProject(":server")?.name = "teamcity-automation-service"
+include(":ft")
 
 gradle.beforeProject {
     project.version = gradle.startParameter.projectProperties["version"] ?: with(CRC32()) {

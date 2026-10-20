@@ -12,14 +12,10 @@ permissions:
 
 jobs:
   quality:
-    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-quality-gates.yml@v3.0.2
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-quality-gates.yml@v3.3.0
     with:
       java-version: '21'
-      # Coverage is disabled for this repo (octopusQuality.coverage.enabled = false), so
-      # qualityCoverage is a no-op. The default coverage-command still pulls in the `test`
-      # task, whose testcontainers wiring (dockerCompose.isRequiredBy(test)) drives
-      # composeBuild/composeUp -> docker-compose, which is unavailable on the GitHub runner.
-      # Exclude `test` (and the compose lifecycle it triggers) so the gate can run without
-      # Docker/OKD infrastructure.
-      coverage-command: ./gradlew qualityCoverage --no-daemon --stacktrace -x composeBuild -x composeUp -x composeDown -x composeDownForcedOnFailure -x test
+      # The default coverage-command is enough: qualityCoverage covers the service modules only,
+      # whose tests need no Docker. :core and :cli are excluded in octopusQuality, so their tests,
+      # which start TeamCity through docker-compose, are not pulled in.
     secrets: inherit

@@ -1,0 +1,102 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: teamcity-automation-service-template
+objects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-tas-config-data
+    data:
+      application-ft.yaml: |-
+        ${APPLICATION_FT_CONTENT}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-tas
+      labels:
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas
+    spec:
+      restartPolicy: Never
+      activeDeadlineSeconds: ${{ACTIVE_DEADLINE_SECONDS}}
+      containers:
+        - name: tas
+          image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 400Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          env:
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: "/"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "ft"
+            - name: SPRING_CLOUD_CONFIG_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: application-ft
+              mountPath: /application-ft.yaml
+              subPath: application-ft.yaml
+              readOnly: true
+      volumes:
+        - name: application-ft
+          configMap:
+            name: ${DEPLOYMENT_PREFIX}-tas-config-data
+            items:
+              - key: application-ft.yaml
+                path: application-ft.yaml
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-tas-service
+    spec:
+      ports:
+        - port: 8080
+          protocol: TCP
+          targetPort: 8080
+      selector:
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${DEPLOYMENT_PREFIX}-tas-route
+      annotations:
+        # A chain makes a few dozen TeamCity calls; keep the route from cutting a slow one off.
+        haproxy.router.openshift.io/timeout: 240s
+    spec:
+      port:
+        targetPort: 8080
+      to:
+        kind: Service
+        name: ${DEPLOYMENT_PREFIX}-tas-service
+parameters:
+  - description: Unique deployment prefix
+    name: DEPLOYMENT_PREFIX
+    required: true
+  - description: Active deadline seconds
+    name: ACTIVE_DEADLINE_SECONDS
+    required: true
+  - description: Docker registry
+    name: DOCKER_REGISTRY
+    required: true
+  - description: Octopus github docker registry
+    name: OCTOPUS_GITHUB_DOCKER_REGISTRY
+    required: true
+  - description: Teamcity automation service version
+    name: TEAMCITY_AUTOMATION_SERVICE_VERSION
+    required: true
+  - description: application-ft.yaml content
+    name: APPLICATION_FT_CONTENT
+    required: true

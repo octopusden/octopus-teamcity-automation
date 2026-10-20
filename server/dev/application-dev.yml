@@ -1,0 +1,9 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, env, metrics, threaddump, heapdump, info, configprops, prometheus, loggers
+
+logging:
+  level:
+    org.octopusden.octopus.teamcityautomationservice: debug

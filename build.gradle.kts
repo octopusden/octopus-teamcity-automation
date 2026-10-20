@@ -1,11 +1,18 @@
 import com.avast.gradle.dockercompose.ComposeExtension
+import kotlinx.kover.gradle.plugin.dsl.AggregationType
+import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.time.Duration
 
 plugins {
     id("org.jetbrains.kotlin.jvm") apply false
     id("com.gradleup.shadow") apply false
+    id("io.spring.dependency-management") apply false
+    id("org.jetbrains.kotlinx.kover")
+    id("org.owasp.dependencycheck")
     id("com.avast.gradle.docker-compose")
     id("io.github.gradle-nexus.publish-plugin")
     id("org.octopusden.octopus-release-management")
@@ -28,18 +35,82 @@ octopusQuality {
                     "[jar, jar:all, jar:javadoc, jar:sources, zip:metarunners]",
                 ":core|maven|org.octopusden.octopus.automation.teamcity:octopus-teamcity-automation-core|" +
                     "[jar, jar:javadoc, jar:sources]",
+                // The service is a deployable shipped as a docker image, so only the two libraries
+                // other services consume are listed.
+                ":client|maven|org.octopusden.octopus.teamcity-automation-service:client|" +
+                    "[jar, jar:javadoc, jar:sources]",
+                ":common|maven|org.octopusden.octopus.teamcity-automation-service:common|" +
+                    "[jar, jar:javadoc, jar:sources]",
             ),
         )
     }
-    // Repo has no coverage tool configured — disable coverage verification.
+    // Kover covers the service modules only (configured below, with its own thresholds); :core and
+    // :cli are tested against real TeamCity servers and stay outside it.
     coverage {
-        enabled.set(false)
+        enabled.set(true)
     }
     // Enforce Kotlin static analysis (detekt + ktlint); current debt is absorbed by
     // detekt-baseline.xml / ktlint-baseline.xml so the gate stays green while enforcing.
     kotlin {
         failOnViolation.set(true)
     }
+    // Coverage only: :core and :cli are tested against TeamCity servers in Docker or OKD, and ft
+    // is run on its own.
+    excludeProjects("ft", "core", "cli")
+}
+
+val cliProjects = listOf(project(":core"), project(":cli"))
+val serviceProjects = listOf(project(":common"), project(":client"), project(":teamcity-automation-service"), project(":ft"))
+val coveredServiceProjects = serviceProjects - project(":ft")
+
+fun requiredIntProperty(propertyName: String): Int {
+    val value = findProperty(propertyName)?.toString()?.trim()
+        ?: throw IllegalStateException("Missing Gradle property '$propertyName' required for Kover verification")
+    return value.toIntOrNull()
+        ?: throw IllegalStateException("Gradle property '$propertyName' must be an integer, but was '$value'")
+}
+
+dependencies {
+    coveredServiceProjects.forEach { add("kover", it) }
+}
+
+kover {
+    reports {
+        verify {
+            rule("Line coverage") {
+                bound {
+                    minValue.set(requiredIntProperty("coverage.line.min"))
+                    coverageUnits = CoverageUnit.LINE
+                    aggregationForGroup = AggregationType.COVERED_PERCENTAGE
+                }
+            }
+            rule("Branch coverage") {
+                bound {
+                    minValue.set(requiredIntProperty("coverage.branch.min"))
+                    coverageUnits = CoverageUnit.BRANCH
+                    aggregationForGroup = AggregationType.COVERED_PERCENTAGE
+                }
+            }
+        }
+    }
+}
+
+dependencyCheck {
+    failBuildOnCVSS = 11.0F
+    formats = listOf("HTML", "JSON", "SARIF")
+    outputDirectory.set(layout.buildDirectory.dir("reports/dependency-check"))
+}
+
+tasks.register("securityReport") {
+    group = "verification"
+    description = "Runs security checks in report-only mode."
+    dependsOn(
+        if (tasks.names.contains("dependencyCheckAggregate")) {
+            "dependencyCheckAggregate"
+        } else {
+            "dependencyCheckAnalyze"
+        },
+    )
 }
 
 allprojects {
@@ -321,7 +392,7 @@ tasks.named("ocDeleteTeamcityServers").configure {
 
 // Both modules run integration tests against the same servers, so the servers come down only
 // after every test task has finished, not when the first one does.
-val integrationTestTasks = subprojects.map { "${it.path}:test" }
+val integrationTestTasks = cliProjects.map { "${it.path}:test" }
 
 // They also reset the same TeamCity parent project and template ids, so never run them at once.
 project(":core").tasks.matching { it.name == "test" }.configureEach { mustRunAfter(":cli:test") }
@@ -333,7 +404,7 @@ val testPlatform = "testPlatform".getExt()
 val rootOcTemplate = ocTemplate
 val rootDockerCompose = dockerCompose
 
-subprojects {
+configure(cliProjects) {
     // Tests tagged "integration" need the TeamCity servers and the Components Registry; `unitTest` runs the
     // rest without starting them. `test` runs everything, as CI does.
     tasks.register<Test>("unitTest") {
@@ -400,5 +471,71 @@ nexusPublishing {
     transitionCheckOptions {
         maxRetries.set(60)
         delayBetween.set(Duration.ofSeconds(30))
+    }
+}
+
+val testsExcludedFromBuild = gradle.startParameter.excludedTaskNames.any { excludedTask ->
+    excludedTask == "test" || excludedTask.endsWith(":test")
+}
+
+configure(serviceProjects) {
+    apply(plugin = "idea")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlinx.kover")
+
+    group = "org.octopusden.octopus.teamcity-automation-service"
+
+    configure<org.gradle.plugins.ide.idea.model.IdeaModel> {
+        module {
+            isDownloadJavadoc = true
+            isDownloadSources = true
+        }
+    }
+
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            freeCompilerArgs.add("-Xjsr305=strict")
+        }
+    }
+
+    extensions.configure<KotlinJvmProjectExtension> {
+        // The Kotlin runtime the Spring BOMs pin, so the published POMs name the stdlib the service runs on.
+        coreLibrariesVersion = providers.gradleProperty("kotlin.version").get()
+        compilerOptions {
+            languageVersion.set(KotlinVersion.KOTLIN_1_9)
+            apiVersion.set(KotlinVersion.KOTLIN_1_9)
+        }
+    }
+
+    // The imported Spring BOMs pin every org.jetbrains.kotlin artifact to the runtime version, and
+    // dependency-management applies them to every configuration - including the Kotlin plugin's own
+    // compiler, build-tools and compiler-plugin classpaths and detekt's and ktlint's, which must stay
+    // at the versions those tools ask for. Registered after dependency-management's rule, this one
+    // runs last. kotlinScriptDef* resolve from the project's classpath and stay managed.
+    val toolConfigurationPrefixes = listOf("kotlin", "detekt", "ktlint")
+    configurations
+        .matching { c -> toolConfigurationPrefixes.any { c.name.startsWith(it) } && !c.name.startsWith("kotlinScriptDef") }
+        .configureEach {
+            resolutionStrategy.eachDependency {
+                val version = requested.version
+                if (requested.group.startsWith("org.jetbrains.kotlin") && !version.isNullOrEmpty()) {
+                    useVersion(version)
+                }
+            }
+        }
+
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
+        testLogging {
+            info.events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
+        }
+    }
+
+    if (testsExcludedFromBuild) {
+        tasks.configureEach {
+            if (name.startsWith("kover")) {
+                enabled = false
+            }
+        }
     }
 }
