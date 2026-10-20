@@ -1,7 +1,9 @@
 import com.avast.gradle.dockercompose.ComposeExtension
+import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
@@ -485,6 +487,13 @@ configure(serviceProjects) {
 
     group = "org.octopusden.octopus.teamcity-automation-service"
 
+    configure<DependencyManagementExtension> {
+        imports {
+            mavenBom("org.springframework.boot:spring-boot-dependencies:${property("spring-boot.version")}")
+            mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("spring-cloud.version")}")
+        }
+    }
+
     configure<org.gradle.plugins.ide.idea.model.IdeaModel> {
         module {
             isDownloadJavadoc = true
@@ -537,5 +546,52 @@ configure(serviceProjects) {
                 enabled = false
             }
         }
+    }
+}
+
+// The service's libraries other services consume: published to Maven Central and kept on Java 8.
+configure(listOf(project(":common"), project(":client"))) {
+    configure<JavaPluginExtension> {
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_1_8)
+        }
+    }
+
+    val publishing = the<PublishingExtension>()
+    publishing.publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            pom {
+                name.set(project.name)
+                description.set("Octopus module: ${project.name}")
+                url.set("https://github.com/octopusden/octopus-teamcity-automation.git")
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/octopusden/octopus-teamcity-automation.git")
+                    connection.set("scm:git://github.com/octopusden/octopus-teamcity-automation.git")
+                }
+                developers {
+                    developer {
+                        id.set("octopus")
+                        name.set("octopus")
+                    }
+                }
+            }
+        }
+    }
+
+    configure<SigningExtension> {
+        isRequired = rootProject.ext["signingRequired"].toString().toBooleanStrict()
+        useInMemoryPgpKeys(findProperty("signingKey") as String?, findProperty("signingPassword") as String?)
+        sign(publishing.publications["maven"])
     }
 }

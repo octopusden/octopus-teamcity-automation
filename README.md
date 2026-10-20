@@ -88,6 +88,18 @@ and an account of what exists after a failure.
 The service holds no credentials of its own: TeamCity is called as the user in the request, so
 TeamCity decides what that user may do. The password is never logged or returned.
 
+The service only calls the servers its configuration allows; a request naming any other URL is refused
+with `400 VALIDATION`, and with no list configured every request is refused:
+
+```yaml
+teamcity-automation-service:
+  allowed-teamcity-urls: https://teamcity.example
+  allowed-components-registry-urls: https://components-registry.example
+```
+
+Each entry is a base URL: a request URL is allowed when its scheme, host and port match and its path
+is under the entry's path. Both are comma-separated lists.
+
 `201 Created` returns the ids of what was created; the RC and checklist ids are `null` when they were
 not created:
 
@@ -105,14 +117,15 @@ Errors carry `errorCode` and `errorMessage`:
 
 | Status | `errorCode` | When |
 |---|---|---|
-| 400 | `VALIDATION` | A field is missing, blank, has surrounding whitespace, or a URL is not http(s) |
+| 400 | `VALIDATION` | A field is missing, blank, has surrounding whitespace, a URL is not http(s) or names a server that is not allowed |
 | 401 | `UNAUTHORIZED` | TeamCity rejected the credentials |
 | 403 | `FORBIDDEN` | The TeamCity user lacks a permission |
 | 404 | `NOT_FOUND` | The parent project, the component or its version does not exist |
 | 409 | `ALREADY_EXISTS` | The component's project already exists under the parent; `projectId` names it. Nothing is changed: delete the project in TeamCity to create the chain again |
 | 422 | `UNSUPPORTED_COMPONENT` | The build system or the VCS roots cannot be turned into a chain |
 | 502 | `PARTIALLY_CREATED` | Creation failed after the project was created; `projectId` and `buildTypeIds` name what exists. Delete the project before trying again |
-| 502 | `UPSTREAM_ERROR` | TeamCity or the Components Registry failed or is not reachable |
+| 409 | `ALREADY_EXISTS` | Another request created the same project while this one ran; `projectId` names it and this request created nothing |
+| 502 | `UPSTREAM_ERROR` | TeamCity or the Components Registry failed, rejected the request or is not reachable |
 
 Everything before the project is created (credentials, parent, existing project, component,
 build system, VCS roots) is checked first, so a 4xx never leaves anything in TeamCity.

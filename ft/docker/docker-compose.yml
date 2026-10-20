@@ -12,6 +12,8 @@ services:
       - SPRING_CONFIG_ADDITIONAL_LOCATION=/
       - SPRING_PROFILES_ACTIVE=ft
       - SPRING_CLOUD_CONFIG_ENABLED=false
+      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDTEAMCITYURLS=http://teamcity-2022:8111,http://teamcity-2026:8111
+      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDCOMPONENTSREGISTRYURLS=http://components-registry-service:4567
 
   teamcity-2022:
     container_name: teamcity-automation-service-ft-teamcity-2022

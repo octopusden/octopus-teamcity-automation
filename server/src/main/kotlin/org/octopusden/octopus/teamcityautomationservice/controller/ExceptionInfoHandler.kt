@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 /**
  * Every error body is built from the service's own messages. Messages of foreign exceptions are not
@@ -68,13 +69,26 @@ class ExceptionInfoHandler {
     }
 
     @ExceptionHandler(Exception::class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    fun handleException(exception: Exception): ErrorResponse {
-        log.error(exception.message ?: "Unexpected error", exception)
-        return ErrorResponse(
-            TeamcityAutomationServiceErrorCode.OTHER,
-            TeamcityAutomationServiceErrorCode.OTHER.simpleMessage,
-        )
+    fun handleException(exception: Exception): ResponseEntity<ErrorResponse> {
+        // Spring MVC's own exceptions (unknown path, wrong method or media type, ...) carry their status.
+        val status = (exception as? SpringErrorResponse)?.statusCode ?: HttpStatus.INTERNAL_SERVER_ERROR
+        if (status.is5xxServerError) {
+            log.error(exception.message ?: "Unexpected error", exception)
+        } else {
+            log.warn("Request failed with {}: {}", status, exception.javaClass.simpleName)
+        }
+        val errorCode = when {
+            status.is5xxServerError -> TeamcityAutomationServiceErrorCode.OTHER
+            status.value() == HttpStatus.NOT_FOUND.value() -> TeamcityAutomationServiceErrorCode.NOT_FOUND
+            else -> TeamcityAutomationServiceErrorCode.VALIDATION
+        }
+        val message = if (status.is5xxServerError) {
+            errorCode.simpleMessage
+        } else {
+            // The reason phrase only: the exception message can quote request content.
+            HttpStatus.resolve(status.value())?.reasonPhrase ?: errorCode.simpleMessage
+        }
+        return ResponseEntity.status(status).body(ErrorResponse(errorCode, message))
     }
 
     private fun TeamcityAutomationServiceErrorCode.status() =

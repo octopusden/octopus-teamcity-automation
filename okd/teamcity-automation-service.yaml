@@ -45,6 +45,10 @@ objects:
               value: "ft"
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
+            - name: TEAMCITYAUTOMATIONSERVICE_ALLOWEDTEAMCITYURLS
+              value: ${ALLOWED_TEAMCITY_URLS}
+            - name: TEAMCITYAUTOMATIONSERVICE_ALLOWEDCOMPONENTSREGISTRYURLS
+              value: ${ALLOWED_COMPONENTS_REGISTRY_URLS}
           volumeMounts:
             - name: application-ft
               mountPath: /application-ft.yaml
@@ -99,4 +103,10 @@ parameters:
     required: true
   - description: application-ft.yaml content
     name: APPLICATION_FT_CONTENT
+    required: true
+  - description: Comma-separated TeamCity base URLs the service may call
+    name: ALLOWED_TEAMCITY_URLS
+    required: true
+  - description: Comma-separated Components Registry base URLs the service may call
+    name: ALLOWED_COMPONENTS_REGISTRY_URLS
     required: true

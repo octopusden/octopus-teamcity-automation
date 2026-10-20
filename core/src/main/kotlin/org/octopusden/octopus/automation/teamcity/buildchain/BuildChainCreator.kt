@@ -35,21 +35,33 @@ class BuildChainCreator(
     private val log = LoggerFactory.getLogger(BuildChainCreator::class.java)
 
     /**
+     * [parentProject] is the parent the caller has already read, if any. [onProjectCreated] gets the
+     * component's project as soon as it exists, so a caller can tell what a later failure left behind.
+     *
      * @throws UnsupportedBuildSystemException the component's build system has no compile template
      * @throws UnsupportedVcsTypeException a registry VCS root is not Git
      * @throws UnsupportedVcsRootLayoutException the registry VCS roots cannot be placed
      */
-    fun create(request: BuildChainRequest): BuildChainResult {
+    @JvmOverloads
+    fun create(
+        request: BuildChainRequest,
+        parentProject: TeamcityProject? = null,
+        onProjectCreated: (TeamcityProject) -> Unit = {},
+    ): BuildChainResult {
         log.info("Create build chain")
-        val parentProject = client.getProject(request.parentProjectId)
+        val parent = parentProject ?: client.getProject(request.parentProjectId)
+        require(parent.id == request.parentProjectId) {
+            "Parent project '${parent.id}' is not the requested '${request.parentProjectId}'"
+        }
         val detailedComponent = componentsRegistryClient.getDetailedComponent(request.componentName, request.minorVersion)
-        return createBuildChain(request, parentProject, detailedComponent)
+        return createBuildChain(request, parent, detailedComponent, onProjectCreated)
     }
 
     private fun createBuildChain(
         request: BuildChainRequest,
         parentProject: TeamcityProject,
         component: DetailedComponent,
+        onProjectCreated: (TeamcityProject) -> Unit,
     ): BuildChainResult {
         val componentName = request.componentName
         val placement = VcsRootPlacement(client, log, componentName)
@@ -63,9 +75,10 @@ class BuildChainCreator(
             else -> throw UnsupportedBuildSystemException(component.buildSystem)
         }
 
-        val project = client.createProject(
-            TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
-        )
+        val project = client
+            .createProject(
+                TeamcityCreateProject(name = componentName, parentProject = TeamcityLinkProject(id = parentProject.id)),
+            ).also(onProjectCreated)
         val buildWorkingDirectory = component.vcsSettings.buildWorkingDirectory?.takeIf { it.isNotBlank() }
         val placedRoots = placement.createAll(project.id, registryRoots)
         val attachOrder = placement.attachOrder(registryRoots, buildWorkingDirectory)

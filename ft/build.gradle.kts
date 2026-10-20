@@ -178,6 +178,8 @@ ocTemplate {
                     "OCTOPUS_GITHUB_DOCKER_REGISTRY" to "octopusGithubDockerRegistry".getExt(),
                     "TEAMCITY_AUTOMATION_SERVICE_VERSION" to version as String,
                     "APPLICATION_FT_CONTENT" to serviceConfig.asFile.readText(),
+                    "ALLOWED_TEAMCITY_URLS" to listOf("teamcity22", "teamcity26").joinToString(",") { "http://${getOkdInternalHost(it)}" },
+                    "ALLOWED_COMPONENTS_REGISTRY_URLS" to "http://${getOkdInternalHost("comp-reg")}",
                 ),
             )
         }
@@ -307,13 +309,6 @@ if (ftExcludedFromBuild) {
 idea.module {
     // The resolvable view of ftImplementation: a declare-only configuration cannot be resolved.
     scopes["PROVIDED"]?.get("plus")?.add(configurations["ftCompileClasspath"])
-}
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:${properties["spring-boot.version"]}")
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${properties["spring-cloud.version"]}")
-    }
 }
 
 dependencies {

@@ -13,8 +13,10 @@ import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainCreator
@@ -41,6 +43,7 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
+import org.octopusden.octopus.teamcityautomationservice.config.AllowedServersProperties
 import org.octopusden.octopus.teamcityautomationservice.config.BuildChainClientFactory
 import java.util.UUID
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException as RegistryNotFoundException
@@ -54,12 +57,12 @@ class BuildChainServiceImplTest {
         on { createComponentsRegistryClient(any()) } doReturn componentsRegistryClient
         on { createBuildChainCreator(teamcityClient, componentsRegistryClient) } doReturn creator
     }
-    private val service = BuildChainServiceImpl(clientFactory)
+    private val service = BuildChainServiceImpl(clientFactory, AllowedServersProperties(listOf(TEAMCITY_URL), listOf(REGISTRY_URL)))
 
     @Test
     fun createsChainWithTheRequestInputs() {
         givenParent()
-        whenever(creator.create(any())) doReturn RESULT
+        whenever(creator.create(any(), any(), any())) doReturn RESULT
 
         val dto = service.createBuildChain(REQUEST)
 
@@ -67,7 +70,12 @@ class BuildChainServiceImplTest {
             BuildChainDTO(PROJECT_ID, "${PROJECT_ID}_10", "${PROJECT_ID}_20", null, "${PROJECT_ID}_40"),
             dto,
         )
-        verify(creator).create(BuildChainRequest(PARENT, COMPONENT, "1.0", createChecklist = false, createRcForce = true))
+        verify(creator).create(
+            eq(BuildChainRequest(PARENT, COMPONENT, "1.0", createChecklist = false, createRcForce = true)),
+            eq(parent()),
+            any(),
+        )
+        verify(teamcityClient, times(1)).getProject(any<ProjectLocator>())
         verify(clientFactory).createTeamcityClient(REQUEST.teamcity)
         verify(clientFactory).createComponentsRegistryClient(REGISTRY_URL)
     }
@@ -80,7 +88,7 @@ class BuildChainServiceImplTest {
 
         assertEquals(PROJECT_ID, e.projectId)
         assertTrue(e.message!!.contains("Delete it in TeamCity"))
-        verify(creator, never()).create(any())
+        verify(creator, never()).create(any(), any(), any())
     }
 
     @Test
@@ -130,7 +138,7 @@ class BuildChainServiceImplTest {
     @Test
     fun mapsUnsupportedComponentTo422Exception() {
         givenParent()
-        whenever(creator.create(any())) doThrow UnsupportedBuildSystemException(BuildSystem.NOT_SUPPORTED)
+        whenever(creator.create(any(), any(), any())) doThrow UnsupportedBuildSystemException(BuildSystem.NOT_SUPPORTED)
 
         val e = assertThrows<UnsupportedComponentException> { service.createBuildChain(REQUEST) }
 
@@ -140,7 +148,7 @@ class BuildChainServiceImplTest {
     @Test
     fun mapsUnsupportedVcsToUnsupportedComponent() {
         givenParent()
-        whenever(creator.create(any())) doThrow UnsupportedVcsTypeException("MERCURIAL is not supported")
+        whenever(creator.create(any(), any(), any())) doThrow UnsupportedVcsTypeException("MERCURIAL is not supported")
 
         assertThrows<UnsupportedComponentException> { service.createBuildChain(REQUEST) }
     }
@@ -148,7 +156,7 @@ class BuildChainServiceImplTest {
     @Test
     fun mapsMissingComponentToNotFound() {
         givenParent()
-        whenever(creator.create(any())) doThrow RegistryNotFoundException("Component 'component' is not found")
+        whenever(creator.create(any(), any(), any())) doThrow RegistryNotFoundException("Component 'component' is not found")
 
         val e = assertThrows<NotFoundException> { service.createBuildChain(REQUEST) }
 
@@ -158,7 +166,7 @@ class BuildChainServiceImplTest {
     @Test
     fun namesTheServerThatFailedBeforeCreation() {
         givenParent()
-        whenever(creator.create(any())) doThrow feignException(500, "$REGISTRY_URL/rest/api/2/components/component")
+        whenever(creator.create(any(), any(), any())) doThrow feignException(500, "$REGISTRY_URL/rest/api/2/components/component")
 
         val e = assertThrows<UpstreamException> { service.createBuildChain(REQUEST) }
 
@@ -168,11 +176,8 @@ class BuildChainServiceImplTest {
     @Test
     fun reportsWhatWasCreatedWhenFailingAfterCreation() {
         val failure = feignException(404)
-        whenever(teamcityClient.getProject(any<ProjectLocator>())).thenReturn(
-            parent(),
-            parent(TeamcityProject(PROJECT_ID, COMPONENT, href = "", webUrl = "")),
-        )
-        whenever(creator.create(any())) doThrow failure
+        givenParent()
+        givenCreatorFailsAfterCreating(failure)
         whenever(teamcityClient.getBuildTypes(ProjectLocatorMatcher.withId(PROJECT_ID))) doReturn
             TeamcityBuildTypes(listOf(TeamcityBuildType("${PROJECT_ID}_10")))
 
@@ -185,16 +190,96 @@ class BuildChainServiceImplTest {
     }
 
     @Test
-    fun keepsTheFailureWhenTheLookupAfterItFails() {
+    fun reportsTheCreatedProjectEvenWhenItsBuildTypesCannotBeListed() {
         val failure = IllegalStateException("boom")
-        whenever(teamcityClient.getProject(any<ProjectLocator>()))
-            .thenReturn(parent())
-            .thenThrow(feignException(500))
-        whenever(creator.create(any())) doThrow failure
+        givenParent()
+        givenCreatorFailsAfterCreating(failure)
+        whenever(teamcityClient.getBuildTypes(ProjectLocatorMatcher.withId(PROJECT_ID))) doThrow feignException(500)
+
+        val e = assertThrows<PartiallyCreatedException> { service.createBuildChain(REQUEST) }
+
+        assertEquals(PROJECT_ID, e.projectId)
+        assertEquals(emptyList<String>(), e.buildTypeIds)
+        assertTrue(e.message!!.contains("could not be listed"))
+    }
+
+    @Test
+    fun keepsTheFailureWhenNothingWasCreated() {
+        val failure = IllegalStateException("boom")
+        givenParent()
+        whenever(creator.create(any(), any(), any())) doThrow failure
 
         val e = assertThrows<IllegalStateException> { service.createBuildChain(REQUEST) }
 
         assertSame(failure, e)
+        verify(teamcityClient, times(1)).getProject(any<ProjectLocator>())
+    }
+
+    @Test
+    fun doesNotClaimAProjectAnotherRequestCreated() {
+        whenever(teamcityClient.getProject(any<ProjectLocator>())).thenReturn(
+            parent(),
+            parent(TeamcityProject(PROJECT_ID, COMPONENT, href = "", webUrl = "")),
+        )
+        whenever(creator.create(any(), any(), any())) doThrow feignException(400, "$TEAMCITY_URL/app/rest/projects")
+
+        val e = assertThrows<AlreadyExistsException> { service.createBuildChain(REQUEST) }
+
+        assertEquals(PROJECT_ID, e.projectId)
+        assertTrue(e.message!!.contains("by another request"))
+    }
+
+    @Test
+    fun doesNotBlameTeamcityCredentialsForARegistryRejection() {
+        givenParent()
+        whenever(creator.create(any(), any(), any())) doThrow feignException(401, "$REGISTRY_URL/rest/api/2/components/component")
+
+        val e = assertThrows<UpstreamException> { service.createBuildChain(REQUEST) }
+
+        assertEquals("Components Registry answered HTTP 401", e.message)
+    }
+
+    @Test
+    fun attributesAFailureToTheMoreSpecificServerUnderTheSameHost() {
+        val request = REQUEST.copy(
+            teamcity = REQUEST.teamcity.copy(url = "http://host/teamcity"),
+            componentsRegistryUrl = "http://host",
+        )
+        val nested = BuildChainServiceImpl(clientFactory, AllowedServersProperties(listOf("http://host/teamcity"), listOf("http://host")))
+        whenever(teamcityClient.getProject(any<ProjectLocator>())) doThrow feignException(500, "http://host/teamcity/app/rest/projects")
+
+        val e = assertThrows<UpstreamException> { nested.createBuildChain(request) }
+
+        assertEquals("TeamCity answered HTTP 500", e.message)
+    }
+
+    @Test
+    fun refusesServersThatAreNotAllowed() {
+        val teamcity = assertThrows<ValidationException> {
+            service.createBuildChain(REQUEST.copy(teamcity = REQUEST.teamcity.copy(url = "http://10.0.0.5:6379")))
+        }
+        val registry = assertThrows<ValidationException> {
+            service.createBuildChain(REQUEST.copy(componentsRegistryUrl = "http://components-registry:4567.evil"))
+        }
+
+        assertEquals("teamcity.url: 'http://10.0.0.5:6379' is not an allowed TeamCity server", teamcity.message)
+        assertTrue(registry.message!!.startsWith("componentsRegistryUrl:"))
+        verify(clientFactory, never()).createTeamcityClient(any())
+    }
+
+    @Test
+    fun refusesEveryServerWhenNoneIsAllowed() {
+        val closed = BuildChainServiceImpl(clientFactory, AllowedServersProperties())
+
+        assertThrows<ValidationException> { closed.createBuildChain(REQUEST) }
+        verify(clientFactory, never()).createTeamcityClient(any())
+    }
+
+    private fun givenCreatorFailsAfterCreating(failure: Exception) {
+        whenever(creator.create(any(), any(), any())).thenAnswer { invocation ->
+            invocation.getArgument<(TeamcityProject) -> Unit>(2)(TeamcityProject(PROJECT_ID, COMPONENT, href = "", webUrl = ""))
+            throw failure
+        }
     }
 
     private fun givenParent(vararg children: TeamcityProject) {

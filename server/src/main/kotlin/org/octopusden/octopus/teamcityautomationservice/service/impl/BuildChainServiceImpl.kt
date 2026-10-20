@@ -18,6 +18,7 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
+import org.octopusden.octopus.teamcityautomationservice.config.AllowedServersProperties
 import org.octopusden.octopus.teamcityautomationservice.config.BuildChainClientFactory
 import org.octopusden.octopus.teamcityautomationservice.service.BuildChainService
 import org.slf4j.LoggerFactory
@@ -26,12 +27,17 @@ import org.octopusden.octopus.components.registry.core.exceptions.NotFoundExcept
 
 /**
  * Creates the chain with the library's BuildChainCreator; this class only adds what a service
- * caller needs on top of it: a check that nothing exists yet, and an account of what exists after a failure.
+ * caller needs on top of it: a check of the servers named, a check that nothing exists yet, and an
+ * account of what exists after a failure.
  */
 @Service
 class BuildChainServiceImpl(
     private val clientFactory: BuildChainClientFactory,
+    allowedServers: AllowedServersProperties,
 ) : BuildChainService {
+    private val allowedTeamcityUrls = allowedServers.allowedTeamcityUrls.toBaseUrls(TEAMCITY)
+    private val allowedComponentsRegistryUrls = allowedServers.allowedComponentsRegistryUrls.toBaseUrls(COMPONENTS_REGISTRY)
+
     // Whatever fails after the pre-flight, the caller must learn what is left in TeamCity.
     @Suppress("TooGenericExceptionCaught")
     override fun createBuildChain(request: CreateBuildChainRequest): BuildChainDTO {
@@ -44,11 +50,16 @@ class BuildChainServiceImpl(
             request.teamcity.user,
         )
         val buildChainRequest = request.toBuildChainRequest()
+        val call = Call(
+            request,
+            requireAllowed(request.teamcity.url, allowedTeamcityUrls, "teamcity.url", TEAMCITY),
+            requireAllowed(request.componentsRegistryUrl, allowedComponentsRegistryUrls, "componentsRegistryUrl", COMPONENTS_REGISTRY),
+        )
         val teamcityClient = clientFactory.createTeamcityClient(request.teamcity)
         val componentsRegistryClient = clientFactory.createComponentsRegistryClient(request.componentsRegistryUrl)
 
         // Before any mutation: proves the credentials and the parent, and refuses a re-run.
-        val parentProject = getParentProject(teamcityClient, request)
+        val parentProject = getParentProject(teamcityClient, call)
         parentProject.findChild(request.component)?.let { existing ->
             throw AlreadyExistsException(
                 "Project '${request.component}' already exists under '${request.parentProjectId}' as '${existing.id}'. " +
@@ -57,15 +68,20 @@ class BuildChainServiceImpl(
             )
         }
 
+        var createdProject: TeamcityProject? = null
         val result = try {
-            clientFactory.createBuildChainCreator(teamcityClient, componentsRegistryClient).create(buildChainRequest)
+            clientFactory
+                .createBuildChainCreator(teamcityClient, componentsRegistryClient)
+                .create(buildChainRequest, parentProject) { createdProject = it }
         } catch (e: BuildChainException) {
             throw UnsupportedComponentException(e.message.orEmpty(), e)
         } catch (e: RegistryNotFoundException) {
             throw NotFoundException(e.message.orEmpty(), e)
         } catch (e: Exception) {
-            // The project did not exist before, so whatever exists under the component's name now was created by this call.
-            throw findCreated(teamcityClient, request, e) ?: toServiceException(e, request)
+            // Only the project this call created is reported: another request may have created one under the same name.
+            throw createdProject?.let { partiallyCreated(teamcityClient, call, it.id, e) }
+                ?: createdConcurrently(teamcityClient, call, e)
+                ?: toServiceException(e, call)
         }
         log.info("Created build chain for '{}': {}", request.component, result)
         return result.toDTO()
@@ -78,60 +94,90 @@ class BuildChainServiceImpl(
             throw ValidationException(e.message.orEmpty(), e)
         }
 
+    private fun requireAllowed(
+        url: String,
+        allowed: List<BaseUrl>,
+        field: String,
+        server: String,
+    ): BaseUrl {
+        val base = BaseUrl.parse(url)
+        if (base == null || allowed.none { it.contains(url) }) {
+            throw ValidationException("$field: '$url' is not an allowed $server server")
+        }
+        return base
+    }
+
     private fun getParentProject(
         teamcityClient: TeamcityClient,
-        request: CreateBuildChainRequest,
+        call: Call,
     ): TeamcityProject =
         try {
-            teamcityClient.getProject(request.parentProjectId)
+            teamcityClient.getProject(call.request.parentProjectId)
         } catch (e: FeignException.NotFound) {
-            throw NotFoundException("TeamCity project '${request.parentProjectId}' not found", e)
+            throw NotFoundException("TeamCity project '${call.request.parentProjectId}' not found", e)
         } catch (e: FeignException) {
-            throw toServiceException(e, request)
+            throw toServiceException(e, call)
         }
 
     private fun TeamcityProject.findChild(name: String) = projects?.projects?.find { it.name == name }
 
-    private fun findCreated(
+    private fun partiallyCreated(
         teamcityClient: TeamcityClient,
-        request: CreateBuildChainRequest,
+        call: Call,
+        projectId: String,
         cause: Exception,
-    ): PartiallyCreatedException? =
-        runCatching {
-            teamcityClient.getProject(request.parentProjectId).findChild(request.component)?.let { project ->
-                val buildTypeIds = teamcityClient.getBuildTypes(project.id).buildTypes.map { it.id }
-                log.error("Build chain for '{}' failed after creating {} with {}", request.component, project.id, buildTypeIds, cause)
-                PartiallyCreatedException(
-                    "Creating the build chain for '${request.component}' failed after creating project '${project.id}' " +
-                        "with build configurations $buildTypeIds: ${toServiceException(cause, request).message}. " +
-                        "Delete the project in TeamCity before trying again",
-                    project.id,
-                    buildTypeIds,
-                    cause,
+    ): PartiallyCreatedException {
+        val component = call.request.component
+        val buildTypeIds = runCatching { teamcityClient.getBuildTypes(projectId).buildTypes.map { it.id } }
+            .onFailure { log.error("Cannot list the build configurations created for '{}' in {}", component, projectId, it) }
+            .getOrNull()
+        log.error("Build chain for '{}' failed after creating {} with {}", component, projectId, buildTypeIds, cause)
+        val created = buildTypeIds?.let { "with build configurations $it" } ?: "whose build configurations could not be listed"
+        return PartiallyCreatedException(
+            "Creating the build chain for '$component' failed after creating project '$projectId' $created: " +
+                "${toServiceException(cause, call).message}. Delete the project in TeamCity before trying again",
+            projectId,
+            buildTypeIds.orEmpty(),
+            cause,
+        )
+    }
+
+    /** A TeamCity failure before this call created anything, while another request created the same project. */
+    private fun createdConcurrently(
+        teamcityClient: TeamcityClient,
+        call: Call,
+        cause: Exception,
+    ): AlreadyExistsException? {
+        if (cause !is FeignException || call.serverOf(cause) != TEAMCITY) {
+            return null
+        }
+        return runCatching { teamcityClient.getProject(call.request.parentProjectId).findChild(call.request.component) }
+            .onFailure { log.error("Cannot tell whether '{}' was created by another request", call.request.component, it) }
+            .getOrNull()
+            ?.let { existing ->
+                AlreadyExistsException(
+                    "Project '${call.request.component}' was created under '${call.request.parentProjectId}' as " +
+                        "'${existing.id}' by another request while this one ran",
+                    existing.id,
                 )
             }
-        }.onFailure {
-            log.error("Cannot tell what was created for '{}' after a failure", request.component, it)
-        }.getOrNull()
+    }
 
     private fun toServiceException(
         exception: Exception,
-        request: CreateBuildChainRequest,
+        call: Call,
     ): Exception {
         if (exception !is FeignException) {
             return exception
         }
-        val server = if (exception.request()?.url()?.startsWith(request.componentsRegistryUrl) == true) {
-            "Components Registry"
-        } else {
-            "TeamCity"
-        }
+        val server = call.serverOf(exception)
         val status = exception.status()
-        return when (exception) {
-            is FeignException.Unauthorized ->
-                UnauthorizedException("TeamCity rejected the credentials of user '${request.teamcity.user}'", exception)
-            is FeignException.Forbidden ->
-                ForbiddenException("TeamCity user '${request.teamcity.user}' has no permission for this operation", exception)
+        val user = call.request.teamcity.user
+        return when {
+            server == TEAMCITY && exception is FeignException.Unauthorized ->
+                UnauthorizedException("TeamCity rejected the credentials of user '$user'", exception)
+            server == TEAMCITY && exception is FeignException.Forbidden ->
+                ForbiddenException("TeamCity user '$user' has no permission for this operation", exception)
             else ->
                 UpstreamException(if (status > 0) "$server answered HTTP $status" else "$server is not reachable", exception)
         }
@@ -140,7 +186,37 @@ class BuildChainServiceImpl(
     private fun BuildChainResult.toDTO() =
         BuildChainDTO(projectId, compileBuildTypeId, rcBuildTypeId, checklistBuildTypeId, releaseBuildTypeId)
 
+    /** The request with the servers it names; the more specific base wins when one URL is under both. */
+    private class Call(
+        val request: CreateBuildChainRequest,
+        private val teamcity: BaseUrl,
+        private val componentsRegistry: BaseUrl,
+    ) {
+        fun serverOf(exception: FeignException): String {
+            val url = exception.request()?.url() ?: return TEAMCITY
+            val inRegistry = componentsRegistry.contains(url)
+            val inTeamcity = teamcity.contains(url)
+            return if (inRegistry && (!inTeamcity || componentsRegistry.depth > teamcity.depth)) COMPONENTS_REGISTRY else TEAMCITY
+        }
+    }
+
     companion object {
         private val log = LoggerFactory.getLogger(BuildChainServiceImpl::class.java)
+        private const val TEAMCITY = "TeamCity"
+        private const val COMPONENTS_REGISTRY = "Components Registry"
+
+        private fun List<String>.toBaseUrls(server: String): List<BaseUrl> {
+            val bases = mapNotNull { url ->
+                BaseUrl.parse(url).also {
+                    if (it == null) {
+                        log.warn("Ignoring allowed {} URL '{}'", server, url)
+                    }
+                }
+            }
+            if (bases.isEmpty()) {
+                log.warn("No allowed {} URLs are configured: every request will be refused", server)
+            }
+            return bases
+        }
     }
 }

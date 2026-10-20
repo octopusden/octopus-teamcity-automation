@@ -31,6 +31,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.util.UUID
 
@@ -165,6 +166,37 @@ class BuildChainControllerTest {
             status { isInternalServerError() }
             jsonPath("$.errorCode") { value("OTHER") }
             jsonPath("$.errorMessage") { value("Internal server error") }
+        }
+    }
+
+    @Test
+    fun keepsStatusOfWrongMethod() {
+        mockMvc.get("/rest/api/1/build-chains").andExpect {
+            status { isMethodNotAllowed() }
+            jsonPath("$.errorCode") { value("VALIDATION") }
+            jsonPath("$.errorMessage") { value("Method Not Allowed") }
+        }
+    }
+
+    @Test
+    fun keepsStatusOfWrongMediaType() {
+        mockMvc
+            .post("/rest/api/1/build-chains") {
+                contentType = MediaType.TEXT_PLAIN
+                content = VALID_BODY
+            }.andExpect {
+                status { isUnsupportedMediaType() }
+                jsonPath("$.errorCode") { value("VALIDATION") }
+                content { string(not(containsString(PASSWORD))) }
+            }
+        verify(buildChainService, never()).createBuildChain(any())
+    }
+
+    @Test
+    fun keepsStatusOfUnknownPath() {
+        mockMvc.get("/rest/api/1/unknown").andExpect {
+            status { isNotFound() }
+            jsonPath("$.errorCode") { value("NOT_FOUND") }
         }
     }
 

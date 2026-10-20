@@ -115,6 +115,27 @@ class ClassicTeamcityAutomationServiceClientTest {
         assertEquals(503, e.status())
     }
 
+    @Test
+    fun fallsBackToFeignForEmptyJsonError() {
+        status = 502
+        responseBody = ""
+
+        val e = assertThrows(feign.FeignException::class.java) { client.createBuildChain(REQUEST) }
+
+        assertEquals(502, e.status())
+    }
+
+    @Test
+    fun keepsTheBodyOfAJsonErrorThatIsNotAnErrorResponse() {
+        status = 404
+        responseBody = """{"timestamp":"now","status":404,"error":"Not Found"}"""
+
+        val e = assertThrows(feign.FeignException::class.java) { client.createBuildChain(REQUEST) }
+
+        assertEquals(404, e.status())
+        assertEquals(responseBody, e.contentUTF8())
+    }
+
     companion object {
         // Generated per run: no credential, not even a dummy one, is written in the sources.
         private val PASSWORD = UUID.randomUUID().toString()

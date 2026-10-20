@@ -22,26 +22,29 @@ class TeamcityAutomationServiceErrorDecoder(
     override fun decode(
         methodKey: String?,
         response: Response?,
-    ): Exception = getErrorResponse(response)?.toException() ?: super.decode(methodKey, response)
+    ): Exception {
+        // Read once: the body is a stream, and Feign's default decoding needs it again when it is not an ErrorResponse.
+        val body = response?.body()?.asInputStream()?.use { it.readBytes() }
+        val buffered = body?.let { response.toBuilder().body(it).build() } ?: response
+        return getErrorResponse(buffered, body)?.toException() ?: super.decode(methodKey, buffered)
+    }
 
-    // A body that is not an ErrorResponse is left to Feign's default decoding, which reports the status.
+    // A body that is missing or not an ErrorResponse is left to Feign's default decoding, which reports the status.
     @Suppress("SwallowedException")
-    private fun getErrorResponse(response: Response?): ErrorResponse? =
-        response?.let { res ->
-            res
-                .headers()["content-type"]
-                ?.find { it.contains("application/json") }
-                ?.let {
-                    try {
-                        res
-                            .body()
-                            ?.asInputStream()
-                            .use { inputStream -> objectMapper.readValue(inputStream, ErrorResponse::class.java) }
-                    } catch (e: IOException) {
-                        null
-                    }
-                }
+    private fun getErrorResponse(
+        response: Response?,
+        body: ByteArray?,
+    ): ErrorResponse? {
+        val isJson = response?.headers()?.get("content-type")?.any { it.contains("application/json") } == true
+        if (!isJson || body == null || body.isEmpty()) {
+            return null
         }
+        return try {
+            objectMapper.readValue(body, ErrorResponse::class.java)
+        } catch (e: IOException) {
+            null
+        }
+    }
 
     private fun ErrorResponse.toException(): Exception =
         when (errorCode) {
