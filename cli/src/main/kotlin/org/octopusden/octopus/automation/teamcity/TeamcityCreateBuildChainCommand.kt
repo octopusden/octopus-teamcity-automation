@@ -48,16 +48,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         .convert { it.trim().toBoolean() }
         .default(false)
 
-    private val gradleCompileTemplate by option(GRADLE_COMPILE_TEMPLATE, help = "Compile template id, Gradle family")
-        .convert { it.trim() }
-        .default(BuildChainConfig.DEFAULT_GRADLE_COMPILE_TEMPLATE)
-        .check("$GRADLE_COMPILE_TEMPLATE is empty") { it.isNotEmpty() }
-
-    private val mavenCompileTemplate by option(MAVEN_COMPILE_TEMPLATE, help = "Compile template id, Maven")
-        .convert { it.trim() }
-        .default(BuildChainConfig.DEFAULT_MAVEN_COMPILE_TEMPLATE)
-        .check("$MAVEN_COMPILE_TEMPLATE is empty") { it.isNotEmpty() }
-
     private val client by lazy { context[TeamcityCommand.CLIENT] as TeamcityClient }
 
     // The library exception is not chained: a "Caused by" block would change stderr.
@@ -78,11 +68,7 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         // Rethrown as the exceptions this command raised before the library existed, so its exit
         // code and stderr stay the same.
         try {
-            val config = BuildChainConfig(
-                gradleCompileTemplate = gradleCompileTemplate,
-                mavenCompileTemplate = mavenCompileTemplate,
-            )
-            BuildChainCreator(client, componentsRegistryClient, config).create(request)
+            BuildChainCreator(client, componentsRegistryClient).create(request)
         } catch (e: UnsupportedBuildSystemException) {
             throw NotFoundException(e.message.orEmpty())
         } catch (e: UnsupportedVcsTypeException) {
@@ -100,8 +86,6 @@ class TeamcityCreateBuildChainCommand : CliktCommand(name = COMMAND) {
         const val CR = "--registry-url"
         const val CREATE_CHECKLIST = "--create-checklist"
         const val CREATE_RC_FORCE = "--create-rc-force"
-        const val GRADLE_COMPILE_TEMPLATE = "--gradle-compile-template"
-        const val MAVEN_COMPILE_TEMPLATE = "--maven-compile-template"
 
         const val TEMPLATE_GRADLE_COMPILE = BuildChainConfig.DEFAULT_GRADLE_COMPILE_TEMPLATE
         const val TEMPLATE_MAVEN_COMPILE = BuildChainConfig.DEFAULT_MAVEN_COMPILE_TEMPLATE
