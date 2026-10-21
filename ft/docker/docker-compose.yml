@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  teamcity-automation-service:
+    container_name: teamcity-automation-service-ft-teamcity-automation-service
+    image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./teamcity-automation-service.yaml:/application-ft.yaml
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=/
+      - SPRING_PROFILES_ACTIVE=ft
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDTEAMCITYURLS=http://teamcity-2022:8111,http://teamcity-2026:8111
+      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDCOMPONENTSREGISTRYURLS=http://components-registry-service:4567
+
+  teamcity-2022:
+    container_name: teamcity-automation-service-ft-teamcity-2022
+    image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_2022_IMAGE_TAG}
+    ports:
+      - "8111:8111"
+    volumes:
+      - ./../build/teamcity-server-2022/datadir:/data/teamcity_server/datadir
+      - ./../build/teamcity-server-2022/logs:/opt/teamcity/logs
+    healthcheck:
+      test: curl -u admin:admin -f teamcity-2022:8111/app/rest/server >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  teamcity-2026:
+    container_name: teamcity-automation-service-ft-teamcity-2026
+    image: ${DOCKER_REGISTRY}/jetbrains/teamcity-server:${TEAMCITY_2026_IMAGE_TAG}
+    user: "0:0"
+    ports:
+      - "8112:8111"
+    volumes:
+      - ./../build/teamcity-server-2026/datadir:/data/teamcity_server/datadir
+      - ./../build/teamcity-server-2026/logs:/opt/teamcity/logs
+    healthcheck:
+      test: curl -u admin:admin -f teamcity-2026:8111/app/rest/server >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  components-registry-service:
+    container_name: teamcity-automation-service-ft-components-registry-service
+    image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/components-registry-service:${OCTOPUS_COMPONENTS_REGISTRY_SERVICE_VERSION}
+    ports:
+      - "4567:4567"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=/
+      - SPRING_PROFILES_ACTIVE=ft,ft-db
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+    volumes:
+      - ./../../docker/components-registry-service.yaml:/application-ft.yaml
+      - ./../../cli/src/test/resources/components-registry:/components-registry

@@ -12,8 +12,9 @@ permissions:
 
 jobs:
   build:
-    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-build.yml@v3.0.2
+    uses: octopusden/octopus-base/.github/workflows/common-java-gradle-build.yml@v3.3.0
     with:
       flow-type: hybrid
       java-version: '21'
+      docker-image: teamcity-automation-service
     secrets: inherit

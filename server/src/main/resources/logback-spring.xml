@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <!-- Keeps the caller's TeamCity credentials out of the Feign wire log, see ClientWireLogFilter. -->
+    <turboFilter class="org.octopusden.octopus.teamcityautomationservice.logging.ClientWireLogFilter"/>
+</configuration>

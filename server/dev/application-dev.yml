@@ -1,0 +1,13 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, env, metrics, threaddump, heapdump, info, configprops, prometheus, loggers
+
+logging:
+  level:
+    org.octopusden.octopus.teamcityautomationservice: debug
+
+teamcity-automation-service:
+  allowed-teamcity-urls: http://localhost:8111
+  allowed-components-registry-urls: http://localhost:4567
