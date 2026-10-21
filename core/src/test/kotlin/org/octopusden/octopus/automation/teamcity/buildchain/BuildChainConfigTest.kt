@@ -7,6 +7,7 @@ class BuildChainConfigTest {
     @Test
     fun defaultCompileTemplates() {
         val config = BuildChainConfig()
-        Assertions.assertEquals("CDCompileUTGradle" to "CDCompileUTMaven", config.gradleCompileTemplate to config.mavenCompileTemplate)
+        Assertions.assertEquals("CDCompileUTGradle", config.gradleCompileTemplate)
+        Assertions.assertEquals("CDCompileUTMaven", config.mavenCompileTemplate)
     }
 }
