@@ -10,8 +10,9 @@ data class BuildChainConfig(
     val jdkVersionParameter: String = DEFAULT_JDK_VERSION_PARAMETER,
 ) {
     companion object {
-        const val DEFAULT_GRADLE_COMPILE_TEMPLATE = "CDGradleBuild"
-        const val DEFAULT_MAVEN_COMPILE_TEMPLATE = "CDJavaMavenBuild"
+        // The original ids: a server that renamed these templates still resolves them.
+        const val DEFAULT_GRADLE_COMPILE_TEMPLATE = "CDCompileUTGradle"
+        const val DEFAULT_MAVEN_COMPILE_TEMPLATE = "CDCompileUTMaven"
         const val DEFAULT_RC_TEMPLATE = "CdReleaseCandidateNew"
         const val DEFAULT_CHECKLIST_TEMPLATE = "CdReleaeChecklistValidation"
         const val DEFAULT_RELEASE_TEMPLATE = "CDRelease"
