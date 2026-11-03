@@ -24,6 +24,7 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityPropert
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildSteps
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
+import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypeVcsRootEntries
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildTypes
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
@@ -114,6 +115,10 @@ class BuildChainCreatorTest {
         Assertions.assertEquals(result.compileBuildTypeId, client.dependencyOf(result.rcBuildTypeId))
         Assertions.assertEquals(result.rcBuildTypeId, client.dependencyOf(result.checklistBuildTypeId))
         Assertions.assertEquals(result.rcBuildTypeId, client.dependencyOf(result.releaseBuildTypeId))
+        Assertions.assertEquals(1, client.getBuildTypeVcsRootEntries(result.compileBuildTypeId).entries.size)
+        listOf(result.rcBuildTypeId, result.checklistBuildTypeId, result.releaseBuildTypeId).forEach {
+            Assertions.assertEquals(0, client.getBuildTypeVcsRootEntries(requireNotNull(it)).entries.size, it)
+        }
         Assertions.assertTrue(
             client
                 .getBuildSteps(result.releaseBuildTypeId)

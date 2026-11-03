@@ -407,7 +407,11 @@ class ApplicationTest {
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
             Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            Assertions.assertEquals(
+                if (buildTypesId == compileConfigId) 1 else 0,
+                teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size,
+                buildTypesId,
+            )
             dependencyId?.let {
                 val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
                 Assertions.assertEquals(1, snapshotDependencies.size)
@@ -513,7 +517,11 @@ class ApplicationTest {
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
             Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            Assertions.assertEquals(
+                if (buildTypesId == compileConfigId) 1 else 0,
+                teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size,
+                buildTypesId,
+            )
             dependencyId?.let {
                 val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
                 Assertions.assertEquals(1, snapshotDependencies.size)
@@ -598,7 +606,11 @@ class ApplicationTest {
 
             buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
                 Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-                Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+                Assertions.assertEquals(
+                    if (buildTypesId == compileConfigId) 1 else 0,
+                    teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size,
+                    buildTypesId,
+                )
                 dependencyId?.let {
                     val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
                     Assertions.assertEquals(1, snapshotDependencies.size)
@@ -669,7 +681,11 @@ class ApplicationTest {
 
         buildTypesIdAndDependencyId.forEach { (buildTypesId, dependencyId) ->
             Assertions.assertNotNull(buildTypes.find { it.id == buildTypesId })
-            Assertions.assertEquals(1, teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size)
+            Assertions.assertEquals(
+                if (buildTypesId == compileConfigId) 1 else 0,
+                teamcityClient.getBuildTypeVcsRootEntries(buildTypesId).entries.size,
+                buildTypesId,
+            )
             dependencyId?.let {
                 val snapshotDependencies = teamcityClient.getSnapshotDependencies(buildTypesId).snapshotDependencies
                 Assertions.assertEquals(1, snapshotDependencies.size)
@@ -796,12 +812,12 @@ class ApplicationTest {
 
     /**
      * Baseline (ONB-001): pins today's single-VCS-root chain layout. One project-level Git VCS root
-     * named `<projectId>_VCS_ROOT` (branch `master`, branch spec `+:<default>`) attached to every
-     * created build configuration without checkout rules.
+     * named `<projectId>_VCS_ROOT` (branch `master`, branch spec `+:<default>`) attached to Compile
+     * without checkout rules; Release Candidate, Checklist and Release get no VCS root.
      */
     @ParameterizedTest
     @MethodSource("teamcityContexts")
-    fun testBaselineCreateBuildChainAttachesSingleVcsRootWithoutCheckoutRules(config: TeamcityTestConfiguration) {
+    fun testBaselineCreateBuildChainAttachesSingleVcsRootToCompileOnly(config: TeamcityTestConfiguration) {
         val teamcityClient = createClient(config)
         cleanUpResources(teamcityClient, config)
 
@@ -812,8 +828,8 @@ class ApplicationTest {
             teamcityClient,
             projectId,
             "https://github.com/octopusden/octopus-teamcity-automation.git",
+            "${projectId}_10CompileUtAuto",
             listOf(
-                "${projectId}_10CompileUtAuto",
                 "${projectId}_20ReleaseCandidateManual",
                 "${projectId}_30ReleaseChecklistValidationManual",
                 "${projectId}_40ReleaseManual",
@@ -1692,7 +1708,8 @@ class ApplicationTest {
         teamcityClient: TeamcityClassicClient,
         projectId: String,
         expectedUrl: String,
-        buildTypeIds: List<String>,
+        compileBuildTypeId: String,
+        rootlessBuildTypeIds: List<String>,
     ) {
         val vcsRoots = teamcityClient.getVcsRoots(VcsRootLocator(project = ProjectLocator(id = projectId))).vcsRoots
         Assertions.assertEquals(1, vcsRoots.size, "VCS roots in $projectId")
@@ -1703,10 +1720,11 @@ class ApplicationTest {
         Assertions.assertEquals(expectedUrl, properties["url"])
         Assertions.assertEquals("master", properties["branch"])
         Assertions.assertEquals("+:<default>", properties["teamcity:branchSpec"])
-        buildTypeIds.forEach { buildTypeId ->
-            val entry = teamcityClient.getBuildTypeVcsRootEntries(buildTypeId).entries.single()
-            Assertions.assertEquals(vcsRoot.id, entry.vcsRoot.id, "VCS root of $buildTypeId")
-            Assertions.assertTrue(entry.checkoutRules.isNullOrEmpty(), "checkout rules of $buildTypeId: '${entry.checkoutRules}'")
+        val entry = teamcityClient.getBuildTypeVcsRootEntries(compileBuildTypeId).entries.single()
+        Assertions.assertEquals(vcsRoot.id, entry.vcsRoot.id, "VCS root of $compileBuildTypeId")
+        Assertions.assertTrue(entry.checkoutRules.isNullOrEmpty(), "checkout rules of $compileBuildTypeId: '${entry.checkoutRules}'")
+        rootlessBuildTypeIds.forEach { buildTypeId ->
+            Assertions.assertEquals(0, teamcityClient.getBuildTypeVcsRootEntries(buildTypeId).entries.size, "VCS roots of $buildTypeId")
         }
     }
 
