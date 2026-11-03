@@ -26,6 +26,9 @@ import org.slf4j.LoggerFactory
  * Creates a component's TeamCity build chain — Compile, optional Release Candidate and Release
  * Checklist Validation, Release — under a parent project, from the component's Components Registry
  * metadata. The caller owns both clients.
+ *
+ * Only Compile gets the component's VCS roots. The rest of the chain never reads a checkout: it works
+ * from the build registered at Compile, and releng tags the commits registered there.
  */
 class BuildChainCreator(
     private val client: TeamcityClient,
@@ -119,7 +122,6 @@ class BuildChainCreator(
                     project.id,
                 )
                 rcConfigId = rcConfig.id
-                placement.attach(rcConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(rcConfig.id, buildWorkingDirectory)
 
                 if (request.createChecklist) {
@@ -129,7 +131,6 @@ class BuildChainCreator(
                         project.id,
                     )
                     checklistConfigId = checklistConfig.id
-                    placement.attach(checklistConfig.id, attachOrder, placedRoots)
                     applyBuildWorkingDirectory(checklistConfig.id, buildWorkingDirectory)
                     addSnapshotDependency(checklistConfig, rcConfig, DependencyFailureAction.CANCEL)
                     setBuildTypeParameter(
@@ -144,7 +145,6 @@ class BuildChainCreator(
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                placement.attach(releaseConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
 
                 addSnapshotDependency(rcConfig, compileConfig, DependencyFailureAction.CANCEL)
@@ -158,7 +158,6 @@ class BuildChainCreator(
                     "[${++counter}.0] Release [Manual]",
                     project.id,
                 )
-                placement.attach(releaseConfig.id, attachOrder, placedRoots)
                 applyBuildWorkingDirectory(releaseConfig.id, buildWorkingDirectory)
                 addSnapshotDependency(releaseConfig, compileConfig, DependencyFailureAction.CANCEL)
                 releaseConfig
