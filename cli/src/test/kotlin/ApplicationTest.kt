@@ -811,6 +811,77 @@ class ApplicationTest {
     }
 
     /**
+     * The CLI overrides the compile template only; the rest of the chain keeps
+     * `BuildChainConfig` defaults. `gradle-component` selects `--gradle-compile-template`,
+     * `maven-component` selects `--maven-compile-template`.
+     */
+    @ParameterizedTest
+    @MethodSource("teamcityContexts")
+    fun testTeamCityCreateBuildChainOverridesCompileTemplate(config: TeamcityTestConfiguration) {
+        val teamcityClient = createClient(config)
+        cleanUpResources(teamcityClient, config)
+
+        val customGradleTemplate = "CustomGradleBuild"
+        val customMavenTemplate = "CustomMavenBuild"
+        listOf(customGradleTemplate, customMavenTemplate).forEach {
+            teamcityClient.createBuildType(
+                TeamcityCreateBuildType(
+                    it,
+                    it,
+                    project = TeamcityLinkProject(TEST_PROJECT),
+                    templateFlag = true,
+                ),
+            )
+        }
+
+        val gradleExit = execute(
+            testInfo.methodName() + "_gradle",
+            *getTeamcityOptions(config),
+            TeamcityCreateBuildChainCommand.COMMAND,
+            "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+            "${TeamcityCreateBuildChainCommand.COMPONENT}=gradle-component",
+            "${TeamcityCreateBuildChainCommand.VERSION}=1.0",
+            "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
+            "${TeamcityCreateBuildChainCommand.GRADLE_COMPILE_TEMPLATE}=$customGradleTemplate",
+        )
+        Assertions.assertEquals(0, gradleExit)
+
+        val mavenExit = execute(
+            testInfo.methodName() + "_maven",
+            *getTeamcityOptions(config),
+            TeamcityCreateBuildChainCommand.COMMAND,
+            "${TeamcityCreateBuildChainCommand.PARENT}=$TEST_PROJECT",
+            "${TeamcityCreateBuildChainCommand.COMPONENT}=maven-component",
+            "${TeamcityCreateBuildChainCommand.VERSION}=1.0",
+            "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
+            "${TeamcityCreateBuildChainCommand.MAVEN_COMPILE_TEMPLATE}=$customMavenTemplate",
+        )
+        Assertions.assertEquals(0, mavenExit)
+
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_GradleComponent_10CompileUtAuto",
+            customGradleTemplate,
+        )
+        validateBuildTypeTemplate(
+            teamcityClient,
+            "TestTeamcityAutomation_MavenComponent_10CompileUtAuto",
+            customMavenTemplate,
+        )
+        // RC, Checklist and Release keep the BuildChainConfig defaults.
+        listOf(
+            "TestTeamcityAutomation_GradleComponent_20ReleaseManual",
+            "TestTeamcityAutomation_MavenComponent_20ReleaseManual",
+        ).forEach { releaseBuildTypeId ->
+            validateBuildTypeTemplate(
+                teamcityClient,
+                releaseBuildTypeId,
+                TeamcityCreateBuildChainCommand.TEMPLATE_RELEASE,
+            )
+        }
+    }
+
+    /**
      * Baseline (ONB-001): pins today's single-VCS-root chain layout. One project-level Git VCS root
      * named `<projectId>_VCS_ROOT` (branch `master`, branch spec `+:<default>`) attached to Compile
      * without checkout rules; Release Candidate, Checklist and Release get no VCS root.
