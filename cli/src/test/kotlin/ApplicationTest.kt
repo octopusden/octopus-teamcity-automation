@@ -843,6 +843,7 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.VERSION}=1.0",
             "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
             "${TeamcityCreateBuildChainCommand.GRADLE_COMPILE_TEMPLATE}=$customGradleTemplate",
+            "${TeamcityCreateBuildChainCommand.MAVEN_COMPILE_TEMPLATE}=$customMavenTemplate",
         )
         Assertions.assertEquals(0, gradleExit)
 
@@ -854,6 +855,7 @@ class ApplicationTest {
             "${TeamcityCreateBuildChainCommand.COMPONENT}=maven-component",
             "${TeamcityCreateBuildChainCommand.VERSION}=1.0",
             "${TeamcityCreateBuildChainCommand.CR}=http://$hostComponentsRegistry",
+            "${TeamcityCreateBuildChainCommand.GRADLE_COMPILE_TEMPLATE}=$customGradleTemplate",
             "${TeamcityCreateBuildChainCommand.MAVEN_COMPILE_TEMPLATE}=$customMavenTemplate",
         )
         Assertions.assertEquals(0, mavenExit)
