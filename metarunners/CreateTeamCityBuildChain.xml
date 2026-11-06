@@ -8,11 +8,13 @@
             <param name="MINOR_VERSION" value="%MINOR_VERSION%" />
             <param name="CREATE_CHECKLIST" value="%CREATE_CHECKLIST%" />
             <param name="CREATE_RC_FORCE" value="%CREATE_RC_FORCE%" />
+            <param name="CD_GRADLE_COMPILE_TEMPLATE" value="%CD_GRADLE_COMPILE_TEMPLATE%" />
+            <param name="CD_MAVEN_COMPILE_TEMPLATE" value="%CD_MAVEN_COMPILE_TEMPLATE%" />
         </parameters>
         <build-runners>
             <runner name="create build chain" type="OctopusTeamcityAutomation">
                 <parameters>
-                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% " />
+                    <param name="ARGS" value="--url=%TEAMCITY_URL% --user=%TEAMCITY_USER% --password=%TEAMCITY_PASSWORD% create-build-chain --registry-url=%COMPONENT_REGISTRY_URL% --parent-project-id=%TEAMCITY_PARENT_PROJECT_ID% --component=%COMPONENT_NAME% --minor-version=%MINOR_VERSION% --create-checklist=%CREATE_CHECKLIST% --create-rc-force=%CREATE_RC_FORCE% --gradle-compile-template=%CD_GRADLE_COMPILE_TEMPLATE% --maven-compile-template=%CD_MAVEN_COMPILE_TEMPLATE% " />
                 </parameters>
             </runner>
         </build-runners>
