@@ -872,8 +872,8 @@ class ApplicationTest {
         )
         // RC, Checklist and Release keep the BuildChainConfig defaults.
         listOf(
-            "TestTeamcityAutomation_GradleComponent_20ReleaseManual",
-            "TestTeamcityAutomation_MavenComponent_20ReleaseManual",
+            "TestTeamcityAutomation_GradleComponent_40ReleaseManual",
+            "TestTeamcityAutomation_MavenComponent_40ReleaseManual",
         ).forEach { releaseBuildTypeId ->
             validateBuildTypeTemplate(
                 teamcityClient,
