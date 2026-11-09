@@ -1,8 +1,9 @@
 version: '3'
 
 services:
-  teamcity-automation-service:
-    container_name: teamcity-automation-service-ft-teamcity-automation-service
+  # One service instance per TeamCity: the service targets exactly one. The third one has a wrong password.
+  teamcity-automation-service-2022:
+    container_name: teamcity-automation-service-ft-teamcity-automation-service-2022
     image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
     ports:
       - "8080:8080"
@@ -12,8 +13,42 @@ services:
       - SPRING_CONFIG_ADDITIONAL_LOCATION=/
       - SPRING_PROFILES_ACTIVE=ft
       - SPRING_CLOUD_CONFIG_ENABLED=false
-      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDTEAMCITYURLS=http://teamcity-2022:8111,http://teamcity-2026:8111
-      - TEAMCITYAUTOMATIONSERVICE_ALLOWEDCOMPONENTSREGISTRYURLS=http://components-registry-service:4567
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL=http://teamcity-2022:8111
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_USERNAME=admin
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_PASSWORD=admin
+      - TEAMCITYAUTOMATIONSERVICE_COMPONENTSREGISTRY_URL=http://components-registry-service:4567
+
+  teamcity-automation-service-2026:
+    container_name: teamcity-automation-service-ft-teamcity-automation-service-2026
+    image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./teamcity-automation-service.yaml:/application-ft.yaml
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=/
+      - SPRING_PROFILES_ACTIVE=ft
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL=http://teamcity-2026:8111
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_USERNAME=admin
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_PASSWORD=admin
+      - TEAMCITYAUTOMATIONSERVICE_COMPONENTSREGISTRY_URL=http://components-registry-service:4567
+
+  teamcity-automation-service-wrong-account:
+    container_name: teamcity-automation-service-ft-teamcity-automation-service-wrong-account
+    image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./teamcity-automation-service.yaml:/application-ft.yaml
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=/
+      - SPRING_PROFILES_ACTIVE=ft
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL=http://teamcity-2022:8111
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_USERNAME=admin
+      - TEAMCITYAUTOMATIONSERVICE_TEAMCITY_PASSWORD=${TEAMCITY_AUTOMATION_SERVICE_WRONG_PASSWORD}
+      - TEAMCITYAUTOMATIONSERVICE_COMPONENTSREGISTRY_URL=http://components-registry-service:4567
 
   teamcity-2022:
     container_name: teamcity-automation-service-ft-teamcity-2022

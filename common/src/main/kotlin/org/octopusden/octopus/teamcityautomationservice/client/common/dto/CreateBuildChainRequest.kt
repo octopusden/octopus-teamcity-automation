@@ -1,16 +1,9 @@
 package org.octopusden.octopus.teamcityautomationservice.client.common.dto
 
-import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.Pattern
 
-/** The inputs of the CLI's `create-build-chain` command, plus the servers it talks to. */
+/** The inputs of the CLI's `create-build-chain` command. The servers and the account come from the service's configuration. */
 data class CreateBuildChainRequest(
-    @field:Valid
-    val teamcity: TeamcityConnection,
-    @field:NotBlank
-    @field:Pattern(regexp = URL_PATTERN, message = URL_MESSAGE)
-    val componentsRegistryUrl: String,
     @field:NotBlank
     val parentProjectId: String,
     @field:NotBlank

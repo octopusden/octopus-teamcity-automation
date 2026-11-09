@@ -3,6 +3,7 @@ package org.octopusden.octopus.teamcityautomationservice.client
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -11,7 +12,6 @@ import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.BuildChainDTO
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.CreateBuildChainRequest
-import org.octopusden.octopus.teamcityautomationservice.client.common.dto.TeamcityConnection
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.AlreadyExistsException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ForbiddenException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.NotFoundException
@@ -23,7 +23,6 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.impl.ClassicTeamcityAutomationServiceClient
 import org.octopusden.octopus.teamcityautomationservice.client.impl.TeamcityAutomationServiceClientParametersProvider
 import java.net.InetSocketAddress
-import java.util.UUID
 
 /** Runs the client against an in-process stub of the service. */
 class ClassicTeamcityAutomationServiceClientTest {
@@ -64,7 +63,8 @@ class ClassicTeamcityAutomationServiceClientTest {
         val chain = client.createBuildChain(REQUEST)
 
         assertEquals(BuildChainDTO("P_C", "P_C_10", null, null, "P_C_40"), chain)
-        assertTrue(receivedBody.contains(PASSWORD))
+        assertFalse(receivedBody.contains("teamcity"))
+        assertFalse(receivedBody.contains("componentsRegistryUrl"))
         assertTrue(receivedBody.contains(""""createChecklist":true"""))
     }
 
@@ -137,15 +137,7 @@ class ClassicTeamcityAutomationServiceClientTest {
     }
 
     companion object {
-        // Generated per run: no credential, not even a dummy one, is written in the sources.
-        private val PASSWORD = UUID.randomUUID().toString()
-        private val REQUEST = CreateBuildChainRequest(
-            TeamcityConnection("http://teamcity:8111", "user", PASSWORD),
-            "http://registry:4567",
-            "Parent",
-            "component",
-            "1.0",
-        )
+        private val REQUEST = CreateBuildChainRequest("Parent", "component", "1.0")
 
         @JvmStatic
         fun errors(): List<Arguments> =

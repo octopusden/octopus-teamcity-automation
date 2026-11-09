@@ -1,7 +1,14 @@
 package org.octopusden.octopus.teamcityautomationservice.controller
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -14,16 +21,16 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.BuildChainDTO
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.CreateBuildChainRequest
-import org.octopusden.octopus.teamcityautomationservice.client.common.dto.TeamcityConnection
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.AlreadyExistsException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ForbiddenException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.NotFoundException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.PartiallyCreatedException
-import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnauthorizedException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
+import org.octopusden.octopus.teamcityautomationservice.config.LegacyRequestFieldsModule
 import org.octopusden.octopus.teamcityautomationservice.service.BuildChainService
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
@@ -57,57 +64,76 @@ class BuildChainControllerTest {
             jsonPath("$.releaseBuildTypeId") { value("P_C_40") }
         }
         verify(buildChainService).createBuildChain(
-            CreateBuildChainRequest(
-                TeamcityConnection("http://teamcity:8111", "user", PASSWORD),
-                "http://registry:4567",
-                "Parent",
-                "component",
-                "1.0",
-            ),
+            CreateBuildChainRequest("Parent", "component", "1.0"),
         )
     }
 
     @Test
+    fun ignoresTheOldConnectionFieldsAndWarnsWithoutTheirValues() {
+        whenever(buildChainService.createBuildChain(any())) doReturn
+            BuildChainDTO("P_C", "P_C_10", null, null, "P_C_40")
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        val logger = LoggerFactory.getLogger(LegacyRequestFieldsModule::class.java) as Logger
+        logger.addAppender(appender)
+
+        try {
+            post(LEGACY_BODY).andExpect { status { isCreated() } }
+        } finally {
+            logger.detachAppender(appender)
+        }
+
+        verify(buildChainService).createBuildChain(CreateBuildChainRequest("Parent", "component", "1.0"))
+        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        assertEquals(2, warnings.size, warnings.toString())
+        assertTrue(warnings.any { it.contains("'teamcity'") })
+        assertTrue(warnings.any { it.contains("'componentsRegistryUrl'") })
+        warnings.forEach { warning ->
+            assertFalse(warning.contains(PASSWORD))
+            assertFalse(warning.contains("registry:4567"))
+            assertFalse(warning.contains("teamcity:8111"))
+        }
+    }
+
+    @Test
+    fun warnsOnlyForTheOldFieldsNotForOtherUnknownFields() {
+        whenever(buildChainService.createBuildChain(any())) doReturn
+            BuildChainDTO("P_C", "P_C_10", null, null, "P_C_40")
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        val logger = LoggerFactory.getLogger(LegacyRequestFieldsModule::class.java) as Logger
+        logger.addAppender(appender)
+
+        try {
+            post(VALID_BODY.replace("\"minorVersion\"", "\"other\": 1, \"minorVersion\"")).andExpect { status { isCreated() } }
+        } finally {
+            logger.detachAppender(appender)
+        }
+
+        assertTrue(appender.list.isEmpty())
+    }
+
+    @Test
     fun rejectsBlankFieldsWithoutEchoingValues() {
-        post(VALID_BODY.replace("\"component\": \"component\"", "\"component\": \" \"").replace("\"user\": \"user\"", "\"user\": \"\""))
-            .andExpect {
-                status { isBadRequest() }
-                jsonPath("$.errorCode") { value("VALIDATION") }
-                jsonPath("$.errorMessage") { value(containsString("component: must not be blank")) }
-                jsonPath("$.errorMessage") { value(containsString("teamcity.user: must not be blank")) }
-            }
-        verify(buildChainService, never()).createBuildChain(any())
-    }
-
-    @Test
-    fun rejectsNonHttpUrl() {
-        post(VALID_BODY.replace("http://registry:4567", "registry:4567")).andExpect {
-            status { isBadRequest() }
-            jsonPath("$.errorMessage") { value("componentsRegistryUrl: must be an http(s) URL without a user or password") }
-        }
-    }
-
-    @Test
-    fun rejectsCredentialsInUrlsWithoutEchoingThem() {
-        val body = VALID_BODY
-            .replace("http://teamcity:8111", withUserInfo("http://teamcity:8111", "user"))
-            .replace("http://registry:4567", withUserInfo("https://registry:4567/path", "reader"))
-
-        post(body).andExpect {
-            status { isBadRequest() }
-            jsonPath("$.errorMessage") { value(containsString("teamcity.url: must be an http(s) URL without a user or password")) }
-            jsonPath("$.errorMessage") { value(containsString("componentsRegistryUrl: must be an http(s) URL without a user or password")) }
-            content { string(not(containsString(URL_PASSWORD))) }
-        }
-        verify(buildChainService, never()).createBuildChain(any())
-    }
-
-    @Test
-    fun rejectsMissingPasswordNamingOnlyTheField() {
-        post(VALID_BODY.replace(", \"password\": \"$PASSWORD\"", "")).andExpect {
+        post(
+            VALID_BODY
+                .replace(
+                    "\"component\": \"component\"",
+                    "\"component\": \" \"",
+                ).replace("\"minorVersion\": \"1.0\"", "\"minorVersion\": \"\""),
+        ).andExpect {
             status { isBadRequest() }
             jsonPath("$.errorCode") { value("VALIDATION") }
-            jsonPath("$.errorMessage") { value("teamcity.password: missing or of the wrong type") }
+            jsonPath("$.errorMessage") { value(containsString("component: must not be blank")) }
+            jsonPath("$.errorMessage") { value(containsString("minorVersion: must not be blank")) }
+        }
+        verify(buildChainService, never()).createBuildChain(any())
+    }
+
+    @Test
+    fun rejectsMissingFieldNamingOnlyTheField() {
+        post(VALID_BODY.replace(",\n  \"minorVersion\": \"1.0\"", "")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.errorCode") { value("VALIDATION") }
+            jsonPath("$.errorMessage") { value("minorVersion: missing or of the wrong type") }
         }
     }
 
@@ -200,11 +226,6 @@ class BuildChainControllerTest {
         }
     }
 
-    private fun withUserInfo(
-        url: String,
-        user: String,
-    ) = url.replaceFirst("://", "://" + user + ":" + URL_PASSWORD + "@")
-
     private fun post(body: String): ResultActionsDsl =
         mockMvc.post("/rest/api/1/build-chains") {
             contentType = MediaType.APPLICATION_JSON
@@ -214,8 +235,15 @@ class BuildChainControllerTest {
     companion object {
         // Generated per run: no credential, not even a dummy one, is written in the sources.
         private val PASSWORD = UUID.randomUUID().toString()
-        private val URL_PASSWORD = UUID.randomUUID().toString()
         private val VALID_BODY =
+            """
+            {
+              "parentProjectId": "Parent",
+              "component": "component",
+              "minorVersion": "1.0"
+            }
+            """.trimIndent()
+        private val LEGACY_BODY =
             """
             {
               "teamcity": { "url": "http://teamcity:8111", "user": "user", "password": "$PASSWORD" },
@@ -230,7 +258,6 @@ class BuildChainControllerTest {
         fun serviceExceptions(): List<Arguments> =
             listOf(
                 Arguments.of(ValidationException("invalid"), 400, "VALIDATION"),
-                Arguments.of(UnauthorizedException("rejected"), 401, "UNAUTHORIZED"),
                 Arguments.of(ForbiddenException("denied"), 403, "FORBIDDEN"),
                 Arguments.of(NotFoundException("missing"), 404, "NOT_FOUND"),
                 Arguments.of(AlreadyExistsException("exists", "P_C"), 409, "ALREADY_EXISTS"),

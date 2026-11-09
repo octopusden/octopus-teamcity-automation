@@ -19,7 +19,7 @@ import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 /**
  * Every error body is built from the service's own messages. Messages of foreign exceptions are not
- * returned: they can quote request content, and the request carries a password.
+ * returned: they can quote request content or upstream responses.
  */
 @RestControllerAdvice
 class ExceptionInfoHandler {
@@ -49,7 +49,7 @@ class ExceptionInfoHandler {
     @ExceptionHandler(MethodArgumentNotValidException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleMethodArgumentNotValid(exception: MethodArgumentNotValidException): ErrorResponse {
-        // Field and constraint only: the rejected value may be the password.
+        // Field and constraint only: the rejected value is not echoed.
         val message = exception.bindingResult.fieldErrors
             .joinToString("; ") { fieldError -> "${fieldError.field}: ${fieldError.defaultMessage}" }
         log.warn("Invalid request: {}", message)

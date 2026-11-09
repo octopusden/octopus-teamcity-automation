@@ -108,8 +108,9 @@ readiness path is the only one.
 
 - **Readiness includes TeamCity.** The service can do nothing without TeamCity, so once a readiness
   probe exists it should take the pod out of traffic while TeamCity is down and put it back when
-  TeamCity recovers. Until the chart has a readiness probe, only the `okd/` manifest used by `ft`
-  uses it.
+  TeamCity recovers. Until the chart has a readiness probe, nothing uses it as a probe. The `okd/`
+  manifest used by `ft` gates its pods on liveness, so that the wrong-account instance still starts
+  and `ft` can see its readiness answer `DOWN`.
 - **Liveness never includes TeamCity.** Otherwise a TeamCity outage would make Kubernetes restart a
   healthy pod again and again, which cannot fix anything.
 - **The startup probe is left on the stand-wide default, which includes TeamCity (accepted risk).**

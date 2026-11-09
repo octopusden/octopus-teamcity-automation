@@ -65,8 +65,8 @@ class ClassicTeamcityAutomationServiceClient(
                 // Creating a chain is not idempotent: a retry after a timeout would answer 409.
                 .retryer(Retryer.NEVER_RETRY)
                 .logger(Slf4jLogger(TeamcityAutomationServiceClient::class.java))
-                // Not FULL: the request body carries the caller's TeamCity password.
-                .logLevel(Logger.Level.BASIC)
+                // FULL, like the other octopus Feign clients: the request carries no credential.
+                .logLevel(Logger.Level.FULL)
                 .target(TeamcityAutomationServiceClient::class.java, apiUrl)
     }
 }

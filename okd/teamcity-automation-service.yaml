@@ -6,21 +6,21 @@ objects:
   - apiVersion: v1
     kind: ConfigMap
     metadata:
-      name: ${DEPLOYMENT_PREFIX}-tas-config-data
+      name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}-config-data
     data:
       application-ft.yaml: |-
         ${APPLICATION_FT_CONTENT}
   - apiVersion: v1
     kind: Pod
     metadata:
-      name: ${DEPLOYMENT_PREFIX}-tas
+      name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}
       labels:
-        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}
     spec:
       restartPolicy: Never
       activeDeadlineSeconds: ${{ACTIVE_DEADLINE_SECONDS}}
       containers:
-        - name: tas
+        - name: tas${TAS_ID}
           image: ${OCTOPUS_GITHUB_DOCKER_REGISTRY}/octopusden/teamcity-automation-service:${TEAMCITY_AUTOMATION_SERVICE_VERSION}
           ports:
             - containerPort: 8080
@@ -32,9 +32,11 @@ objects:
             limits:
               cpu: 1000m
               memory: 1Gi
+          # Liveness, not readiness: the readiness group includes TeamCity, and the instance with a wrong
+          # account must still become ready so that the ft can see its readiness answer DOWN.
           readinessProbe:
             httpGet:
-              path: /actuator/health/readiness
+              path: /actuator/health/liveness
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -45,10 +47,14 @@ objects:
               value: "ft"
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
-            - name: TEAMCITYAUTOMATIONSERVICE_ALLOWEDTEAMCITYURLS
-              value: ${ALLOWED_TEAMCITY_URLS}
-            - name: TEAMCITYAUTOMATIONSERVICE_ALLOWEDCOMPONENTSREGISTRYURLS
-              value: ${ALLOWED_COMPONENTS_REGISTRY_URLS}
+            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL
+              value: ${TEAMCITY_URL}
+            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_USERNAME
+              value: ${TEAMCITY_USERNAME}
+            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_PASSWORD
+              value: ${TEAMCITY_PASSWORD}
+            - name: TEAMCITYAUTOMATIONSERVICE_COMPONENTSREGISTRY_URL
+              value: ${COMPONENTS_REGISTRY_URL}
           volumeMounts:
             - name: application-ft
               mountPath: /application-ft.yaml
@@ -57,25 +63,25 @@ objects:
       volumes:
         - name: application-ft
           configMap:
-            name: ${DEPLOYMENT_PREFIX}-tas-config-data
+            name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}-config-data
             items:
               - key: application-ft.yaml
                 path: application-ft.yaml
   - apiVersion: v1
     kind: Service
     metadata:
-      name: ${DEPLOYMENT_PREFIX}-tas-service
+      name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}-service
     spec:
       ports:
         - port: 8080
           protocol: TCP
           targetPort: 8080
       selector:
-        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas
+        app.kubernetes.io/name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}
   - apiVersion: route.openshift.io/v1
     kind: Route
     metadata:
-      name: ${DEPLOYMENT_PREFIX}-tas-route
+      name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}-route
       annotations:
         # A chain makes a few dozen TeamCity calls; keep the route from cutting a slow one off.
         haproxy.router.openshift.io/timeout: 240s
@@ -84,7 +90,7 @@ objects:
         targetPort: 8080
       to:
         kind: Service
-        name: ${DEPLOYMENT_PREFIX}-tas-service
+        name: ${DEPLOYMENT_PREFIX}-tas${TAS_ID}-service
 parameters:
   - description: Unique deployment prefix
     name: DEPLOYMENT_PREFIX
@@ -104,9 +110,18 @@ parameters:
   - description: application-ft.yaml content
     name: APPLICATION_FT_CONTENT
     required: true
-  - description: Comma-separated TeamCity base URLs the service may call
-    name: ALLOWED_TEAMCITY_URLS
+  - description: Id of this service instance (one per TeamCity), part of the object names
+    name: TAS_ID
     required: true
-  - description: Comma-separated Components Registry base URLs the service may call
-    name: ALLOWED_COMPONENTS_REGISTRY_URLS
+  - description: TeamCity base URL the service works with
+    name: TEAMCITY_URL
+    required: true
+  - description: TeamCity account the service works as
+    name: TEAMCITY_USERNAME
+    required: true
+  - description: Password of the TeamCity account
+    name: TEAMCITY_PASSWORD
+    required: true
+  - description: Components Registry base URL the service reads from
+    name: COMPONENTS_REGISTRY_URL
     required: true

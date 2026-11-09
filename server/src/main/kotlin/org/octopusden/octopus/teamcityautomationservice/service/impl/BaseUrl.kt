@@ -4,8 +4,9 @@ import java.net.URI
 import java.net.URISyntaxException
 
 /**
- * A server's base URL. Another URL is under it when scheme, host and effective port match and its path
- * starts with the base path at a segment boundary, so `http://host/tc` is not under `http://host/t`.
+ * A configured server's base URL, used to tell which server a failed call went to. Another URL is under it
+ * when scheme, host and effective port match and its path starts with the base path at a segment boundary,
+ * so `http://host/tc` is not under `http://host/t`.
  */
 internal class BaseUrl private constructor(
     private val scheme: String,

@@ -8,6 +8,11 @@ logging:
   level:
     org.octopusden.octopus.teamcityautomationservice: debug
 
+# The test TeamCity and Components Registry from the ft docker-compose.
 teamcity-automation-service:
-  allowed-teamcity-urls: http://localhost:8111
-  allowed-components-registry-urls: http://localhost:4567
+  teamcity:
+    url: http://localhost:8111
+    username: admin
+    password: admin
+  components-registry:
+    url: http://localhost:4567
