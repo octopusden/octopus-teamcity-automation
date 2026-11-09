@@ -13,7 +13,7 @@
 ## 2. API
 
 - [x] 2.1 Failing test, then drop `teamcity` and `componentsRegistryUrl` from `CreateBuildChainRequest`,
-      delete `TeamcityConnection`; old fields are ignored with a value-free warning
+      delete `TeamcityConnection`; old fields are rejected with a value-free 400
 - [x] 2.2 Failing test, then the new error mapping: TeamCity 401 becomes `502 UPSTREAM_ERROR`, TeamCity 403
       names the parent project
 - [x] 2.3 Restore the `client` module's normal Feign log level now that the body carries no secret; keep

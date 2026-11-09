@@ -57,12 +57,21 @@ Rejected for now:
 - Removing the api-gateway route so that only callers inside the cluster can reach the service. This
   needs changes to the route and possibly to the Portal's URL, for a risk that is already accepted.
 
-### 4. Old request fields are ignored, not rejected
+### 4. Old request fields are rejected, not ignored
 
-During the rollout the Portal will still send `teamcity` and `componentsRegistryUrl`. The service
-ignores unknown fields and logs one warning per request that carries `teamcity`, without the value, so
-the Portal can drop them after the service ships. Once it has, the warning shows that nobody still
-sends them.
+A request that still carries `teamcity` or `componentsRegistryUrl`, with any value, gets
+`400 VALIDATION` naming the field and saying the service now uses its own configured server and
+account. The value is never echoed or logged; a warning names the field only. Nothing is created.
+
+Ignoring the fields would answer 200 and create the chain on the configured TeamCity as the service
+account, whatever server or account the caller named. The caller would never notice, and the
+TeamCity audit trail and permissions would silently switch to the service account.
+
+Rejected: rejecting only a `teamcity.url` that differs from the configured one. A caller naming the
+right server but its own account would still be switched silently, and closing that would mean
+comparing caller-sent credentials. Also rejected: a `Deprecation`/`Warning` response header, which
+callers rarely read. Nobody calls the service today, and 2.0 is already a breaking release, so a hard
+rejection costs nothing.
 
 ### 5. Error mapping when the caller does not own the credentials
 
@@ -147,8 +156,11 @@ Rejected:
   can be created.
 - A readiness probe would call TeamCity every probe period. One cheap `GET /app/rest/server` every few
   seconds is fine. If it ever is not, cache the result for one probe period.
-- Breaking change to API v1 and to the `common`/`client` artifacts. The Portal mirrors the DTOs
-  locally, so nothing outside this repo uses the published client yet. Bump the release line.
+- Breaking change to the `common`/`client` artifacts: `TeamcityConnection` is removed and
+  `CreateBuildChainRequest` loses two constructor parameters, so code built against 1.x does not
+  compile. Released as 2.0, so `1.+` ranges and minor-version auto-updates do not pick it up. No
+  deprecated shim is kept: it would put a credential-carrying type back in the API and silently drop
+  what callers pass. Over HTTP, old request bodies are rejected with 400 (see Decision 4).
 
 ## Account
 

@@ -6,7 +6,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -18,6 +17,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.BuildChainDTO
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.CreateBuildChainRequest
@@ -28,7 +28,6 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
-import org.octopusden.octopus.teamcityautomationservice.config.LegacyRequestFieldsModule
 import org.octopusden.octopus.teamcityautomationservice.service.BuildChainService
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -68,25 +67,33 @@ class BuildChainControllerTest {
         )
     }
 
-    @Test
-    fun ignoresTheOldConnectionFieldsAndWarnsWithoutTheirValues() {
-        whenever(buildChainService.createBuildChain(any())) doReturn
-            BuildChainDTO("P_C", "P_C_10", null, null, "P_C_40")
+    @ParameterizedTest
+    @MethodSource("removedFieldBodies")
+    fun rejectsTheRemovedFieldsWithoutEchoingTheirValues(
+        field: String,
+        body: String,
+        message: String,
+    ) {
         val appender = ListAppender<ILoggingEvent>().apply { start() }
-        val logger = LoggerFactory.getLogger(LegacyRequestFieldsModule::class.java) as Logger
+        val logger = LoggerFactory.getLogger(ExceptionInfoHandler::class.java) as Logger
         logger.addAppender(appender)
 
         try {
-            post(LEGACY_BODY).andExpect { status { isCreated() } }
+            post(body).andExpect {
+                status { isBadRequest() }
+                jsonPath("$.errorCode") { value("VALIDATION") }
+                jsonPath("$.errorMessage") { value(message) }
+                content { string(not(containsString(PASSWORD))) }
+                content { string(not(containsString("registry:4567"))) }
+                content { string(not(containsString("teamcity:8111"))) }
+            }
         } finally {
             logger.detachAppender(appender)
         }
 
-        verify(buildChainService).createBuildChain(CreateBuildChainRequest("Parent", "component", "1.0"))
+        verifyNoInteractions(buildChainService)
         val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
-        assertEquals(2, warnings.size, warnings.toString())
-        assertTrue(warnings.any { it.contains("'teamcity'") })
-        assertTrue(warnings.any { it.contains("'componentsRegistryUrl'") })
+        assertTrue(warnings.any { it.contains("'$field'") }, warnings.toString())
         warnings.forEach { warning ->
             assertFalse(warning.contains(PASSWORD))
             assertFalse(warning.contains("registry:4567"))
@@ -95,20 +102,11 @@ class BuildChainControllerTest {
     }
 
     @Test
-    fun warnsOnlyForTheOldFieldsNotForOtherUnknownFields() {
+    fun otherUnknownFieldsStillPass() {
         whenever(buildChainService.createBuildChain(any())) doReturn
             BuildChainDTO("P_C", "P_C_10", null, null, "P_C_40")
-        val appender = ListAppender<ILoggingEvent>().apply { start() }
-        val logger = LoggerFactory.getLogger(LegacyRequestFieldsModule::class.java) as Logger
-        logger.addAppender(appender)
 
-        try {
-            post(VALID_BODY.replace("\"minorVersion\"", "\"other\": 1, \"minorVersion\"")).andExpect { status { isCreated() } }
-        } finally {
-            logger.detachAppender(appender)
-        }
-
-        assertTrue(appender.list.isEmpty())
+        post(VALID_BODY.replace("\"minorVersion\"", "\"other\": 1, \"minorVersion\"")).andExpect { status { isCreated() } }
     }
 
     @Test
@@ -243,16 +241,30 @@ class BuildChainControllerTest {
               "minorVersion": "1.0"
             }
             """.trimIndent()
-        private val LEGACY_BODY =
-            """
-            {
-              "teamcity": { "url": "http://teamcity:8111", "user": "user", "password": "$PASSWORD" },
-              "componentsRegistryUrl": "http://registry:4567",
-              "parentProjectId": "Parent",
-              "component": "component",
-              "minorVersion": "1.0"
-            }
-            """.trimIndent()
+        private const val TEAMCITY_MESSAGE =
+            "teamcity: no longer accepted; the service uses its own configured TeamCity server and account"
+        private const val REGISTRY_MESSAGE =
+            "componentsRegistryUrl: no longer accepted; the service uses its own configured Components Registry"
+
+        private fun withField(entry: String) = VALID_BODY.replace("{", "{ $entry,")
+
+        @JvmStatic
+        fun removedFieldBodies(): List<Arguments> =
+            listOf(
+                Arguments.of(
+                    "teamcity",
+                    withField("\"teamcity\": { \"url\": \"http://teamcity:8111\", \"user\": \"user\", \"password\": \"$PASSWORD\" }"),
+                    TEAMCITY_MESSAGE,
+                ),
+                Arguments.of("teamcity", withField("\"teamcity\": null"), TEAMCITY_MESSAGE),
+                Arguments.of("teamcity", withField("\"teamcity\": {}"), TEAMCITY_MESSAGE),
+                Arguments.of(
+                    "componentsRegistryUrl",
+                    withField("\"componentsRegistryUrl\": \"http://registry:4567\""),
+                    REGISTRY_MESSAGE,
+                ),
+                Arguments.of("componentsRegistryUrl", withField("\"componentsRegistryUrl\": null"), REGISTRY_MESSAGE),
+            )
 
         @JvmStatic
         fun serviceExceptions(): List<Arguments> =

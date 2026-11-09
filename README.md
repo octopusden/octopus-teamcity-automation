@@ -87,8 +87,9 @@ The request names no server and no account. The service creates the chain on the
 its configuration, as the TeamCity account in its configuration, and reads components from the
 Components Registry in its configuration. The account's password is never logged or returned.
 
-An older caller may still send `teamcity` and `componentsRegistryUrl`. They are ignored, and a warning
-names the field without its value, so callers can drop them.
+`teamcity` and `componentsRegistryUrl` are no longer accepted. A request that contains either one, with any
+value, is rejected with 400 `VALIDATION` and nothing is called on TeamCity or Components Registry. The
+message names the field without its value, so callers must drop it.
 
 **The service has no inbound authentication.** Anyone who can reach it can create chains as the
 service's TeamCity account, under any parent project that account can write to. It is meant for callers

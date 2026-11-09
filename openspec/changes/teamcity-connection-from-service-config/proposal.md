@@ -22,7 +22,10 @@ credentials belong in Vault.
 
 - **BREAKING (API):** the request no longer has `teamcity` or `componentsRegistryUrl`. The service
   connects to the TeamCity server and Components Registry set in its configuration, as the TeamCity
-  account stored in Vault.
+  account stored in Vault. A request that still sends either field gets `400`, so no caller is
+  silently switched to another server or account.
+- **BREAKING (artifacts):** `TeamcityConnection` is removed from `common`, and `CreateBuildChainRequest`
+  loses its two connection parameters. The release line moves to 2.0.
 - The allow-lists (`allowed-teamcity-urls`, `allowed-components-registry-urls`) go away. They only
   existed because the caller picked the server.
 - The service starts only when the TeamCity URL, username and password and the Components Registry

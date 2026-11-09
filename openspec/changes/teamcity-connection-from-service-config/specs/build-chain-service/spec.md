@@ -21,8 +21,9 @@ The request SHALL NOT be able to choose any of them.
 #### Scenario: Request still carrying the old fields
 
 - **WHEN** a request contains `teamcity` or `componentsRegistryUrl`
-- **THEN** the service ignores them, uses the configured servers, and logs a warning that does not
-  include their values
+- **THEN** the service answers `400` with code `VALIDATION`, naming the field and saying the service
+  uses its own configured server and account
+- **AND** nothing is created, and neither the response nor the log includes the field's value
 
 ### Requirement: Missing configuration stops startup
 
