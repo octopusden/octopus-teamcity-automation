@@ -56,13 +56,8 @@ None. There are no specs in this repository yet.
   the Components Registry URL per environment, and loses the allow-lists.
 - **Vault:** `teamcity-automation-service` gains the username and password of the TeamCity service account
   `s-f1-teamcity`.
-- **Components Management Portal:** the unmerged `create-teamcity-build-chain` branch stops sending the
-  TeamCity URL, credentials and registry URL, and drops `portal.teamcity-automation.username/password`.
-  If that branch merges first, the service ignores the old fields (decision 4), so the order does not
-  matter.
-- **service-deployment:** no change. The startup probe stays on the stand-wide default `/actuator/health`,
-  which now includes TeamCity (an accepted risk, see design, decision 6). The shared `spring-cloud` chart has
-  no readiness probe; adding one is a separate, future issue.
+- **Components Management Portal:** no change here. Its `create-teamcity-build-chain` approach is being
+  dropped, so there is no caller to update.
 - **CLI and `core`:** unchanged. The CLI still takes `--url/--user/--password`.
 - **`ft`:** the service image is configured with the test TeamCity and registry instead of receiving
   them in requests.

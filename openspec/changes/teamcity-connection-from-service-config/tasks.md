@@ -1,7 +1,6 @@
 > Gradle: `./gradlew build` (unit), `./gradlew :ft:ft` (functional). Test-first for each behaviour task.
 >
-> Order: service-config + Vault -> this repo released. The Portal branch can change before or after, because
-> the service ignores the old fields.
+> Order: service-config + Vault -> this repo released.
 
 ## 1. Configuration
 
@@ -33,7 +32,7 @@
 
 ## 4. Functional tests and docs
 
-- [ ] 4.1 `ft`: configure the service container with the test TeamCity and registry; requests stop carrying
+- [x] 4.1 `ft`: configure the service container with the test TeamCity and registry; requests stop carrying
       credentials; `ft` checks `/actuator/health/readiness/teamcity` is `UP`, and `DOWN` with wrong credentials
 - [x] 4.2 README API section: new request, error table, a note that the service has no inbound authentication, and the health endpoints; bump `.release-line`
 
@@ -43,5 +42,3 @@
       allow-lists, for default, cloud-qa and cloud-prod
 - [x] 5.2 Vault: add the `s-f1-teamcity` username/password for `teamcity-automation-service` in each environment, as
       `teamcity.username` / `teamcity.password`
-- [ ] 5.3 Portal (`create-teamcity-build-chain` branch): stop sending connection fields and drop
-      `portal.teamcity-automation.username/password`
