@@ -83,11 +83,28 @@ not the service.
 | `/actuator/health` | every check, TeamCity included | people, monitoring, the startup probe (stand-wide default) |
 | `/actuator/health/liveness` | `livenessState` only | liveness probe |
 
-Spring Boot adds every health indicator to the root `/actuator/health` on its own, and serves group
-members under `/actuator/health/{group}/{component}`. So putting `teamcity` in the readiness group is
-enough for both `/actuator/health/readiness/teamcity` and `/actuator/health`. Spring also serves the
-same check at `/actuator/health/teamcity`, and there is no setting to hide it. The documented path is
-the readiness one.
+Spring Boot adds every health indicator to the status of the root `/actuator/health` on its own. It
+serves a single component path such as `/actuator/health/{group}/{component}` only when that group shows
+components. `show-components` falls back to `show-details`, which defaults to `never`; with that
+default, every component path answers 404. So the readiness group gets
+`management.endpoint.health.group.readiness.show-components: always`, while `show-details` stays
+`never`:
+
+```yaml
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState, teamcity
+          show-components: always
+        liveness:
+          include: livenessState
+```
+
+That makes `/actuator/health/readiness/teamcity` answer with its status only. `/actuator/health/teamcity`
+goes through the primary group, which still shows no components, so it keeps answering 404 and the
+readiness path is the only one.
 
 - **Readiness includes TeamCity.** The service can do nothing without TeamCity, so once a readiness
   probe exists it should take the pod out of traffic while TeamCity is down and put it back when
@@ -102,8 +119,9 @@ the readiness one.
   small and few things depend on it, and the team can restart it by hand. It also mostly fixes itself:
   Kubernetes keeps retrying the container, and during a rollout the old pod keeps serving while the new
   one waits. Overriding it, as components-registry-service does, stays an option if this ever hurts.
-- Health details stay hidden (the Spring default, `show-details: never`), so the endpoint only shows
-  `UP` or `DOWN` and never the URL or account. The real TeamCity error goes to the log at WARN.
+- Health details stay hidden (`show-details: never`, the Spring default, also on the readiness group),
+  so the endpoint only shows `UP` or `DOWN` and never the URL or account. The real TeamCity error
+  goes to the log at WARN.
 
 Rejected:
 - Overriding the startup probe to `/actuator/health/liveness` in the deployment values: not needed for

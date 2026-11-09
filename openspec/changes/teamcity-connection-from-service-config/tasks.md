@@ -25,8 +25,11 @@
 - [ ] 3.1 Failing test, then the `teamcity` health indicator: `UP` when `/app/rest/server` answers 200 to
       the service's account; `DOWN` on a 401, a 5xx, a timeout or a refused connection; no URL or account in
       the response; WARN log with the cause
-- [ ] 3.2 Failing test, then the health groups: `readiness` = `readinessState` + `teamcity`; `liveness` =
-      `livenessState` only; probes enabled outside Kubernetes too, so `ft` and `dev` expose the groups
+- [ ] 3.2 Failing test, then the health groups: `readiness` = `readinessState` + `teamcity` with
+      `show-components: always` (`show-details` stays `never`); `liveness` = `livenessState` only; probes
+      enabled outside Kubernetes too, so `ft` and `dev` expose the groups. The test proves
+      `/actuator/health/readiness/teamcity` answers 200/503 with the status only, and that
+      `/actuator/health/teamcity` answers 404
 
 ## 4. Functional tests and docs
 
