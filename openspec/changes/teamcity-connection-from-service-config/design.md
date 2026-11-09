@@ -22,14 +22,18 @@ authentication. Changes to the CLI or `core`.
 ### 1. One TeamCity server and one Components Registry per deployment, from configuration
 
 ```yaml
-teamcity-automation-service:
-  teamcity:
-    url: ${teamcity.host}          # service-config
-    username: <vault>              # s-f1-teamcity
-    password: <vault>
-  components-registry:
-    url: http://components-registry-service-<env>.f1.svc.cluster.local:8080
+teamcity:
+  url: ${teamcity.host}          # service-config
+  username: <vault>              # s-f1-teamcity
+  password: <vault>
+components-registry:
+  url: http://components-registry-service-<env>.f1.svc.cluster.local:8080
 ```
+
+The keys have no service prefix, the same as components-registry-service's `teamcity.username` and
+`teamcity.password`. In Vault, the secret for `teamcity-automation-service` holds `teamcity.username` and
+`teamcity.password`. The shared config already defines `teamcity.host` and `components-registry.vcs.*`
+for other services; the service ignores keys it does not bind.
 
 The clients are built once at startup instead of once per request. Rejected: keeping a URL field in the
 request and checking it against the allow-list. Each environment has exactly one TeamCity server, so a

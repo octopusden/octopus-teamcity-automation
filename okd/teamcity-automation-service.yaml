@@ -47,14 +47,14 @@ objects:
               value: "ft"
             - name: SPRING_CLOUD_CONFIG_ENABLED
               value: "false"
-            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL
-              value: ${TEAMCITY_URL}
-            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_USERNAME
-              value: ${TEAMCITY_USERNAME}
-            - name: TEAMCITYAUTOMATIONSERVICE_TEAMCITY_PASSWORD
-              value: ${TEAMCITY_PASSWORD}
-            - name: TEAMCITYAUTOMATIONSERVICE_COMPONENTSREGISTRY_URL
-              value: ${COMPONENTS_REGISTRY_URL}
+            - name: TEAMCITY_URL
+              value: ${TAS_TEAMCITY_URL}
+            - name: TEAMCITY_USERNAME
+              value: ${TAS_TEAMCITY_USERNAME}
+            - name: TEAMCITY_PASSWORD
+              value: ${TAS_TEAMCITY_PASSWORD}
+            - name: COMPONENTSREGISTRY_URL
+              value: ${TAS_COMPONENTS_REGISTRY_URL}
           volumeMounts:
             - name: application-ft
               mountPath: /application-ft.yaml
@@ -114,14 +114,14 @@ parameters:
     name: TAS_ID
     required: true
   - description: TeamCity base URL the service works with
-    name: TEAMCITY_URL
+    name: TAS_TEAMCITY_URL
     required: true
   - description: TeamCity account the service works as
-    name: TEAMCITY_USERNAME
+    name: TAS_TEAMCITY_USERNAME
     required: true
   - description: Password of the TeamCity account
-    name: TEAMCITY_PASSWORD
+    name: TAS_TEAMCITY_PASSWORD
     required: true
   - description: Components Registry base URL the service reads from
-    name: COMPONENTS_REGISTRY_URL
+    name: TAS_COMPONENTS_REGISTRY_URL
     required: true

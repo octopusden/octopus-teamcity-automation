@@ -100,7 +100,7 @@ class HealthEndpointsTest {
         @JvmStatic
         @DynamicPropertySource
         fun teamcityUrl(registry: DynamicPropertyRegistry) {
-            registry.add("teamcity-automation-service.teamcity.url") { "http://localhost:${teamcity.address.port}" }
+            registry.add("teamcity.url") { "http://localhost:${teamcity.address.port}" }
         }
 
         @JvmStatic

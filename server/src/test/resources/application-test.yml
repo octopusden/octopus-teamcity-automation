@@ -1,7 +1,6 @@
-teamcity-automation-service:
-  teamcity:
-    url: http://teamcity.test:8111
-    username: test-user
-    password: test-password
-  components-registry:
-    url: http://registry.test:4567
+teamcity:
+  url: http://teamcity.test:8111
+  username: test-user
+  password: test-password
+components-registry:
+  url: http://registry.test:4567

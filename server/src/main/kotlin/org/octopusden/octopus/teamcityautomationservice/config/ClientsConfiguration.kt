@@ -15,20 +15,20 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 class ClientsConfiguration {
     @Bean
-    fun teamcityClient(properties: TeamcityAutomationServiceProperties): TeamcityClient =
+    fun teamcityClient(properties: TeamcityProperties): TeamcityClient =
         TeamcityClassicClient(
             object : ClientParametersProvider {
-                override fun getApiUrl() = properties.teamcity.url
+                override fun getApiUrl() = properties.url
 
-                override fun getAuth() = StandardBasicCredCredentialProvider(properties.teamcity.username, properties.teamcity.password)
+                override fun getAuth() = StandardBasicCredCredentialProvider(properties.username, properties.password)
             },
         )
 
     @Bean
-    fun componentsRegistryClient(properties: TeamcityAutomationServiceProperties): ComponentsRegistryServiceClient =
+    fun componentsRegistryClient(properties: ComponentsRegistryProperties): ComponentsRegistryServiceClient =
         ClassicComponentsRegistryServiceClient(
             object : ClassicComponentsRegistryServiceClientUrlProvider {
-                override fun getApiUrl(): String = properties.componentsRegistry.url
+                override fun getApiUrl(): String = properties.url
             },
         )
 

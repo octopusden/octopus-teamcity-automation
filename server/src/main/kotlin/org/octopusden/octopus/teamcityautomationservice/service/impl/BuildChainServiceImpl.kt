@@ -18,7 +18,8 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
-import org.octopusden.octopus.teamcityautomationservice.config.TeamcityAutomationServiceProperties
+import org.octopusden.octopus.teamcityautomationservice.config.ComponentsRegistryProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import org.octopusden.octopus.teamcityautomationservice.service.BuildChainService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -33,11 +34,12 @@ import org.octopusden.octopus.components.registry.core.exceptions.NotFoundExcept
 class BuildChainServiceImpl(
     private val teamcityClient: TeamcityClient,
     private val buildChainCreator: BuildChainCreator,
-    properties: TeamcityAutomationServiceProperties,
+    teamcityProperties: TeamcityProperties,
+    componentsRegistryProperties: ComponentsRegistryProperties,
 ) : BuildChainService {
     private val servers = Servers(
-        baseUrlOf(properties.teamcity.url, "teamcity-automation-service.teamcity.url"),
-        baseUrlOf(properties.componentsRegistry.url, "teamcity-automation-service.components-registry.url"),
+        baseUrlOf(teamcityProperties.url, "teamcity.url"),
+        baseUrlOf(componentsRegistryProperties.url, "components-registry.url"),
     )
 
     // Whatever fails after the pre-flight, the caller must learn what is left in TeamCity.

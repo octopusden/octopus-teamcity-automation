@@ -1,6 +1,6 @@
 package org.octopusden.octopus.teamcityautomationservice.health
 
-import org.octopusden.octopus.teamcityautomationservice.config.TeamcityAutomationServiceProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.actuate.health.Health
@@ -21,13 +21,13 @@ import java.util.Base64
  */
 @Component
 class TeamcityHealthIndicator(
-    private val teamcity: TeamcityAutomationServiceProperties.Teamcity,
+    private val teamcity: TeamcityProperties,
     private val timeout: Duration,
 ) : HealthIndicator {
     private val client = HttpClient.newBuilder().connectTimeout(timeout).build()
 
     @Autowired
-    constructor(properties: TeamcityAutomationServiceProperties) : this(properties.teamcity, DEFAULT_TIMEOUT)
+    constructor(properties: TeamcityProperties) : this(properties, DEFAULT_TIMEOUT)
 
     // Whatever goes wrong, the answer is DOWN; the cause is logged.
     @Suppress("TooGenericExceptionCaught")

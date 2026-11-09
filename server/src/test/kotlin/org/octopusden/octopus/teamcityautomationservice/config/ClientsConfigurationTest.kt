@@ -15,10 +15,10 @@ class ClientsConfigurationTest {
     private val runner = ApplicationContextRunner()
         .withUserConfiguration(Properties::class.java)
         .withPropertyValues(
-            "teamcity-automation-service.teamcity.url=http://teamcity:8111",
-            "teamcity-automation-service.teamcity.username=account",
-            "teamcity-automation-service.teamcity.password=secret",
-            "teamcity-automation-service.components-registry.url=http://registry:4567",
+            "teamcity.url=http://teamcity:8111",
+            "teamcity.username=account",
+            "teamcity.password=secret",
+            "components-registry.url=http://registry:4567",
         )
 
     @Test
@@ -34,7 +34,7 @@ class ClientsConfigurationTest {
     }
 
     @Configuration
-    @EnableConfigurationProperties(TeamcityAutomationServiceProperties::class)
+    @EnableConfigurationProperties(TeamcityProperties::class, ComponentsRegistryProperties::class)
     @Import(ClientsConfiguration::class)
     class Properties
 }

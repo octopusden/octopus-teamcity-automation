@@ -13,7 +13,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.octopusden.octopus.teamcityautomationservice.config.TeamcityAutomationServiceProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import org.slf4j.LoggerFactory
 import org.springframework.boot.actuate.health.Status
 import java.net.InetSocketAddress
@@ -104,7 +104,7 @@ class TeamcityHealthIndicatorTest {
     private fun indicator(
         url: String,
         timeout: Duration = Duration.ofSeconds(5),
-    ) = TeamcityHealthIndicator(TeamcityAutomationServiceProperties.Teamcity(url, USERNAME, PASSWORD), timeout)
+    ) = TeamcityHealthIndicator(TeamcityProperties(url, USERNAME, PASSWORD), timeout)
 
     companion object {
         private const val USERNAME = "service-account"

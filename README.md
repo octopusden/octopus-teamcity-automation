@@ -132,13 +132,15 @@ that names it.
 
 | Property | Meaning |
 |---|---|
-| `teamcity-automation-service.teamcity.url` | Base URL of the TeamCity server (http or https, no user info) |
-| `teamcity-automation-service.teamcity.username` | The TeamCity account the service creates chains as |
-| `teamcity-automation-service.teamcity.password` | Its password |
-| `teamcity-automation-service.components-registry.url` | Base URL of the Components Registry |
+| `teamcity.url` | Base URL of the TeamCity server (http or https, no user info) |
+| `teamcity.username` | The TeamCity account the service creates chains as |
+| `teamcity.password` | Its password |
+| `components-registry.url` | Base URL of the Components Registry |
 
 The URLs come from the config server; the account comes from Vault. Environment variables work too, for
-example `TEAMCITYAUTOMATIONSERVICE_TEAMCITY_URL`.
+example `TEAMCITY_URL` and `COMPONENTSREGISTRY_URL`.
+
+In Vault the keys are `teamcity.username` and `teamcity.password`.
 
 ### Health
 

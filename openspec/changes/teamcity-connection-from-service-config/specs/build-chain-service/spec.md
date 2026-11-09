@@ -9,8 +9,8 @@ what the chain contains, which belongs to `core`.
 ### Requirement: Servers and account come from configuration
 
 The service SHALL create the chain on the TeamCity server set in
-`teamcity-automation-service.teamcity.url`, as the account in `teamcity-automation-service.teamcity.username`
-and `.password`, and SHALL read components from `teamcity-automation-service.components-registry.url`.
+`teamcity.url`, as the account in `teamcity.username` and `teamcity.password`, and SHALL read components from
+`components-registry.url`.
 The request SHALL NOT be able to choose any of them.
 
 #### Scenario: Request without connection fields
@@ -31,7 +31,7 @@ URL is blank, and the startup error SHALL name the missing property.
 
 #### Scenario: Password not in Vault
 
-- **WHEN** `teamcity-automation-service.teamcity.password` is blank
+- **WHEN** `teamcity.password` is blank
 - **THEN** the application does not start and the log names that property
 
 ### Requirement: The service's own credentials are never exposed

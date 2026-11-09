@@ -5,7 +5,7 @@
 
 ## 1. Configuration
 
-- [x] 1.1 Failing test, then `TeamcityAutomationServiceProperties` (`teamcity.url/username/password`,
+- [x] 1.1 Failing test, then `TeamcityProperties` (`teamcity.url/username/password`) and `ComponentsRegistryProperties` (
       `components-registry.url`) with startup validation that names the blank property
 - [x] 1.2 Failing test, then build the TeamCity and Components Registry clients once from the properties;
       remove `AllowedServersProperties`, `BaseUrl`'s allow-list use and the per-request factory methods
@@ -39,8 +39,9 @@
 
 ## 5. Outside this repo (tracked here, done in their repos)
 
-- [ ] 5.1 service-config: add `teamcity-automation-service.teamcity.url` / `components-registry.url`, drop the
+- [ ] 5.1 service-config: add `teamcity.url` / `components-registry.url`, drop the
       allow-lists, for default, cloud-qa and cloud-prod
-- [x] 5.2 Vault: add the `s-f1-teamcity` username/password for `teamcity-automation-service` in each environment
+- [x] 5.2 Vault: add the `s-f1-teamcity` username/password for `teamcity-automation-service` in each environment, as
+      `teamcity.username` / `teamcity.password`
 - [ ] 5.3 Portal (`create-teamcity-build-chain` branch): stop sending connection fields and drop
       `portal.teamcity-automation.username/password`

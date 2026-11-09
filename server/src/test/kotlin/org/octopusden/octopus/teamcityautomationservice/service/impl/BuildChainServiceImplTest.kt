@@ -41,14 +41,15 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
-import org.octopusden.octopus.teamcityautomationservice.config.TeamcityAutomationServiceProperties
+import org.octopusden.octopus.teamcityautomationservice.config.ComponentsRegistryProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import java.util.UUID
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException as RegistryNotFoundException
 
 class BuildChainServiceImplTest {
     private val teamcityClient = mock<TeamcityClient>()
     private val creator = mock<BuildChainCreator>()
-    private val service = BuildChainServiceImpl(teamcityClient, creator, PROPERTIES)
+    private val service = BuildChainServiceImpl(teamcityClient, creator, TEAMCITY_PROPERTIES, REGISTRY_PROPERTIES)
 
     @Test
     fun createsChainWithTheRequestInputs() {
@@ -237,10 +238,8 @@ class BuildChainServiceImplTest {
         val nested = BuildChainServiceImpl(
             teamcityClient,
             creator,
-            TeamcityAutomationServiceProperties(
-                TeamcityAutomationServiceProperties.Teamcity("http://host/teamcity", USERNAME, PASSWORD),
-                TeamcityAutomationServiceProperties.ComponentsRegistry("http://host"),
-            ),
+            TeamcityProperties("http://host/teamcity", USERNAME, PASSWORD),
+            ComponentsRegistryProperties("http://host"),
         )
         whenever(teamcityClient.getProject(any<ProjectLocator>())) doThrow feignException(500, "http://host/teamcity/app/rest/projects")
 
@@ -293,10 +292,8 @@ class BuildChainServiceImplTest {
 
         // Generated per run: no credential, not even a dummy one, is written in the sources.
         private val PASSWORD = UUID.randomUUID().toString()
-        private val PROPERTIES = TeamcityAutomationServiceProperties(
-            TeamcityAutomationServiceProperties.Teamcity(TEAMCITY_URL, USERNAME, PASSWORD),
-            TeamcityAutomationServiceProperties.ComponentsRegistry(REGISTRY_URL),
-        )
+        private val TEAMCITY_PROPERTIES = TeamcityProperties(TEAMCITY_URL, USERNAME, PASSWORD)
+        private val REGISTRY_PROPERTIES = ComponentsRegistryProperties(REGISTRY_URL)
 
         private val REQUEST = CreateBuildChainRequest(
             parentProjectId = PARENT,

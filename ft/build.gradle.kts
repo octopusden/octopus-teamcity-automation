@@ -190,10 +190,10 @@ ocTemplate {
                         "TEAMCITY_AUTOMATION_SERVICE_VERSION" to version as String,
                         "APPLICATION_FT_CONTENT" to serviceConfig.asFile.readText(),
                         "TAS_ID" to name.removePrefix("tas"),
-                        "TEAMCITY_URL" to "http://${getOkdInternalHost(teamcity)}",
-                        "TEAMCITY_USERNAME" to "admin",
-                        "TEAMCITY_PASSWORD" to password,
-                        "COMPONENTS_REGISTRY_URL" to "http://${getOkdInternalHost("comp-reg")}",
+                        "TAS_TEAMCITY_URL" to "http://${getOkdInternalHost(teamcity)}",
+                        "TAS_TEAMCITY_USERNAME" to "admin",
+                        "TAS_TEAMCITY_PASSWORD" to password,
+                        "TAS_COMPONENTS_REGISTRY_URL" to "http://${getOkdInternalHost("comp-reg")}",
                     ),
                 )
             }

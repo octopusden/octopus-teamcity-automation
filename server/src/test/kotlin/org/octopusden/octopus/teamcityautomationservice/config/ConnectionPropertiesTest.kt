@@ -12,29 +12,45 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Configuration
 import java.util.UUID
 
-class TeamcityAutomationServicePropertiesTest {
+class ConnectionPropertiesTest {
     private val runner = ApplicationContextRunner().withUserConfiguration(PropertiesConfiguration::class.java)
 
     @Test
     fun bindsTheConfiguredServersAndAccount() {
         runner.withPropertyValues(*valid()).run { context ->
-            val properties = context.getBean(TeamcityAutomationServiceProperties::class.java)
+            val teamcity = context.getBean(TeamcityProperties::class.java)
+            val registry = context.getBean(ComponentsRegistryProperties::class.java)
 
             assertNull(context.startupFailure)
-            assertEquals("https://teamcity.example/tc", properties.teamcity.url)
-            assertEquals("account", properties.teamcity.username)
-            assertEquals(PASSWORD, properties.teamcity.password)
-            assertEquals("http://registry:4567", properties.componentsRegistry.url)
+            assertEquals("https://teamcity.example/tc", teamcity.url)
+            assertEquals("account", teamcity.username)
+            assertEquals(PASSWORD, teamcity.password)
+            assertEquals("http://registry:4567", registry.url)
         }
+    }
+
+    @Test
+    fun ignoresSiblingKeysTheSharedConfigDefinesForOtherServices() {
+        runner
+            .withPropertyValues(
+                *valid(),
+                "teamcity.host=teamcity.example",
+                "components-registry.vcs.enabled=true",
+                "components-registry.vcs.url=http://vcs.example",
+            ).run { context ->
+                assertNull(context.startupFailure)
+                assertEquals("https://teamcity.example/tc", context.getBean(TeamcityProperties::class.java).url)
+                assertEquals("http://registry:4567", context.getBean(ComponentsRegistryProperties::class.java).url)
+            }
     }
 
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "teamcity-automation-service.teamcity.url",
-            "teamcity-automation-service.teamcity.username",
-            "teamcity-automation-service.teamcity.password",
-            "teamcity-automation-service.components-registry.url",
+            "teamcity.url",
+            "teamcity.username",
+            "teamcity.password",
+            "components-registry.url",
         ],
     )
     fun refusesToStartWhenAValueIsBlankAndNamesIt(property: String) {
@@ -46,10 +62,10 @@ class TeamcityAutomationServicePropertiesTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "teamcity-automation-service.teamcity.url",
-            "teamcity-automation-service.teamcity.username",
-            "teamcity-automation-service.teamcity.password",
-            "teamcity-automation-service.components-registry.url",
+            "teamcity.url",
+            "teamcity.username",
+            "teamcity.password",
+            "components-registry.url",
         ],
     )
     fun refusesToStartWhenAValueIsMissingAndNamesIt(property: String) {
@@ -61,8 +77,8 @@ class TeamcityAutomationServicePropertiesTest {
     @ParameterizedTest
     @ValueSource(strings = ["teamcity.example", "ftp://teamcity.example", "https://", "https://teamcity example"])
     fun refusesUrlsThatAreNotHttp(url: String) {
-        runner.withPropertyValues(*valid(), "teamcity-automation-service.teamcity.url=$url").run { context ->
-            assertNamed(context.startupFailure, "teamcity-automation-service.teamcity.url")
+        runner.withPropertyValues(*valid(), "teamcity.url=$url").run { context ->
+            assertNamed(context.startupFailure, "teamcity.url")
         }
     }
 
@@ -71,17 +87,17 @@ class TeamcityAutomationServicePropertiesTest {
         val secret = UUID.randomUUID().toString()
         val url = "https://" + "user" + ":" + secret + "@teamcity.example"
 
-        runner.withPropertyValues(*valid(), "teamcity-automation-service.components-registry.url=$url").run { context ->
+        runner.withPropertyValues(*valid(), "components-registry.url=$url").run { context ->
             val failure = context.startupFailure
 
-            assertNamed(failure, "teamcity-automation-service.components-registry.url")
+            assertNamed(failure, "components-registry.url")
             assertFalse(messages(failure).contains(secret))
         }
     }
 
     @Test
     fun masksThePasswordWhereverTheAccountIsPrinted() {
-        val teamcity = TeamcityAutomationServiceProperties.Teamcity("http://teamcity", "account", PASSWORD)
+        val teamcity = TeamcityProperties("http://teamcity", "account", PASSWORD)
 
         assertFalse(teamcity.toString().contains(PASSWORD))
     }
@@ -98,14 +114,14 @@ class TeamcityAutomationServicePropertiesTest {
 
     private fun valid() =
         arrayOf(
-            "teamcity-automation-service.teamcity.url=https://teamcity.example/tc",
-            "teamcity-automation-service.teamcity.username=account",
-            "teamcity-automation-service.teamcity.password=$PASSWORD",
-            "teamcity-automation-service.components-registry.url=http://registry:4567",
+            "teamcity.url=https://teamcity.example/tc",
+            "teamcity.username=account",
+            "teamcity.password=$PASSWORD",
+            "components-registry.url=http://registry:4567",
         )
 
     @Configuration
-    @EnableConfigurationProperties(TeamcityAutomationServiceProperties::class)
+    @EnableConfigurationProperties(TeamcityProperties::class, ComponentsRegistryProperties::class)
     class PropertiesConfiguration
 
     companion object {
