@@ -12,12 +12,16 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * UP when the configured TeamCity answers `GET /app/rest/server` to the service's account. The one call
  * proves the URL, the network path and the credentials. The response carries the status only; the cause
  * goes to the log, never with the password. The TeamCity client has no timeout and logs full exchanges,
- * so this is a plain HTTP call.
+ * so this is a plain HTTP call. The timeout is one overall deadline for the whole exchange, headers and
+ * body: the request timeout alone covers only the headers, so a stalled body would block the probe.
  */
 @Component
 class TeamcityHealthIndicator(
@@ -30,21 +34,31 @@ class TeamcityHealthIndicator(
     constructor(properties: TeamcityProperties) : this(properties, DEFAULT_TIMEOUT)
 
     // Whatever goes wrong, the answer is DOWN; the cause is logged.
-    @Suppress("TooGenericExceptionCaught")
-    override fun health(): Health =
-        try {
-            val response = client.send(request(), HttpResponse.BodyHandlers.discarding())
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    override fun health(): Health {
+        val future = client.sendAsync(request(), HttpResponse.BodyHandlers.discarding())
+        return try {
+            val response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
             if (response.statusCode() in HTTP_OK_RANGE) {
                 Health.up().build()
             } else {
                 down("TeamCity answered HTTP ${response.statusCode()}")
             }
+        } catch (e: TimeoutException) {
+            future.cancel(true)
+            down("TeamCity did not answer within $timeout")
         } catch (e: InterruptedException) {
+            future.cancel(true)
             Thread.currentThread().interrupt()
             down("the check was interrupted")
+        } catch (e: ExecutionException) {
+            val cause = e.cause ?: e
+            down("${cause.javaClass.simpleName}: ${cause.message}")
         } catch (e: Exception) {
+            future.cancel(true)
             down("${e.javaClass.simpleName}: ${e.message}")
         }
+    }
 
     private fun request(): HttpRequest {
         val credentials = Base64.getEncoder().encodeToString("${teamcity.username}:${teamcity.password}".toByteArray())

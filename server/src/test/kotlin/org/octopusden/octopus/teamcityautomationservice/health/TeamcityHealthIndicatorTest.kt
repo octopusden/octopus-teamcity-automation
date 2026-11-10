@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
@@ -20,12 +21,15 @@ import java.net.InetSocketAddress
 import java.time.Duration
 import java.util.Base64
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 
 class TeamcityHealthIndicatorTest {
     private var status = 200
     private var delayMillis = 0L
     private var requestedPath: String? = null
     private var authorization: String? = null
+    private var stallBody = false
+    private val release = CountDownLatch(1)
     private val appender = ListAppender<ILoggingEvent>()
     private val logger = LoggerFactory.getLogger(TeamcityHealthIndicator::class.java) as Logger
 
@@ -34,6 +38,12 @@ class TeamcityHealthIndicatorTest {
             requestedPath = exchange.requestURI.path
             authorization = exchange.requestHeaders.getFirst("Authorization")
             Thread.sleep(delayMillis)
+            if (stallBody) {
+                exchange.sendResponseHeaders(status, 1_000)
+                exchange.responseBody.write(ByteArray(10))
+                exchange.responseBody.flush()
+                release.await()
+            }
             exchange.sendResponseHeaders(status, -1)
             exchange.close()
         }
@@ -48,6 +58,7 @@ class TeamcityHealthIndicatorTest {
 
     @AfterEach
     fun stop() {
+        release.countDown()
         logger.detachAppender(appender)
         server.stop(0)
     }
@@ -86,6 +97,24 @@ class TeamcityHealthIndicatorTest {
         assertEquals(Status.DOWN, health.status)
         assertTrue(health.details.isEmpty())
         assertTrue(appender.list.any { it.level == Level.WARN })
+    }
+
+    @Test
+    @Timeout(10)
+    fun isDownWhenTheBodyStallsAfterTheHeaders() {
+        stallBody = true
+        val timeout = Duration.ofMillis(500)
+
+        val started = System.nanoTime()
+        val health = indicator("http://localhost:${server.address.port}", timeout).health()
+        val elapsed = Duration.ofNanos(System.nanoTime() - started)
+
+        assertEquals(Status.DOWN, health.status)
+        assertTrue(health.details.isEmpty())
+        assertTrue(elapsed < Duration.ofSeconds(3), "health() took $elapsed")
+        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        assertEquals(1, warnings.size, warnings.toString())
+        assertTrue(warnings.single().contains("did not answer within"))
     }
 
     @Test
