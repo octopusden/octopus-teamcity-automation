@@ -22,13 +22,27 @@ import java.time.Duration
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class TeamcityHealthIndicatorTest {
+    @Volatile
     private var status = 200
+
+    @Volatile
     private var delayMillis = 0L
+
+    @Volatile
     private var requestedPath: String? = null
+
+    @Volatile
     private var authorization: String? = null
+
+    @Volatile
     private var stallBody = false
+
+    @Volatile
+    private var stalledAtNanos = 0L
+
     private val release = CountDownLatch(1)
     private val bodyStalled = CountDownLatch(1)
     private val appender = ListAppender<ILoggingEvent>()
@@ -43,8 +57,11 @@ class TeamcityHealthIndicatorTest {
                 exchange.sendResponseHeaders(status, 1_000)
                 exchange.responseBody.write(ByteArray(10))
                 exchange.responseBody.flush()
+                stalledAtNanos = System.nanoTime()
                 bodyStalled.countDown()
                 release.await()
+                exchange.close()
+                return@createContext
             }
             exchange.sendResponseHeaders(status, -1)
             exchange.close()
@@ -84,7 +101,7 @@ class TeamcityHealthIndicatorTest {
 
         assertEquals(Status.DOWN, health.status)
         assertTrue(health.details.isEmpty())
-        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        val warnings = warnings()
         assertEquals(1, warnings.size, warnings.toString())
         assertTrue(warnings.single().contains("$httpStatus"))
         assertFalse(warnings.single().contains(PASSWORD))
@@ -107,16 +124,20 @@ class TeamcityHealthIndicatorTest {
         stallBody = true
         val timeout = Duration.ofSeconds(1)
 
+        val indicator = indicator("http://localhost:${server.address.port}", timeout)
         val started = System.nanoTime()
-        val health = indicator("http://localhost:${server.address.port}", timeout).health()
+        val health = indicator.health()
         val elapsed = Duration.ofNanos(System.nanoTime() - started)
 
-        // The server did send the headers and part of the body, so the timeout hit a stalled body.
-        assertEquals(0L, bodyStalled.count, "the handler never reached the stalled body")
+        // Shows the server sent the headers and part of the body before the deadline; without an overall
+        // deadline health() would hang and @Timeout(10) would fail the test.
+        assertTrue(bodyStalled.await(5, TimeUnit.SECONDS), "the handler never reached the stalled body")
+        val stalledAfter = Duration.ofNanos(stalledAtNanos - started)
+        assertTrue(stalledAfter < timeout, "the body stalled after $stalledAfter, past the $timeout timeout")
         assertEquals(Status.DOWN, health.status)
         assertTrue(health.details.isEmpty())
         assertTrue(elapsed < Duration.ofSeconds(3), "health() took $elapsed")
-        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        val warnings = warnings()
         assertEquals(1, warnings.size, warnings.toString())
         assertTrue(warnings.single().contains("did not answer within"))
     }
@@ -127,7 +148,7 @@ class TeamcityHealthIndicatorTest {
 
         assertEquals(Status.DOWN, health.status)
         assertTrue(health.details.isEmpty())
-        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        val warnings = warnings()
         assertEquals(1, warnings.size, warnings.toString())
         assertFalse(warnings.single().contains(PASSWORD))
     }
@@ -140,10 +161,12 @@ class TeamcityHealthIndicatorTest {
         val health = indicator("http://localhost:$port").health()
 
         assertEquals(Status.DOWN, health.status)
-        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        val warnings = warnings()
         assertEquals(1, warnings.size, warnings.toString())
         assertFalse(warnings.single().contains(PASSWORD))
     }
+
+    private fun warnings() = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
 
     private fun indicator(
         url: String,
