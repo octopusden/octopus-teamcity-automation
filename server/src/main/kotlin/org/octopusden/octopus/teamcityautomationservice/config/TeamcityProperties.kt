@@ -4,6 +4,7 @@ import jakarta.validation.constraints.AssertTrue
 import jakarta.validation.constraints.NotBlank
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
+import java.net.URI
 
 /**
  * The one TeamCity server the service works with, and the account it uses. A blank value stops the
@@ -24,7 +25,7 @@ data class TeamcityProperties(
 ) {
     // Checked as a boolean, not with @Pattern on the field: a rejected value is printed in the startup error.
     @get:AssertTrue(message = "teamcity.url $URL_MESSAGE")
-    val isUrlValid: Boolean get() = url.isBlank() || URL_REGEX.matches(url)
+    val isUrlValid: Boolean get() = url.isBlank() || isValidUrl(url)
 
     // Printed in logs and exception messages; the password must not be.
     override fun toString() = "TeamcityProperties(url=$url, username=$username, password=***)"
@@ -32,4 +33,8 @@ data class TeamcityProperties(
 
 // No user info: credentials belong in their own properties.
 internal val URL_REGEX = Regex("https?://[^\\s/?#@]+([/?#]\\S*)?")
+
+// The regex is loose, so also require what the clients need: a value java.net.URI can parse.
+internal fun isValidUrl(url: String): Boolean = URL_REGEX.matches(url) && runCatching { URI(url) }.isSuccess
+
 internal const val URL_MESSAGE = "must be an http(s) URL without a user or password"

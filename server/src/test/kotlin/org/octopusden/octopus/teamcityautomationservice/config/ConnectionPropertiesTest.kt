@@ -75,7 +75,7 @@ class ConnectionPropertiesTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["teamcity.example", "ftp://teamcity.example", "https://", "https://teamcity example"])
+    @ValueSource(strings = ["teamcity.example", "ftp://teamcity.example", "https://", "https://teamcity example", "http://localhost/%zz"])
     fun refusesUrlsThatAreNotHttp(url: String) {
         runner.withPropertyValues(*valid(), "teamcity.url=$url").run { context ->
             assertNamed(context.startupFailure, "teamcity.url")

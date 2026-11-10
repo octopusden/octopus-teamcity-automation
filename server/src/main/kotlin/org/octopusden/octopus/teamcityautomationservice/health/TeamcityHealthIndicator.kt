@@ -12,6 +12,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -36,26 +37,28 @@ class TeamcityHealthIndicator(
     // Whatever goes wrong, the answer is DOWN; the cause is logged.
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
     override fun health(): Health {
-        val future = client.sendAsync(request(), HttpResponse.BodyHandlers.discarding())
+        var future: CompletableFuture<HttpResponse<Void>>? = null
         return try {
-            val response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
+            val sent = client.sendAsync(request(), HttpResponse.BodyHandlers.discarding())
+            future = sent
+            val response = sent.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
             if (response.statusCode() in HTTP_OK_RANGE) {
                 Health.up().build()
             } else {
                 down("TeamCity answered HTTP ${response.statusCode()}")
             }
         } catch (e: TimeoutException) {
-            future.cancel(true)
+            future?.cancel(true)
             down("TeamCity did not answer within $timeout")
         } catch (e: InterruptedException) {
-            future.cancel(true)
+            future?.cancel(true)
             Thread.currentThread().interrupt()
             down("the check was interrupted")
         } catch (e: ExecutionException) {
             val cause = e.cause ?: e
             down("${cause.javaClass.simpleName}: ${cause.message}")
         } catch (e: Exception) {
-            future.cancel(true)
+            future?.cancel(true)
             down("${e.javaClass.simpleName}: ${e.message}")
         }
     }

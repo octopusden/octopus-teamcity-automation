@@ -18,5 +18,5 @@ data class ComponentsRegistryProperties(
     val url: String = "",
 ) {
     @get:AssertTrue(message = "components-registry.url $URL_MESSAGE")
-    val isUrlValid: Boolean get() = url.isBlank() || URL_REGEX.matches(url)
+    val isUrlValid: Boolean get() = url.isBlank() || isValidUrl(url)
 }

@@ -30,6 +30,7 @@ class TeamcityHealthIndicatorTest {
     private var authorization: String? = null
     private var stallBody = false
     private val release = CountDownLatch(1)
+    private val bodyStalled = CountDownLatch(1)
     private val appender = ListAppender<ILoggingEvent>()
     private val logger = LoggerFactory.getLogger(TeamcityHealthIndicator::class.java) as Logger
 
@@ -42,6 +43,7 @@ class TeamcityHealthIndicatorTest {
                 exchange.sendResponseHeaders(status, 1_000)
                 exchange.responseBody.write(ByteArray(10))
                 exchange.responseBody.flush()
+                bodyStalled.countDown()
                 release.await()
             }
             exchange.sendResponseHeaders(status, -1)
@@ -103,18 +105,31 @@ class TeamcityHealthIndicatorTest {
     @Timeout(10)
     fun isDownWhenTheBodyStallsAfterTheHeaders() {
         stallBody = true
-        val timeout = Duration.ofMillis(500)
+        val timeout = Duration.ofSeconds(1)
 
         val started = System.nanoTime()
         val health = indicator("http://localhost:${server.address.port}", timeout).health()
         val elapsed = Duration.ofNanos(System.nanoTime() - started)
 
+        // The server did send the headers and part of the body, so the timeout hit a stalled body.
+        assertEquals(0L, bodyStalled.count, "the handler never reached the stalled body")
         assertEquals(Status.DOWN, health.status)
         assertTrue(health.details.isEmpty())
         assertTrue(elapsed < Duration.ofSeconds(3), "health() took $elapsed")
         val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
         assertEquals(1, warnings.size, warnings.toString())
         assertTrue(warnings.single().contains("did not answer within"))
+    }
+
+    @Test
+    fun isDownWhenTheRequestCannotBeBuilt() {
+        val health = indicator("http://localhost/%zz").health()
+
+        assertEquals(Status.DOWN, health.status)
+        assertTrue(health.details.isEmpty())
+        val warnings = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        assertEquals(1, warnings.size, warnings.toString())
+        assertFalse(warnings.single().contains(PASSWORD))
     }
 
     @Test
