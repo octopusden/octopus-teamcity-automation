@@ -6,6 +6,7 @@ import feign.Response
 import feign.RetryableException
 import feign.Util
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -24,7 +25,6 @@ import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainRequest
 import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainResult
 import org.octopusden.octopus.automation.teamcity.buildchain.UnsupportedBuildSystemException
 import org.octopusden.octopus.automation.teamcity.buildchain.UnsupportedVcsTypeException
-import org.octopusden.octopus.components.registry.client.ComponentsRegistryServiceClient
 import org.octopusden.octopus.components.registry.core.dto.BuildSystem
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityBuildType
@@ -34,30 +34,22 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityProject
 import org.octopusden.octopus.infrastructure.teamcity.client.dto.locator.ProjectLocator
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.BuildChainDTO
 import org.octopusden.octopus.teamcityautomationservice.client.common.dto.CreateBuildChainRequest
-import org.octopusden.octopus.teamcityautomationservice.client.common.dto.TeamcityConnection
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.AlreadyExistsException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ForbiddenException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.NotFoundException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.PartiallyCreatedException
-import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnauthorizedException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
-import org.octopusden.octopus.teamcityautomationservice.config.AllowedServersProperties
-import org.octopusden.octopus.teamcityautomationservice.config.BuildChainClientFactory
+import org.octopusden.octopus.teamcityautomationservice.config.ComponentsRegistryProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import java.util.UUID
 import org.octopusden.octopus.components.registry.core.exceptions.NotFoundException as RegistryNotFoundException
 
 class BuildChainServiceImplTest {
     private val teamcityClient = mock<TeamcityClient>()
-    private val componentsRegistryClient = mock<ComponentsRegistryServiceClient>()
     private val creator = mock<BuildChainCreator>()
-    private val clientFactory = mock<BuildChainClientFactory> {
-        on { createTeamcityClient(any()) } doReturn teamcityClient
-        on { createComponentsRegistryClient(any()) } doReturn componentsRegistryClient
-        on { createBuildChainCreator(teamcityClient, componentsRegistryClient) } doReturn creator
-    }
-    private val service = BuildChainServiceImpl(clientFactory, AllowedServersProperties(listOf(TEAMCITY_URL), listOf(REGISTRY_URL)))
+    private val service = BuildChainServiceImpl(teamcityClient, creator, TEAMCITY_PROPERTIES, REGISTRY_PROPERTIES)
 
     @Test
     fun createsChainWithTheRequestInputs() {
@@ -76,8 +68,6 @@ class BuildChainServiceImplTest {
             any(),
         )
         verify(teamcityClient, times(1)).getProject(any<ProjectLocator>())
-        verify(clientFactory).createTeamcityClient(REQUEST.teamcity)
-        verify(clientFactory).createComponentsRegistryClient(REGISTRY_URL)
     }
 
     @Test
@@ -96,7 +86,7 @@ class BuildChainServiceImplTest {
         val e = assertThrows<ValidationException> { service.createBuildChain(REQUEST.copy(component = "component ")) }
 
         assertEquals("componentName has leading or trailing whitespace: 'component '", e.message)
-        verify(clientFactory, never()).createTeamcityClient(any())
+        verify(teamcityClient, never()).getProject(any<ProjectLocator>())
     }
 
     @Test
@@ -109,20 +99,24 @@ class BuildChainServiceImplTest {
     }
 
     @Test
-    fun mapsRejectedCredentialsToUnauthorizedWithoutThePassword() {
+    fun mapsRejectedServiceAccountToUpstreamWithoutTheAccount() {
         whenever(teamcityClient.getProject(any<ProjectLocator>())) doThrow feignException(401)
 
-        val e = assertThrows<UnauthorizedException> { service.createBuildChain(REQUEST) }
+        val e = assertThrows<UpstreamException> { service.createBuildChain(REQUEST) }
 
-        assertEquals("TeamCity rejected the credentials of user 'user'", e.message)
-        assertTrue(!e.message!!.contains(PASSWORD))
+        assertEquals("The service's TeamCity account was rejected by TeamCity", e.message)
+        assertFalse(e.message!!.contains(USERNAME))
+        assertFalse(e.message!!.contains(PASSWORD))
     }
 
     @Test
-    fun mapsMissingPermissionToForbidden() {
+    fun mapsMissingPermissionToForbiddenNamingTheParentProject() {
         whenever(teamcityClient.getProject(any<ProjectLocator>())) doThrow feignException(403)
 
-        assertThrows<ForbiddenException> { service.createBuildChain(REQUEST) }
+        val e = assertThrows<ForbiddenException> { service.createBuildChain(REQUEST) }
+
+        assertEquals("The service's TeamCity account has no permission for this operation under project '$PARENT'", e.message)
+        assertFalse(e.message!!.contains(USERNAME))
     }
 
     @Test
@@ -241,38 +235,17 @@ class BuildChainServiceImplTest {
 
     @Test
     fun attributesAFailureToTheMoreSpecificServerUnderTheSameHost() {
-        val request = REQUEST.copy(
-            teamcity = REQUEST.teamcity.copy(url = "http://host/teamcity"),
-            componentsRegistryUrl = "http://host",
+        val nested = BuildChainServiceImpl(
+            teamcityClient,
+            creator,
+            TeamcityProperties("http://host/teamcity", USERNAME, PASSWORD),
+            ComponentsRegistryProperties("http://host"),
         )
-        val nested = BuildChainServiceImpl(clientFactory, AllowedServersProperties(listOf("http://host/teamcity"), listOf("http://host")))
         whenever(teamcityClient.getProject(any<ProjectLocator>())) doThrow feignException(500, "http://host/teamcity/app/rest/projects")
 
-        val e = assertThrows<UpstreamException> { nested.createBuildChain(request) }
+        val e = assertThrows<UpstreamException> { nested.createBuildChain(REQUEST) }
 
         assertEquals("TeamCity answered HTTP 500", e.message)
-    }
-
-    @Test
-    fun refusesServersThatAreNotAllowed() {
-        val teamcity = assertThrows<ValidationException> {
-            service.createBuildChain(REQUEST.copy(teamcity = REQUEST.teamcity.copy(url = "http://10.0.0.5:6379")))
-        }
-        val registry = assertThrows<ValidationException> {
-            service.createBuildChain(REQUEST.copy(componentsRegistryUrl = "http://components-registry:4567.evil"))
-        }
-
-        assertEquals("teamcity.url: 'http://10.0.0.5:6379' is not an allowed TeamCity server", teamcity.message)
-        assertTrue(registry.message!!.startsWith("componentsRegistryUrl:"))
-        verify(clientFactory, never()).createTeamcityClient(any())
-    }
-
-    @Test
-    fun refusesEveryServerWhenNoneIsAllowed() {
-        val closed = BuildChainServiceImpl(clientFactory, AllowedServersProperties())
-
-        assertThrows<ValidationException> { closed.createBuildChain(REQUEST) }
-        verify(clientFactory, never()).createTeamcityClient(any())
     }
 
     private fun givenCreatorFailsAfterCreating(failure: Exception) {
@@ -315,12 +288,14 @@ class BuildChainServiceImplTest {
         private const val COMPONENT = "component"
         private const val PROJECT_ID = "Parent_Component"
 
+        private const val USERNAME = "service-account"
+
         // Generated per run: no credential, not even a dummy one, is written in the sources.
         private val PASSWORD = UUID.randomUUID().toString()
+        private val TEAMCITY_PROPERTIES = TeamcityProperties(TEAMCITY_URL, USERNAME, PASSWORD)
+        private val REGISTRY_PROPERTIES = ComponentsRegistryProperties(REGISTRY_URL)
 
         private val REQUEST = CreateBuildChainRequest(
-            teamcity = TeamcityConnection(TEAMCITY_URL, "user", PASSWORD),
-            componentsRegistryUrl = REGISTRY_URL,
             parentProjectId = PARENT,
             component = COMPONENT,
             minorVersion = "1.0",

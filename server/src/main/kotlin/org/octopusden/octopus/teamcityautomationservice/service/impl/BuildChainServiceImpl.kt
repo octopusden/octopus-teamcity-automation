@@ -1,6 +1,7 @@
 package org.octopusden.octopus.teamcityautomationservice.service.impl
 
 import feign.FeignException
+import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainCreator
 import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainException
 import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainRequest
 import org.octopusden.octopus.automation.teamcity.buildchain.BuildChainResult
@@ -14,12 +15,11 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.exception.
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ForbiddenException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.NotFoundException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.PartiallyCreatedException
-import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnauthorizedException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UnsupportedComponentException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.UpstreamException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.ValidationException
-import org.octopusden.octopus.teamcityautomationservice.config.AllowedServersProperties
-import org.octopusden.octopus.teamcityautomationservice.config.BuildChainClientFactory
+import org.octopusden.octopus.teamcityautomationservice.config.ComponentsRegistryProperties
+import org.octopusden.octopus.teamcityautomationservice.config.TeamcityProperties
 import org.octopusden.octopus.teamcityautomationservice.service.BuildChainService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -27,39 +27,35 @@ import org.octopusden.octopus.components.registry.core.exceptions.NotFoundExcept
 
 /**
  * Creates the chain with the library's BuildChainCreator; this class only adds what a service
- * caller needs on top of it: a check of the servers named, a check that nothing exists yet, and an
- * account of what exists after a failure.
+ * caller needs on top of it: a check that nothing exists yet, and an account of what exists after a
+ * failure. The servers and the TeamCity account are the configured ones, not the caller's.
  */
 @Service
 class BuildChainServiceImpl(
-    private val clientFactory: BuildChainClientFactory,
-    allowedServers: AllowedServersProperties,
+    private val teamcityClient: TeamcityClient,
+    private val buildChainCreator: BuildChainCreator,
+    teamcityProperties: TeamcityProperties,
+    componentsRegistryProperties: ComponentsRegistryProperties,
 ) : BuildChainService {
-    private val allowedTeamcityUrls = allowedServers.allowedTeamcityUrls.toBaseUrls(TEAMCITY)
-    private val allowedComponentsRegistryUrls = allowedServers.allowedComponentsRegistryUrls.toBaseUrls(COMPONENTS_REGISTRY)
+    private val servers = Servers(
+        baseUrlOf(teamcityProperties.url, "teamcity.url"),
+        baseUrlOf(componentsRegistryProperties.url, "components-registry.url"),
+    )
 
     // Whatever fails after the pre-flight, the caller must learn what is left in TeamCity.
     @Suppress("TooGenericExceptionCaught")
     override fun createBuildChain(request: CreateBuildChainRequest): BuildChainDTO {
         log.info(
-            "Create build chain for '{}' {} under '{}' on {} as '{}'",
+            "Create build chain for '{}' {} under '{}'",
             request.component,
             request.minorVersion,
             request.parentProjectId,
-            request.teamcity.url,
-            request.teamcity.user,
         )
         val buildChainRequest = request.toBuildChainRequest()
-        val call = Call(
-            request,
-            requireAllowed(request.teamcity.url, allowedTeamcityUrls, "teamcity.url", TEAMCITY),
-            requireAllowed(request.componentsRegistryUrl, allowedComponentsRegistryUrls, "componentsRegistryUrl", COMPONENTS_REGISTRY),
-        )
-        val teamcityClient = clientFactory.createTeamcityClient(request.teamcity)
-        val componentsRegistryClient = clientFactory.createComponentsRegistryClient(request.componentsRegistryUrl)
+        val call = Call(request, servers)
 
         // Before any mutation: proves the credentials and the parent, and refuses a re-run.
-        val parentProject = getParentProject(teamcityClient, call)
+        val parentProject = getParentProject(call)
         parentProject.findChild(request.component)?.let { existing ->
             throw AlreadyExistsException(
                 "Project '${request.component}' already exists under '${request.parentProjectId}' as '${existing.id}'. " +
@@ -70,17 +66,15 @@ class BuildChainServiceImpl(
 
         var createdProject: TeamcityProject? = null
         val result = try {
-            clientFactory
-                .createBuildChainCreator(teamcityClient, componentsRegistryClient)
-                .create(buildChainRequest, parentProject) { createdProject = it }
+            buildChainCreator.create(buildChainRequest, parentProject) { createdProject = it }
         } catch (e: BuildChainException) {
             throw UnsupportedComponentException(e.message.orEmpty(), e)
         } catch (e: RegistryNotFoundException) {
             throw NotFoundException(e.message.orEmpty(), e)
         } catch (e: Exception) {
             // Only the project this call created is reported: another request may have created one under the same name.
-            throw createdProject?.let { partiallyCreated(teamcityClient, call, it.id, e) }
-                ?: createdConcurrently(teamcityClient, call, e)
+            throw createdProject?.let { partiallyCreated(call, it.id, e) }
+                ?: createdConcurrently(call, e)
                 ?: toServiceException(e, call)
         }
         log.info("Created build chain for '{}': {}", request.component, result)
@@ -94,23 +88,7 @@ class BuildChainServiceImpl(
             throw ValidationException(e.message.orEmpty(), e)
         }
 
-    private fun requireAllowed(
-        url: String,
-        allowed: List<BaseUrl>,
-        field: String,
-        server: String,
-    ): BaseUrl {
-        val base = BaseUrl.parse(url)
-        if (base == null || allowed.none { it.contains(url) }) {
-            throw ValidationException("$field: '$url' is not an allowed $server server")
-        }
-        return base
-    }
-
-    private fun getParentProject(
-        teamcityClient: TeamcityClient,
-        call: Call,
-    ): TeamcityProject =
+    private fun getParentProject(call: Call): TeamcityProject =
         try {
             teamcityClient.getProject(call.request.parentProjectId)
         } catch (e: FeignException.NotFound) {
@@ -122,7 +100,6 @@ class BuildChainServiceImpl(
     private fun TeamcityProject.findChild(name: String) = projects?.projects?.find { it.name == name }
 
     private fun partiallyCreated(
-        teamcityClient: TeamcityClient,
         call: Call,
         projectId: String,
         cause: Exception,
@@ -144,7 +121,6 @@ class BuildChainServiceImpl(
 
     /** A TeamCity failure before this call created anything, while another request created the same project. */
     private fun createdConcurrently(
-        teamcityClient: TeamcityClient,
         call: Call,
         cause: Exception,
     ): AlreadyExistsException? {
@@ -172,12 +148,16 @@ class BuildChainServiceImpl(
         }
         val server = call.serverOf(exception)
         val status = exception.status()
-        val user = call.request.teamcity.user
         return when {
+            // The account is the service's own, so the caller cannot fix a 401: it is an upstream failure.
             server == TEAMCITY && exception is FeignException.Unauthorized ->
-                UnauthorizedException("TeamCity rejected the credentials of user '$user'", exception)
+                UpstreamException("The service's TeamCity account was rejected by TeamCity", exception)
             server == TEAMCITY && exception is FeignException.Forbidden ->
-                ForbiddenException("TeamCity user '$user' has no permission for this operation", exception)
+                ForbiddenException(
+                    "The service's TeamCity account has no permission for this operation under project " +
+                        "'${call.request.parentProjectId}'",
+                    exception,
+                )
             else ->
                 UpstreamException(if (status > 0) "$server answered HTTP $status" else "$server is not reachable", exception)
         }
@@ -186,17 +166,25 @@ class BuildChainServiceImpl(
     private fun BuildChainResult.toDTO() =
         BuildChainDTO(projectId, compileBuildTypeId, rcBuildTypeId, checklistBuildTypeId, releaseBuildTypeId)
 
-    /** The request with the servers it names; the more specific base wins when one URL is under both. */
+    /** The servers' base URLs; the more specific one wins when a URL is under both. */
+    private class Servers(
+        val teamcity: BaseUrl,
+        val componentsRegistry: BaseUrl,
+    )
+
     private class Call(
         val request: CreateBuildChainRequest,
-        private val teamcity: BaseUrl,
-        private val componentsRegistry: BaseUrl,
+        private val servers: Servers,
     ) {
         fun serverOf(exception: FeignException): String {
             val url = exception.request()?.url() ?: return TEAMCITY
-            val inRegistry = componentsRegistry.contains(url)
-            val inTeamcity = teamcity.contains(url)
-            return if (inRegistry && (!inTeamcity || componentsRegistry.depth > teamcity.depth)) COMPONENTS_REGISTRY else TEAMCITY
+            val inRegistry = servers.componentsRegistry.contains(url)
+            val inTeamcity = servers.teamcity.contains(url)
+            return if (inRegistry && (!inTeamcity || servers.componentsRegistry.depth > servers.teamcity.depth)) {
+                COMPONENTS_REGISTRY
+            } else {
+                TEAMCITY
+            }
         }
     }
 
@@ -205,18 +193,9 @@ class BuildChainServiceImpl(
         private const val TEAMCITY = "TeamCity"
         private const val COMPONENTS_REGISTRY = "Components Registry"
 
-        private fun List<String>.toBaseUrls(server: String): List<BaseUrl> {
-            val bases = mapNotNull { url ->
-                BaseUrl.parse(url).also {
-                    if (it == null) {
-                        log.warn("Ignoring allowed {} URL '{}'", server, url)
-                    }
-                }
-            }
-            if (bases.isEmpty()) {
-                log.warn("No allowed {} URLs are configured: every request will be refused", server)
-            }
-            return bases
-        }
+        private fun baseUrlOf(
+            url: String,
+            property: String,
+        ) = checkNotNull(BaseUrl.parse(url)) { "$property is not a valid URL" }
     }
 }

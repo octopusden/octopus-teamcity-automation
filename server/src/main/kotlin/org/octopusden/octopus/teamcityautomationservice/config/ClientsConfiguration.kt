@@ -8,29 +8,32 @@ import org.octopusden.octopus.infrastructure.client.commons.ClientParametersProv
 import org.octopusden.octopus.infrastructure.client.commons.StandardBasicCredCredentialProvider
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClassicClient
 import org.octopusden.octopus.infrastructure.teamcity.client.TeamcityClient
-import org.octopusden.octopus.teamcityautomationservice.client.common.dto.TeamcityConnection
-import org.springframework.stereotype.Component
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 
-/** The same construction as the CLI's `create-build-chain`. */
-@Component
-class BuildChainClientFactoryImpl : BuildChainClientFactory {
-    override fun createTeamcityClient(connection: TeamcityConnection): TeamcityClient =
+/** The same construction as the CLI's `create-build-chain`, done once from the configured servers and account. */
+@Configuration
+class ClientsConfiguration {
+    @Bean
+    fun teamcityClient(properties: TeamcityProperties): TeamcityClient =
         TeamcityClassicClient(
             object : ClientParametersProvider {
-                override fun getApiUrl() = connection.url
+                override fun getApiUrl() = properties.url
 
-                override fun getAuth() = StandardBasicCredCredentialProvider(connection.user, connection.password)
+                override fun getAuth() = StandardBasicCredCredentialProvider(properties.username, properties.password)
             },
         )
 
-    override fun createComponentsRegistryClient(url: String): ComponentsRegistryServiceClient =
+    @Bean
+    fun componentsRegistryClient(properties: ComponentsRegistryProperties): ComponentsRegistryServiceClient =
         ClassicComponentsRegistryServiceClient(
             object : ClassicComponentsRegistryServiceClientUrlProvider {
-                override fun getApiUrl(): String = url
+                override fun getApiUrl(): String = properties.url
             },
         )
 
-    override fun createBuildChainCreator(
+    @Bean
+    fun buildChainCreator(
         teamcityClient: TeamcityClient,
         componentsRegistryClient: ComponentsRegistryServiceClient,
     ) = BuildChainCreator(teamcityClient, componentsRegistryClient)

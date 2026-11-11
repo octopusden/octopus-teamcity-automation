@@ -10,8 +10,8 @@ import org.slf4j.Marker
 
 /**
  * The TeamCity and Components Registry clients log every exchange at Feign's FULL level, headers
- * included, so DEBUG on their loggers would write the caller's Basic credentials to the log. This
- * denies those loggers anything below INFO, whatever level config or actuator sets.
+ * included, so DEBUG on their loggers would write the service's own TeamCity Basic credentials to the log.
+ * This denies those loggers anything below INFO, whatever level config or actuator sets.
  */
 class ClientWireLogFilter : TurboFilter() {
     override fun decide(

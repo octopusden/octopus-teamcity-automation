@@ -1,0 +1,13 @@
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # Readiness follows TeamCity; liveness never does, or a TeamCity outage would restart a healthy pod.
+        # show-components exposes /actuator/health/readiness/teamcity (status only: show-details stays "never").
+        readiness:
+          include: readinessState, teamcity
+          show-components: always
+        liveness:
+          include: livenessState

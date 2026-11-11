@@ -1,4 +1,5 @@
 import com.avast.gradle.dockercompose.ComposeExtension
+import java.util.UUID
 
 plugins {
     id("com.avast.gradle.docker-compose")
@@ -43,6 +44,9 @@ val componentsRegistryDir = rootProject.layout.projectDirectory.dir("cli/src/tes
 val componentsRegistryConfig = sharedDockerDir.file("components-registry-service.yaml")
 val serviceConfig = layout.projectDirectory.file("docker/teamcity-automation-service.yaml")
 
+// The password of the service instance that has a wrong one; fresh per run, so the log check can search for it.
+val wrongPassword = UUID.randomUUID().toString()
+
 configure<ComposeExtension> {
     useComposeFiles.add(
         layout.projectDirectory
@@ -59,6 +63,7 @@ configure<ComposeExtension> {
             "TEAMCITY_2026_IMAGE_TAG" to providers.gradleProperty("teamcity-2026.image-tag").get(),
             "DOCKER_REGISTRY" to "dockerRegistry".getExt(),
             "OCTOPUS_GITHUB_DOCKER_REGISTRY" to "octopusGithubDockerRegistry".getExt(),
+            "TEAMCITY_AUTOMATION_SERVICE_WRONG_PASSWORD" to wrongPassword,
         ),
     )
 }
@@ -84,7 +89,7 @@ fun String.getPort() =
     when (this) {
         "teamcity22", "teamcity26" -> 8111
         "comp-reg" -> 4567
-        "tas" -> 8080
+        "tas22", "tas26", "tas-wrong" -> 8080
         else -> throw GradleException("Unknown service '$this'")
     }
 
@@ -171,17 +176,27 @@ ocTemplate {
     }
 
     group("teamcityAutomationService").apply {
-        service("tas") {
-            templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-automation-service.yaml"))
-            parameters.set(
-                commonOkdParameters + mapOf(
-                    "OCTOPUS_GITHUB_DOCKER_REGISTRY" to "octopusGithubDockerRegistry".getExt(),
-                    "TEAMCITY_AUTOMATION_SERVICE_VERSION" to version as String,
-                    "APPLICATION_FT_CONTENT" to serviceConfig.asFile.readText(),
-                    "ALLOWED_TEAMCITY_URLS" to listOf("teamcity22", "teamcity26").joinToString(",") { "http://${getOkdInternalHost(it)}" },
-                    "ALLOWED_COMPONENTS_REGISTRY_URLS" to "http://${getOkdInternalHost("comp-reg")}",
-                ),
-            )
+        // One service instance per TeamCity, as the service works with exactly one; the last has a wrong password.
+        listOf(
+            Triple("tas22", "teamcity22", "admin"),
+            Triple("tas26", "teamcity26", "admin"),
+            Triple("tas-wrong", "teamcity22", wrongPassword),
+        ).forEach { (name, teamcity, password) ->
+            service(name) {
+                templateFile.set(rootProject.layout.projectDirectory.file("okd/teamcity-automation-service.yaml"))
+                parameters.set(
+                    commonOkdParameters + mapOf(
+                        "OCTOPUS_GITHUB_DOCKER_REGISTRY" to "octopusGithubDockerRegistry".getExt(),
+                        "TEAMCITY_AUTOMATION_SERVICE_VERSION" to version as String,
+                        "APPLICATION_FT_CONTENT" to serviceConfig.asFile.readText(),
+                        "TAS_ID" to name.removePrefix("tas"),
+                        "TAS_TEAMCITY_URL" to "http://${getOkdInternalHost(teamcity)}",
+                        "TAS_TEAMCITY_USERNAME" to "admin",
+                        "TAS_TEAMCITY_PASSWORD" to password,
+                        "TAS_COMPONENTS_REGISTRY_URL" to "http://${getOkdInternalHost("comp-reg")}",
+                    ),
+                )
+            }
         }
     }
 }
@@ -236,15 +251,15 @@ val ft by tasks.creating(Test::class) {
     testClassesDirs = sourceSets["ft"].output.classesDirs
     classpath = sourceSets["ft"].runtimeClasspath
 
-    // Hosts as the tests reach them, and as the service reaches TeamCity and the registry.
+    // Hosts as the tests reach them; the service reaches TeamCity and the registry through its own configuration.
+    systemProperties["test.wrong-account-password"] = wrongPassword
     when ("testPlatform".getExt()) {
         "okd" -> {
-            systemProperties["test.teamcity-automation-service-host"] = ocTemplate.getOkdHost("tas")
             systemProperties["test.teamcity-2022-host"] = ocTemplate.getOkdHost("teamcity22")
             systemProperties["test.teamcity-2026-host"] = ocTemplate.getOkdHost("teamcity26")
-            systemProperties["test.teamcity-2022-host-for-service"] = getOkdInternalHost("teamcity22")
-            systemProperties["test.teamcity-2026-host-for-service"] = getOkdInternalHost("teamcity26")
-            systemProperties["test.components-registry-host-for-service"] = getOkdInternalHost("comp-reg")
+            systemProperties["test.service-2022-host"] = ocTemplate.getOkdHost("tas22")
+            systemProperties["test.service-2026-host"] = ocTemplate.getOkdHost("tas26")
+            systemProperties["test.service-wrong-account-host"] = ocTemplate.getOkdHost("tas-wrong")
             dependsOn(
                 "ocCreateTeamcityServers",
                 "ocCreateComponentsRegistry",
@@ -260,12 +275,11 @@ val ft by tasks.creating(Test::class) {
             )
         }
         "docker" -> {
-            systemProperties["test.teamcity-automation-service-host"] = "localhost:8080"
             systemProperties["test.teamcity-2022-host"] = "localhost:8111"
             systemProperties["test.teamcity-2026-host"] = "localhost:8112"
-            systemProperties["test.teamcity-2022-host-for-service"] = "teamcity-2022:8111"
-            systemProperties["test.teamcity-2026-host-for-service"] = "teamcity-2026:8111"
-            systemProperties["test.components-registry-host-for-service"] = "components-registry-service:4567"
+            systemProperties["test.service-2022-host"] = "localhost:8080"
+            systemProperties["test.service-2026-host"] = "localhost:8081"
+            systemProperties["test.service-wrong-account-host"] = "localhost:8082"
             finalizedBy("composeLogs")
         }
     }

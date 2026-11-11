@@ -18,17 +18,19 @@ import org.octopusden.octopus.infrastructure.teamcity.client.dto.TeamcityStep
 import org.octopusden.octopus.infrastructure.teamcity.client.getBuildType
 import org.octopusden.octopus.infrastructure.teamcity.client.getProject
 import org.octopusden.octopus.infrastructure.teamcity.client.getSnapshotDependencies
+import org.octopusden.octopus.teamcityautomationservice.client.impl.ClassicTeamcityAutomationServiceClient
+import org.octopusden.octopus.teamcityautomationservice.client.impl.TeamcityAutomationServiceClientParametersProvider
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.Base64
 
-/** A TeamCity server as the tests reach it, and as the service reaches it inside the compose network. */
+/** A TeamCity server as the tests reach it, and the service instance that works with it. */
 data class TeamcityServer(
     val name: String,
     val host: String,
-    val hostForService: String,
+    val serviceHost: String,
 ) {
     val client =
         TeamcityClassicClient(
@@ -36,6 +38,18 @@ data class TeamcityServer(
                 override fun getApiUrl() = host
 
                 override fun getAuth() = StandardBasicCredCredentialProvider(ADMIN, ADMIN)
+            },
+        )
+
+    /** The service instance that works with this server. */
+    val service =
+        ClassicTeamcityAutomationServiceClient(
+            object : TeamcityAutomationServiceClientParametersProvider {
+                override fun getApiUrl() = "http://$serviceHost"
+
+                override fun getConnectTimeoutInMillis() = 10_000
+
+                override fun getReadTimeoutInMillis() = 120_000
             },
         )
 
@@ -47,8 +61,6 @@ data class TeamcityServer(
         runCatching { client.deleteProject(PARENT_PROJECT) }
         createUser(TEST_USER, TEST_USER)
         createUser(TEST_USER_2, TEST_USER_2)
-        // The account the service works as: its own password, so the logs can be searched for it.
-        createUser(SERVICE_USER, SERVICE_PASSWORD, systemAdmin = true)
         client.createProject(TeamcityCreateProject(PARENT_PROJECT, PARENT_PROJECT, TeamcityLinkProject("RDDepartment")))
         client.setParameter(ConfigurationType.PROJECT, PARENT_PROJECT, "JDK_VERSION", "1.8")
         TEMPLATES.forEach {
@@ -102,13 +114,12 @@ data class TeamcityServer(
     private fun createUser(
         username: String,
         password: String,
-        systemAdmin: Boolean = false,
     ) {
         val response =
             HttpClient.newHttpClient().send(
                 adminRequest("$host/app/rest/users")
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(userJson(username, password, systemAdmin)))
+                    .POST(HttpRequest.BodyPublishers.ofString(userJson(username, password)))
                     .build(),
                 HttpResponse.BodyHandlers.ofString(),
             )
@@ -122,14 +133,7 @@ data class TeamcityServer(
     private fun userJson(
         username: String,
         password: String,
-        systemAdmin: Boolean,
-    ): String {
-        val user = mutableMapOf<String, Any>("username" to username, "password" to password)
-        if (systemAdmin) {
-            user["roles"] = mapOf("role" to listOf(mapOf("roleId" to "SYSTEM_ADMIN", "scope" to "g")))
-        }
-        return ObjectMapper().writeValueAsString(user)
-    }
+    ) = ObjectMapper().writeValueAsString(mapOf("username" to username, "password" to password))
 
     private fun setPassword(
         username: String,
@@ -161,12 +165,6 @@ data class TeamcityServer(
         const val ADMIN = "admin"
         const val TEST_USER = "testuser"
         const val TEST_USER_2 = "testuser2"
-        const val SERVICE_USER = "ft-service"
-
-        /** Fresh per run; the log check searches for it. */
-        val SERVICE_PASSWORD = java.util.UUID
-            .randomUUID()
-            .toString()
 
         // BuildChainConfig defaults of the library; the "Releae" typo is the real template id.
         const val GRADLE_COMPILE_TEMPLATE = "CDGradleBuild"

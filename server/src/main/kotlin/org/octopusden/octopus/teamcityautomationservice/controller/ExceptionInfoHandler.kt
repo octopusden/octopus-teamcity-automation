@@ -6,6 +6,7 @@ import org.octopusden.octopus.teamcityautomationservice.client.common.dto.Teamci
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.AlreadyExistsException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.PartiallyCreatedException
 import org.octopusden.octopus.teamcityautomationservice.client.common.exception.TeamcityAutomationServiceException
+import org.octopusden.octopus.teamcityautomationservice.config.RemovedRequestFieldsModule
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -19,7 +20,7 @@ import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 /**
  * Every error body is built from the service's own messages. Messages of foreign exceptions are not
- * returned: they can quote request content, and the request carries a password.
+ * returned: they can quote request content or upstream responses.
  */
 @RestControllerAdvice
 class ExceptionInfoHandler {
@@ -49,7 +50,7 @@ class ExceptionInfoHandler {
     @ExceptionHandler(MethodArgumentNotValidException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleMethodArgumentNotValid(exception: MethodArgumentNotValidException): ErrorResponse {
-        // Field and constraint only: the rejected value may be the password.
+        // Field and constraint only: the rejected value is not echoed.
         val message = exception.bindingResult.fieldErrors
             .joinToString("; ") { fieldError -> "${fieldError.field}: ${fieldError.defaultMessage}" }
         log.warn("Invalid request: {}", message)
@@ -59,6 +60,11 @@ class ExceptionInfoHandler {
     @ExceptionHandler(HttpMessageNotReadableException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleMessageNotReadable(exception: HttpMessageNotReadableException): ErrorResponse {
+        val removed = exception.cause as? RemovedRequestFieldsModule.RemovedFieldException
+        if (removed != null) {
+            log.warn("Invalid request: removed field '{}' is present", removed.field)
+            return ErrorResponse(TeamcityAutomationServiceErrorCode.VALIDATION, removed.clientMessage())
+        }
         val field = (exception.cause as? JsonMappingException)
             ?.path
             ?.joinToString(".") { it.fieldName ?: "[${it.index}]" }
